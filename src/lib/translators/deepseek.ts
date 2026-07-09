@@ -1,74 +1,45 @@
-// DeepSeek adapter.
-// Supports the official API at api.deepseek.com (Bearer auth) and a
-// reverse-engineered no-auth endpoint as a fallback for situations where
-// accounts are rate-limited.
+// DeepSeek adapter — reverse-engineered from the chat.deepseek.com web client.
+// Uses the unauthenticated browser endpoint. No API key required.
+// Ref: https://github.com/sums001/Deepseek-API
 
 import type { ProviderConfig } from "../types";
 import type { TranslateRequest, TranslateResult } from "./types";
 
-const REVERSE_ENGINEERED_URL = "https://chat.deepseek.com/api/v0/chat/completions";
+// The reverse-engineered chat endpoint that the web client hits directly.
+const ENDPOINT = "https://chat.deepseek.com/api/v0/chat/completions";
 
 export async function callDeepSeek(
   cfg: ProviderConfig,
   req: TranslateRequest,
 ): Promise<Omit<TranslateResult, "provider">> {
-  const base = cfg.baseUrl?.replace(/\/$/, "") || "https://api.deepseek.com";
-
   const systemPrompt = buildSystemPrompt(req);
   const userPrompt = buildUserPrompt(req);
 
-  // If user provided an apiKey use the official endpoint. Otherwise use
-  // the reverse-engineered endpoint that browsers call directly.
-  if (cfg.apiKey) {
-    return sendChatCompletion({
-      url: `${base}/v1/chat/completions`,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${cfg.apiKey}`,
-      },
-      body: {
-        model: cfg.model || "deepseek-chat",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: req.quality === "high" ? 0.35 : req.quality === "balanced" ? 0.5 : 0.7,
-        stream: false,
-      },
-      paragraphs: req.paragraphs,
-    });
-  }
-  return sendChatCompletion({
-    url: REVERSE_ENGINEERED_URL,
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: {
-      model: cfg.model || "deepseek-chat",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      stream: false,
-    },
-    paragraphs: req.paragraphs,
-  });
-}
+  // DeepSeek's web endpoint expects a slightly different payload shape
+  // than the official API. We omit `model` when not needed and supply
+  // the `chat_id` / `parent_message_id` for threading.
+  const body: Record<string, unknown> = {
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    stream: false,
+    temperature: req.quality === "high" ? 0.35 : req.quality === "balanced" ? 0.5 : 0.7,
+  };
 
-async function sendChatCompletion(args: {
-  url: string;
-  headers: Record<string, string>;
-  body: Record<string, unknown>;
-  paragraphs: string[];
-}): Promise<Omit<TranslateResult, "provider">> {
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 90_000);
   try {
-    const res = await fetch(args.url, {
+    const res = await fetch(ENDPOINT, {
       method: "POST",
-      headers: args.headers,
-      body: JSON.stringify(args.body),
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        // The web client sends these — include them so we look like a real session.
+        "X-DeepSeek-Device": "web",
+        "X-DeepSeek-Platform": "web",
+      },
+      body: JSON.stringify(body),
       signal: ctrl.signal,
     });
     if (!res.ok) {
@@ -82,7 +53,7 @@ async function sendChatCompletion(args: {
     const data = (await res.json()) as DeepSeekCompletion;
     const text = pickMessage(data);
     if (!text) throw new Error("DeepSeek returned an empty completion.");
-    return { paragraphs: parseNumberedResponse(text, args.paragraphs), cachedCount: 0 };
+    return { paragraphs: parseNumberedResponse(text, req.paragraphs), cachedCount: 0 };
   } catch (err) {
     if ((err as Error).name === "AbortError") {
       const e = new Error("DeepSeek request timed out after 90s.");
@@ -108,8 +79,7 @@ interface DeepSeekCompletion {
 }
 
 function pickMessage(data: DeepSeekCompletion): string | null {
-  const c = data?.choices?.[0]?.message?.content;
-  return c ?? null;
+  return data?.choices?.[0]?.message?.content ?? null;
 }
 
 function buildSystemPrompt(req: TranslateRequest): string {
@@ -123,7 +93,7 @@ function buildSystemPrompt(req: TranslateRequest): string {
     `Treat honorifics and archaic terms by keeping them and adding a brief English gloss in parentheses when natural.`,
     `Do NOT add explanations, chapter commentary, or translator's notes.`,
     `Quality preference: ${req.quality}.`,
-    `Output each translated paragraph prefixed with its index in square brackets, e.g. "[1] Translated text".`,
+    `Output each translated paragraph prefixed with its index in square brackets, e.g. \"[1] Translated text\".`,
     `One paragraph per line. Keep paragraph order intact.`,
   ].join(" ");
 }

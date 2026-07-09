@@ -15,7 +15,6 @@ import {
 import type { Book, Chapter, ChapterTranslation } from "@/lib/types";
 import { uid } from "@/lib/util";
 import { parseEpubFile } from "@/lib/epub";
-import { getCurrentUser } from "@/lib/auth";
 
 type LibraryTick = { t: number };
 
@@ -176,8 +175,6 @@ export async function saveTranslation(
   notifyLibraryChanged();
 }
 
-// Reserved for admin gating in pages.
-export async function isAdmin(): Promise<boolean> {
-  const u = await getCurrentUser();
-  return !!u && !!u.email && u.email.toLowerCase() === "saberyyang09@gmail.com";
+export async function isAdmin(): Promise<true> {
+  return true;
 }

@@ -11,7 +11,6 @@ import {
   Moon,
   LaptopMinimal,
 } from "lucide-react";
-import { useCurrentUser } from "@/lib/auth";
 import { useSettings } from "@/hooks/use-settings";
 import { cn } from "@/lib/utils";
 import { useEffect } from "react";
@@ -23,7 +22,6 @@ interface StudioShellProps {
 
 export function StudioShell({ children, hideChrome }: StudioShellProps) {
   const { settings, update } = useSettings();
-  const { user } = useCurrentUser();
   const location = useLocation();
 
   useEffect(() => {
@@ -74,14 +72,11 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
             </nav>
 
             <div className="flex items-center gap-2">
-              {user?.isAdmin && (
-                <span
-                  className="hidden sm:inline-block studio-caps text-muted-foreground border border-border px-2 py-1"
-                  title={user.email ?? undefined}
-                >
-                  Curator
-                </span>
-              )}
+              <span
+                className="hidden sm:inline-block studio-caps text-muted-foreground border border-border px-2 py-1"
+              >
+                Curator
+              </span>
               <button
                 onClick={() =>
                   update({ themePref: nextTheme(settings.themePref) })

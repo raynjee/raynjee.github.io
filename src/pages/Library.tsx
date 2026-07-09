@@ -26,26 +26,14 @@ import {
   reorderChapters,
   saveTranslation,
 } from "@/hooks/use-library";
-import { useCurrentUser } from "@/lib/auth";
 import { getTranslation, listChapters } from "@/lib/db";
 import type { Book, Chapter, ChapterTranslation } from "@/lib/types";
 import { toast } from "sonner";
 
 export default function Library() {
   const { books, refresh, loading } = useLibrary();
-  const { user, loading: authLoading, authenticated } = useCurrentUser();
   const navigate = useNavigate();
-  const asAdmin = !!user?.isAdmin;
-
-  // If sign-in is complete but not the admin, show a "stewardship" note.
-  const restrictedMode = authenticated && !asAdmin && !authLoading;
-
-  // Route guards.
-  useEffect(() => {
-    if (!authLoading && !authenticated) {
-      navigate("/auth?next=/library", { replace: true });
-    }
-  }, [authLoading, authenticated, navigate]);
+  const asAdmin = true; // No auth — everyone is the curator.
 
   return (
     <StudioShell>
@@ -63,17 +51,6 @@ export default function Library() {
           </div>
           {asAdmin && <UploadZone onUploaded={refresh} />}
         </header>
-
-        {restrictedMode && (
-          <div className="mt-8 p-6 border border-border bg-card">
-            <div className="studio-caps text-muted-foreground">Visitor</div>
-            <p className="mt-2 text-foreground/80 leading-relaxed max-w-[60ch]">
-              You are signed in as {user?.email ?? "a guest"}. The library is
-              curated by the studio's administrator — open a volume to read its
-              translations.
-            </p>
-          </div>
-        )}
 
         <div className="mt-10">
           {loading ? (

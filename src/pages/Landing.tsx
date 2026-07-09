@@ -16,7 +16,6 @@ import {
   Scroll,
 } from "lucide-react";
 import { StudioShell } from "@/components/StudioShell";
-import { useCurrentUser } from "@/lib/auth";
 
 const FADE = {
   hidden: { opacity: 0, y: 12 },
@@ -28,18 +27,10 @@ const STAGGER = {
 };
 
 export default function Landing() {
-  const { user, loading, authenticated } = useCurrentUser();
   const navigate = useNavigate();
 
-  const enterLabel = loading
-    ? "Preparing studio…"
-    : authenticated
-      ? user?.isAdmin
-        ? "Enter the library"
-        : "Continue as guest"
-      : "Begin →";
-
-  const enterTo = authenticated ? "/library" : "/auth?next=/library";
+  const enterLabel = "Enter the library";
+  const enterTo = "/library";
 
   return (
     <StudioShell>

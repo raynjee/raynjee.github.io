@@ -13,13 +13,11 @@ import { StudioShell } from "@/components/StudioShell";
 import { useSettings } from "@/hooks/use-settings";
 import { PROVIDERS, TranslationManager } from "@/lib/translators/types";
 import { buildBackup, restoreBackup, listLogs, appendLog } from "@/lib/db";
-import { useCurrentUser } from "@/lib/auth";
 import { toast } from "sonner";
 import { formatRelativeTime } from "@/lib/util";
 import type { ApiCallLog, ProviderId, StudioSettings, Quality, SourceLanguage } from "@/lib/types";
 
 export default function SettingsPage() {
-  const { user } = useCurrentUser();
   const { settings, update } = useSettings();
 
   return (
@@ -31,17 +29,12 @@ export default function SettingsPage() {
           API keys, translation preferences, and the studio's housekeeping.
           Everything saved here lives on your machine.
         </p>
-        {!user?.isAdmin && (
-          <p className="text-xs text-muted-foreground mt-2 max-w-[58ch]">
-            Tip: only the curator can edit API keys. Sign in with saberyyang09@gmail.com.
-          </p>
-        )}
 
         <div className="mt-10 space-y-10">
-          <ProviderSettings settings={settings} update={update} canEdit={!!user?.isAdmin} />
-          <TranslationPreferences settings={settings} update={update} canEdit={!!user?.isAdmin} />
+          <ProviderSettings settings={settings} update={update} canEdit={true} />
+          <TranslationPreferences settings={settings} update={update} canEdit={true} />
           <LogsCard />
-          <BackupPanel canEdit={!!user?.isAdmin} />
+          <BackupPanel canEdit={true} />
         </div>
       </div>
     </StudioShell>

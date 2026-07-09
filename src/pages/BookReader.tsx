@@ -22,7 +22,6 @@ import { StudioShell } from "@/components/StudioShell";
 import { useLibrary, notifyLibraryChanged, saveTranslation } from "@/hooks/use-library";
 import { listChapters, getChapter, getTranslation } from "@/lib/db";
 import type { Book, Chapter, ChapterTranslation } from "@/lib/types";
-import { useCurrentUser } from "@/lib/auth";
 import { useSettings } from "@/hooks/use-settings";
 import { TranslationManager } from "@/lib/translators/types";
 import { ApiStatusPill } from "@/components/studio/ApiStatusPill";
@@ -35,7 +34,6 @@ export default function BookReader() {
   const { bookId, chapterId } = useParams();
   const { books } = useLibrary();
   const navigate = useNavigate();
-  const { user } = useCurrentUser();
 
   const book = books.find((b) => b.id === bookId);
   const [chapters, setChapters] = useState<Chapter[]>([]);
