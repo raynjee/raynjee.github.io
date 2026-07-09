@@ -29,6 +29,7 @@ import {
 import { getTranslation, listChapters } from "@/lib/db";
 import type { Book, Chapter, ChapterTranslation } from "@/lib/types";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function Library() {
   const { books, refresh, loading } = useLibrary();
@@ -124,26 +125,75 @@ function BookTileContainer({
 function UploadZone({ onUploaded }: { onUploaded: () => Promise<void> }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
+  // Counter-based drag tracking so children don't flicker the highlight when
+  // the pointer crosses nested elements (icon, label, hint).
+  const [dragDepth, setDragDepth] = useState(0);
+  const dragActive = dragDepth > 0;
 
   const onPick = () => inputRef.current?.click();
 
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
+    const all = Array.from(files);
+    const epubs = all.filter(
+      (f) => /\.epub$/i.test(f.name) || f.type === "application/epub+zip"
+    );
+    const skipped = all.length - epubs.length;
+    if (epubs.length === 0) {
+      toast.error("No .epub files in that drop.");
+      return;
+    }
     setBusy(true);
-    for (const file of Array.from(files)) {
+    for (const file of epubs) {
       try {
         await importEpubFile(file);
         toast.success(`"${file.name}" imported.`);
       } catch (e) {
-        toast.error(`Failed to import "${file.name}": ${e instanceof Error ? e.message : "unknown"}`);
+        toast.error(
+          `Failed to import "${file.name}": ${
+            e instanceof Error ? e.message : "unknown error"
+          }`
+        );
       }
     }
     setBusy(false);
+    if (skipped > 0) {
+      toast.message(
+        `Skipped ${skipped} non-${skipped === 1 ? ".epub file" : ".epub files"}.`
+      );
+    }
     await onUploaded();
   };
 
+  const onDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer.types?.includes("Files")) {
+      setDragDepth((d) => d + 1);
+    }
+  };
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragDepth((d) => Math.max(0, d - 1));
+  };
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragDepth(0);
+    void onFiles(e.dataTransfer.files);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onPick();
+    }
+  };
+
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-col items-stretch sm:items-end gap-3">
       <input
         ref={inputRef}
         type="file"
@@ -152,16 +202,58 @@ function UploadZone({ onUploaded }: { onUploaded: () => Promise<void> }) {
         className="hidden"
         onChange={(e) => onFiles(e.target.files)}
       />
+
       <button
         onClick={onPick}
         disabled={busy}
-        className="h-11 px-5 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
+        className="h-11 px-5 inline-flex items-center justify-center gap-2 bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
       >
         <Upload className="w-4 h-4" strokeWidth={1.5} />
         <span className="text-sm uppercase tracking-[0.18em]">
           {busy ? "Reading…" : "Import EPUB"}
         </span>
       </button>
+
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onPick}
+        onKeyDown={onKeyDown}
+        onDragEnter={onDragEnter}
+        onDragLeave={onDragLeave}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+        aria-label="Drag EPUB files here to import, or click to browse"
+        className={cn(
+          "w-full sm:w-[340px] px-5 py-6 border border-dashed text-center transition-colors select-none cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-foreground/40",
+          dragActive
+            ? "border-foreground bg-accent/60"
+            : "border-border hover:border-foreground/40 hover:bg-accent/30"
+        )}
+      >
+        <div className="grid place-items-center gap-2.5">
+          <Upload
+            className={cn(
+              "w-4 h-4 transition-colors",
+              dragActive ? "text-foreground" : "text-muted-foreground"
+            )}
+            strokeWidth={1.4}
+          />
+          <div
+            className={cn(
+              "studio-caps transition-colors",
+              dragActive ? "text-foreground" : "text-muted-foreground"
+            )}
+          >
+            {dragActive
+              ? "Release to add to the gallery"
+              : "Or drop .epub file(s) here"}
+          </div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
+            {busy ? "Parsing…" : "Multiple allowed · .epub"}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
