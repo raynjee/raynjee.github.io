@@ -55,7 +55,12 @@ export async function parseEpubFile(file: File): Promise<ParsedEpub> {
     const item = manifest[itemId];
     if (!item) continue;
     const href = resolveHref(item.href, opfDir);
-    if (!/\.(x?html?)$/i.test(href)) continue;
+    // Accept any XHTML/HTML — by extension OR by declared media-type. JP light
+    // novel EPUBs occasionally ship .xht or rely solely on the mimetype.
+    const looksHtml =
+      /\.(x?html?|xht)$/i.test(href) ||
+      /xhtml|html/i.test(item.mediaType ?? "");
+    if (!looksHtml) continue;
     const xhtml = await readText(zip, href);
     if (!xhtml) continue;
     const { title, paragraphs } = htmlToParagraphs(xhtml, idx, item.href);
@@ -204,10 +209,20 @@ async function resolveCover(
 }
 
 function resolveHref(href: string, baseDir: string): string {
-  if (href.startsWith("/")) return href.slice(1);
-  if (!baseDir) return href;
-  // basic join without URL — EPUBs use forward slashes inside zips
-  return baseDir + href;
+  if (!href) return href;
+  // URLs inside zips may be percent-encoded (rare but seen in some
+  // publisher-generated EPUBs). Decode defensively before resolving.
+  try {
+    const decoded = decodeURIComponent(href);
+    if (decoded.startsWith("/")) return decoded.slice(1);
+    if (!baseDir) return decoded;
+    // basic join without URL — EPUBs use forward slashes inside zips
+    return baseDir + decoded;
+  } catch {
+    // Malformed %xx escapes; fall back to the raw href rather than failing.
+    if (href.startsWith("/")) return href.slice(1);
+    return (baseDir || "") + href;
+  }
 }
 
 // ── HTML → paragraphs ────────────────────────────────────────────────────
@@ -218,15 +233,23 @@ function htmlToParagraphs(
   href: string,
 ): { title: string; paragraphs: string[] } {
   const stripped = stripScriptsAndStyles(html);
-  // Use a lightweight DOM parser to walk the document and pull out paragraphs
-  // and headings in document order.
+  // Prefer the lenient text/html parser first; the strict application/xhtml+xml
+  // path returns a <parsererror> doc for many JP light-novel EPUBs whose
+  // XHTML isn't well-formed (unclosed tags, mixed case, etc.). We only fall
+  // back to strict XHTML if the lenient parse returns nothing usable.
   const parser = new DOMParser();
-  const doc = parser.parseFromString(stripped, "application/xhtml+xml");
-  // Fall back to text/html if xhtml parse fails
-  const root =
-    doc.querySelector("body") ??
-    doc.documentElement ??
-    parser.parseFromString(stripped, "text/html").body;
+  let doc = parser.parseFromString(stripped, "text/html");
+  let root: Element | null =
+    (doc.body as Element | null) ?? (doc.documentElement as Element | null);
+  if (
+    !root ||
+    (root.tagName || "").toLowerCase() === "parsererror" ||
+    root.querySelector?.("parsererror")
+  ) {
+    doc = parser.parseFromString(stripped, "application/xhtml+xml");
+    root =
+      (doc.body as Element | null) ?? (doc.documentElement as Element | null);
+  }
   const blocks: string[] = [];
   let titleGuess = "";
   const walker = (node: Node) => {
@@ -268,17 +291,43 @@ function htmlToParagraphs(
   };
   if (root) for (const c of Array.from(root.childNodes)) walker(c);
   // Filter empties
-  const paragraphs = blocks
+  let paragraphs = blocks
     .map((p) => p.trim())
     .filter((p) => p.length > 0);
+
+  // Last-resort regex extraction: some publisher EPUBs wrap every line in
+  // <span>s, or use non-standard tags our walker doesn't know about, or
+  // ship body content the DOM parser refuses to walk. Pull <p> and <h1–6>
+  // blocks straight from the source as a safety net.
+  if (paragraphs.length === 0) {
+    paragraphs = regexExtractParagraphs(stripped);
+  }
 
   const title =
     titleGuess ||
     (paragraphs[0] ? paragraphs[0].slice(0, 48) : `Chapter ${idx + 1}`);
-  const finalTitle =
-    title.length > 80 ? `${title.slice(0, 77)}…` : title;
+  const finalTitle = title.length > 80 ? `${title.slice(0, 77)}…` : title;
   void href; // unused
   return { title: finalTitle, paragraphs };
+}
+
+// Regex-based paragraph fallback for chapter HTML that the DOM walker
+// couldn't make sense of. Pulls <p>…</p> and <h1>…</h1>…<h6>…</h6> blocks,
+// strips any nested tags, and collapses whitespace.
+function regexExtractParagraphs(s: string): string[] {
+  const out: string[] = [];
+  const collect = (re: RegExp) => {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(s)) !== null) {
+      const inner = (m[2] !== undefined ? m[2] : m[1]) ?? "";
+      const text = collapseWhitespace(inner.replace(/<[^>]+>/g, " "));
+      if (text) out.push(text);
+    }
+  };
+  collect(/<p\b[^>]*>([\s\S]*?)<\/p>/gi);
+  collect(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi);
+  return out;
 }
 
 function stripScriptsAndStyles(html: string): string {
