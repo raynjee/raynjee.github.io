@@ -43,6 +43,12 @@ export default function BookReader() {
   const [progress, setProgress] = useState<{ done: number; total: number; provider: any } | null>(null);
   const managerRef = useRef<TranslationManager | null>(null);
   const stopRef = useRef(false);
+  // Track whether the component is still mounted so long-running translates
+  // (especially batch mode) don't setState after the user navigates away.
+  const mountedRef = useRef(true);
+  useEffect(() => () => {
+    mountedRef.current = false;
+  }, []);
   const { settings } = useSettings();
 
   // Load all chapters + translations when the book opens
@@ -126,34 +132,42 @@ export default function BookReader() {
     stopRef.current = false;
     const mgr = makeManager();
     managerRef.current = mgr;
-    const result = await mgr.translateChapter({
-      paragraphs: activeChapter.paragraphs,
-      contextHint: `Chapter: ${activeChapter.title}. From ${book.title}.`,
-      onProgress: (p) => setProgress({ done: p.done, total: p.total, provider: p.provider }),
-    });
-    const tr: ChapterTranslation = {
-      id: `${book.id}:${activeChapter.id}`,
-      bookId: book.id,
-      chapterId: activeChapter.id,
-      paragraphs: result.rows.map((r, i) =>
-        r && r.trim() && r.trim() !== activeChapter.paragraphs[i].trim() ? r : null,
-      ),
-      status: result.failed ? "error" : "completed",
-      startedAt: Date.now(),
-      completedAt: Date.now(),
-      provider: result.provider,
-      progress: result.failed
-        ? Math.min(1, (activeChapter.paragraphs.filter((p) => p).length))
-        : 1,
-      error: result.failed ? "One or more providers failed. Verify API keys in Settings." : undefined,
-    };
-    await saveTranslation(tr);
-    setTranslations((m) => ({ ...m, [activeChapter.id]: tr }));
-    notifyLibraryChanged();
-    setBusy(false);
-    setProgress(null);
-    if (!result.failed) toast.success("Chapter translated.");
-    else toast.warning("Some paragraphs could not be translated — check provider status.");
+    try {
+      const result = await mgr.translateChapter({
+        paragraphs: activeChapter.paragraphs,
+        contextHint: `Chapter: ${activeChapter.title}. From ${book.title}.`,
+        onProgress: (p) => setProgress({ done: p.done, total: p.total, provider: p.provider }),
+      });
+      const tr: ChapterTranslation = {
+        id: `${book.id}:${activeChapter.id}`,
+        bookId: book.id,
+        chapterId: activeChapter.id,
+        paragraphs: result.rows.map((r, i) =>
+          r && r.trim() && r.trim() !== activeChapter.paragraphs[i].trim() ? r : null,
+        ),
+        status: result.failed ? "error" : "completed",
+        startedAt: Date.now(),
+        completedAt: Date.now(),
+        provider: result.provider,
+        progress: result.failed
+          ? Math.min(1, (activeChapter.paragraphs.filter((p) => p).length))
+          : 1,
+        error: result.failed ? "One or more providers failed. Verify API keys in Settings." : undefined,
+      };
+      await saveTranslation(tr);
+      setTranslations((m) => ({ ...m, [activeChapter.id]: tr }));
+      notifyLibraryChanged();
+      if (!result.failed) toast.success("Chapter translated.");
+      else toast.warning("Some paragraphs could not be translated — check provider status.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Translation failed: ${msg.slice(0, 200)}`);
+    } finally {
+      if (mountedRef.current) {
+        setBusy(false);
+        setProgress(null);
+      }
+    }
   };
 
   const batchProgress = useRef({ done: 0, total: 0 });
@@ -176,57 +190,99 @@ export default function BookReader() {
     batchProgress.current = { done: 0, total: remaining.length };
     const mgr = makeManager();
     managerRef.current = mgr;
-    for (const c of remaining) {
-      if (stopRef.current) break;
-      setActiveId(c.id);
-      const loadingTr: ChapterTranslation = {
-        id: `${book.id}:${c.id}`,
-        bookId: book.id,
-        chapterId: c.id,
-        paragraphs: Array(c.paragraphs.length).fill(null),
-        status: "in_progress",
-        provider: null,
-        progress: 0,
-      };
-      setTranslations((m) => ({ ...m, [c.id]: loadingTr }));
-      await saveTranslation(loadingTr);
-      const result = await mgr.translateChapter({
-        paragraphs: c.paragraphs,
-        contextHint: `Chapter: ${c.title}. From ${book.title}.`,
-        onProgress: (p) => {
-          setProgress({ done: p.done, total: p.total, provider: p.provider });
-          setTranslations((m) => ({
-            ...m,
-            [c.id]: {
-              ...(m[c.id] ?? loadingTr),
-              progress: p.total ? p.done / p.total : 0,
-              provider: p.provider,
-              status: "in_progress",
+    try {
+      for (const c of remaining) {
+        // Bail if the user paused OR the component has unmounted (we don't
+        // want to keep burning LLM credits or setState on a dead component).
+        if (stopRef.current || !mountedRef.current) break;
+        setActiveId(c.id);
+        const loadingTr: ChapterTranslation = {
+          id: `${book.id}:${c.id}`,
+          bookId: book.id,
+          chapterId: c.id,
+          paragraphs: Array(c.paragraphs.length).fill(null),
+          status: "in_progress",
+          provider: null,
+          progress: 0,
+        };
+        setTranslations((m) => ({ ...m, [c.id]: loadingTr }));
+        try {
+          await saveTranslation(loadingTr);
+        } catch (err) {
+          // In-memory state is already set; if persistence failed we still
+          // proceed. Log so the issue is at least visible.
+          console.error("Failed to persist in-progress marker", err);
+        }
+        try {
+          const result = await mgr.translateChapter({
+            paragraphs: c.paragraphs,
+            contextHint: `Chapter: ${c.title}. From ${book.title}.`,
+            onProgress: (p) => {
+              if (!mountedRef.current) return;
+              setProgress({ done: p.done, total: p.total, provider: p.provider });
+              setTranslations((m) => ({
+                ...m,
+                [c.id]: {
+                  ...(m[c.id] ?? loadingTr),
+                  progress: p.total ? p.done / p.total : 0,
+                  provider: p.provider,
+                  status: "in_progress",
+                },
+              }));
             },
-          }));
-        },
-      });
-      const finalTr: ChapterTranslation = {
-        id: `${book.id}:${c.id}`,
-        bookId: book.id,
-        chapterId: c.id,
-        paragraphs: result.rows.map((r, i) =>
-          r && r.trim() && r.trim() !== c.paragraphs[i].trim() ? r : null,
-        ),
-        status: result.failed ? "error" : "completed",
-        completedAt: Date.now(),
-        provider: result.provider,
-        progress: result.failed ? 0.6 : 1,
-        error: result.failed ? "Provider failures during batch translation." : undefined,
-      };
-      await saveTranslation(finalTr);
-      setTranslations((m) => ({ ...m, [c.id]: finalTr }));
-      batchProgress.current.done += 1;
+          });
+          if (!mountedRef.current) break;
+          const finalTr: ChapterTranslation = {
+            id: `${book.id}:${c.id}`,
+            bookId: book.id,
+            chapterId: c.id,
+            paragraphs: result.rows.map((r, i) =>
+              r && r.trim() && r.trim() !== c.paragraphs[i].trim() ? r : null,
+            ),
+            status: result.failed ? "error" : "completed",
+            completedAt: Date.now(),
+            provider: result.provider,
+            progress: result.failed ? 0.6 : 1,
+            error: result.failed ? "Provider failures during batch translation." : undefined,
+          };
+          await saveTranslation(finalTr);
+          if (!mountedRef.current) break;
+          setTranslations((m) => ({ ...m, [c.id]: finalTr }));
+          batchProgress.current.done += 1;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (!mountedRef.current) break;
+          // Persist the failure so the chapter index doesn't lie about state.
+          const failedTr: ChapterTranslation = {
+            id: `${book.id}:${c.id}`,
+            bookId: book.id,
+            chapterId: c.id,
+            paragraphs: Array(c.paragraphs.length).fill(null),
+            status: "error",
+            provider: null,
+            progress: 0,
+            error: msg.slice(0, 200),
+          };
+          try { await saveTranslation(failedTr); } catch { /* swallow */ }
+          if (!mountedRef.current) break;
+          setTranslations((m) => ({ ...m, [c.id]: failedTr }));
+          toast.error(`Failed translating "${c.title}": ${msg.slice(0, 200)}`);
+          if (settings.pauseOnError) break;
+        }
+      }
+      notifyLibraryChanged();
+      if (mountedRef.current) toast.success("Batch translation complete.");
+    } catch (err) {
+      if (mountedRef.current) {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Batch interrupted: ${msg.slice(0, 200)}`);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setBusy(false);
+        setProgress(null);
+      }
     }
-    setBusy(false);
-    setProgress(null);
-    notifyLibraryChanged();
-    toast.success("Batch translation complete.");
   };
 
   const onPauseToggle = () => {
@@ -445,7 +501,12 @@ export default function BookReader() {
                   const updated = { ...tr, paragraphs: [...tr.paragraphs], provider: res.provider };
                   updated.paragraphs[paragraphIdx] = txt && txt.trim() ? txt : activeChapter.paragraphs[paragraphIdx];
                   updated.status = res.failed ? "error" : "in_progress";
-                  updated.progress = updated.paragraphs.filter((p) => p && p.trim()).length / updated.paragraphs.length;
+                  // Guard against 0/0 → NaN when a chapter has zero paragraphs
+                  // (rare, but possible on bad publisher EPUBs).
+                  updated.progress = updated.paragraphs.length
+                    ? updated.paragraphs.filter((p) => p && p.trim()).length /
+                      updated.paragraphs.length
+                    : 1;
                   await saveTranslation(updated);
                   setTranslations((m) => ({ ...m, [activeChapter.id]: updated }));
                   notifyLibraryChanged();

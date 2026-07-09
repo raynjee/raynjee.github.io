@@ -28,12 +28,19 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
   useEffect(() => {
     const pref = settings.themePref;
     const root = document.documentElement;
-    const prefersDark =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const isDark =
-      pref === "dark" || (pref === "system" && prefersDark);
-    root.classList.toggle("dark", isDark);
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const isDark = pref === "dark" || (pref === "system" && mq.matches);
+      root.classList.toggle("dark", isDark);
+    };
+    apply();
+    // When the user wants to follow the OS, react to the system preference
+    // changing in real time (e.g., a sunset schedule switch).
+    if (pref === "system") {
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    }
+    return undefined;
   }, [settings.themePref]);
 
   const ThemeIcon =

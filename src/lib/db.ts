@@ -171,32 +171,38 @@ export async function deleteBookCascade(id: string): Promise<void> {
   const d = await db();
   await Promise.all([
     tx(d, "books", "readwrite", (s) => s.delete(id)),
-    tx(d, "chapters", "readwrite", (s) => {
-      const req = s.openCursor();
-      req.onsuccess = () => {
-        const cursor = req.result;
-        if (cursor) {
-          const v = cursor.value as Chapter;
-          if (v.bookId === id) cursor.delete();
-          cursor.continue();
-        }
-      };
-      return req;
-    }),
-    tx(d, "translations", "readwrite", (s) => {
-      const req = s.openCursor();
-      req.onsuccess = () => {
-        const cursor = req.result;
-        if (cursor) {
-          const v = cursor.value as ChapterTranslation;
-          if (v.bookId === id) cursor.delete();
-          cursor.continue();
-        }
-      };
-      return req;
-    }),
+    clearByCursor(d, "chapters", (v) => (v as Chapter).bookId === id),
+    clearByCursor(d, "translations", (v) => (v as ChapterTranslation).bookId === id),
     tx(d, "epubs", "readwrite", (s) => s.delete(id)),
   ]);
+}
+
+// Iterate a store with a cursor applying a predicate to every record,
+// resolving only when the transaction fully completes. The store-level
+// `tx()` helper resolves on the first cursor `onsuccess` (one record per
+// cursor step), so we can't reuse it for multi-record deletes — callers
+// would think the delete is done while cursor iterations are still live.
+function clearByCursor(
+  d: IDBDatabase,
+  store: StoreName,
+  predicate: (value: unknown) => boolean,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const t = d.transaction(store, "readwrite");
+    const s = t.objectStore(store);
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error ?? new Error("IndexedDB transaction failed"));
+    t.onabort = () => reject(t.error ?? new Error("IndexedDB transaction aborted"));
+    const req = s.openCursor();
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (cursor) {
+        if (predicate(cursor.value)) cursor.delete();
+        cursor.continue();
+      }
+    };
+    req.onerror = () => reject(req.error);
+  });
 }
 
 // ── Chapters ─────────────────────────────────────────────────────────────

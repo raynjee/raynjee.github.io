@@ -2,7 +2,7 @@
 // studio housekeeping (theme, backup, restore). Includes a tutorial for
 // the DeepSeek local proxy.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Download,
@@ -251,7 +251,7 @@ function ProviderSettings({
                     <input
                       disabled={!canEdit}
                       value={cfg.baseUrl ?? ""}
-                      placeholder="http://127.0.0.1:8081/v1"
+                      placeholder="http://127.0.0.1:8001/v1"
                       onChange={(e) =>
                         update({
                           providers: settings.providers.map((p) =>
@@ -458,7 +458,20 @@ function TranslationPreferences({
 
 function LogsCard() {
   const [logs, setLogs] = useState<ApiCallLog[]>([]);
-  useState(() => { void (async () => setLogs(await listLogs()))(); });
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await listLogs();
+        if (!cancelled) setLogs(list);
+      } catch (err) {
+        console.error("listLogs failed", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   return <LogsView logs={logs} />;
 }
 

@@ -465,7 +465,7 @@ async function saveProviderStatus(s: ProviderStatus[]) {
 
 async function testDeepSeek(cfg: ProviderConfig) {
   // The proxy runs locally — send a trivial prompt to verify the roundtrip.
-  const base = cfg.baseUrl?.replace(/\/$/, "") || "http://127.0.0.1:8081/v1";
+  const base = cfg.baseUrl?.replace(/\/$/, "") || "http://127.0.0.1:8001/v1";
   try {
     const r = await fetch(`${base}/chat/completions`, {
       method: "POST",
