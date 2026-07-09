@@ -5,6 +5,7 @@ import { Link, NavLink, useLocation } from "react-router";
 import { motion } from "framer-motion";
 import {
   BookOpen,
+  Coffee,
   Library,
   Settings as SettingsIcon,
   Sun,
@@ -72,11 +73,16 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
             </nav>
 
             <div className="flex items-center gap-2">
-              <span
-                className="hidden sm:inline-block studio-caps text-muted-foreground border border-border px-2 py-1"
+              <a
+                href="https://ko-fi.com/raynjee"
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label="Buy me a coffee on Ko-fi"
+                className="group inline-flex items-center gap-2 h-9 px-3 border border-border hover:border-foreground/40 transition-colors text-xs uppercase tracking-[0.18em] text-foreground/80 hover:text-foreground"
               >
-                Curator
-              </span>
+                <Coffee className="w-3.5 h-3.5" strokeWidth={1.4} />
+                <span className="hidden sm:inline">Ko-fi</span>
+              </a>
               <button
                 onClick={() =>
                   update({ themePref: nextTheme(settings.themePref) })
