@@ -1,19 +1,21 @@
-// Editorial landing page — studio aesthetic. Hero with serif display,
-// curated "gallery" wall of placeholder volumes, capability plates,
-// curator note, CTA.
+// Redesigned Landing — Studio edition.
+//
+// A focused editorial scroll:
+//   § I  ·  Hero                          →  what the studio is, single CTA
+//   § II ·  At the Desk                   →  live side-by-side translation preview
+//   § III ·  Plates (I, II, III)          →  what lives inside the studio
+//   § IV  ·  Closing                       →  single big CTA
+//   § V   ·  Curator's note (footnote)     →  maker attribution
 
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router";
 import {
-  ArrowUpRight,
-  BookOpenCheck,
-  Languages,
-  Library as LibraryIcon,
-  Brush,
   ArrowRight,
+  BookOpenCheck,
   GitBranch,
-  ShieldCheck,
   Scroll,
+  ShieldCheck,
+  Sparkles,
 } from "lucide-react";
 import { StudioShell } from "@/components/StudioShell";
 
@@ -22,340 +24,341 @@ const FADE = {
   show: { opacity: 1, y: 0 },
 };
 
-const STAGGER = {
-  show: { transition: { staggerChildren: 0.07 } },
-};
+const STAGGER = { show: { transition: { staggerChildren: 0.06 } } };
 
 export default function Landing() {
   const navigate = useNavigate();
-
-  const enterLabel = "Enter the library";
   const enterTo = "/library";
 
   return (
     <StudioShell>
-      {/* ── Hero ─────────────────────────────────────────────────────── */}
-      <section className="mx-auto max-w-[1400px] px-6 lg:px-10 pt-12 pb-20 grid grid-cols-12 gap-6 lg:gap-10">
+      {/* ── § I · Hero ────────────────────────────────────────────── */}
+      <section className="mx-auto max-w-[1200px] px-6 lg:px-10 pt-20 lg:pt-28 pb-24">
         <motion.div
           initial="hidden"
           animate="show"
           variants={STAGGER}
-          className="col-span-12 lg:col-span-7"
+          className="grid grid-cols-12 gap-8"
         >
-          <motion.div variants={FADE} className="studio-caps text-muted-foreground">
-            Edition 01 · Curated Translation
+          <motion.div
+            variants={FADE}
+            className="col-span-12 studio-caps text-muted-foreground"
+          >
+            Edition 01 · A studio for translated reading
           </motion.div>
+
           <motion.h1
             variants={FADE}
-            className="font-display text-[64px] lg:text-[88px] leading-[0.95] tracking-tight mt-4 text-foreground"
+            className="col-span-12 lg:col-span-10 font-display text-[60px] lg:text-[104px] leading-[0.92] tracking-tight text-foreground"
           >
-            A quiet studio
+            Bring a foreign EPUB.
             <br />
-            for translating
-            <br />
-            <em className="not-italic text-muted-foreground">novels, chapter by chapter.</em>
+            Leave with{" "}
+            <em className="not-italic text-muted-foreground">an English novel.</em>
           </motion.h1>
-          <motion.p variants={FADE} className="max-w-[58ch] mt-6 text-[15px] leading-relaxed text-foreground/80">
-            Atelier turns EPUB into English. Drop in a Chinese, Japanese or Korean
-            volume — we unfold the spine, hold the pages open side by side, and
-            translate as you read. When the last chapter turns over, you can
-            press the whole finished book back into a single EPUB.
-          </motion.p>
-          <motion.div variants={FADE} className="mt-10 flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => navigate(enterTo)}
-              className="group h-12 px-6 inline-flex items-center gap-3 bg-foreground text-background hover:bg-foreground/90 transition-colors"
-            >
-              <span className="text-sm uppercase tracking-[0.22em]">{enterLabel}</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" strokeWidth={1.4} />
-            </button>
-            <Link
-              to="#gallery"
-              className="h-12 px-5 inline-flex items-center gap-2 border border-border hover:border-foreground/40 text-sm uppercase tracking-[0.18em]"
-            >
-              Walk the gallery
-            </Link>
-          </motion.div>
-          <motion.div variants={FADE} className="mt-12 flex items-center gap-4 text-xs text-muted-foreground">
-            <ShieldCheck className="w-4 h-4" strokeWidth={1.4} />
-            <span>
-              Entirely on your device. Library, translations and settings live in
-              your browser. Nothing leaves the studio.
-            </span>
-          </motion.div>
-        </motion.div>
 
-        {/* ── Editorial plate (right) ─────────────────────────────────── */}
-        <motion.div
-          initial="hidden"
-          animate="show"
-          variants={STAGGER}
-          className="col-span-12 lg:col-span-5 lg:pl-6 lg:border-l lg:border-border"
-        >
-          <motion.div variants={FADE} className="studio-caps text-muted-foreground">
-            Plate I — A note from the curator
-          </motion.div>
-          <motion.blockquote
-            variants={FADE}
-            className="font-display italic text-[22px] leading-snug mt-4 text-foreground/90"
-          >
-            “A library is a workshop; a translation is a piece of furniture
-            built in it. Both reward patience, both reward quiet hands.”
-          </motion.blockquote>
-          <motion.div variants={FADE} className="studio-caps text-muted-foreground mt-3">
-            — saberyyang09@gmail.com
-          </motion.div>
-
-          <motion.div variants={FADE} className="mt-10 grid grid-cols-2 gap-4">
-            <PlateTile
-              icon={Languages}
-              label="Languages"
-              value="04"
-              hint="ZH · JA · KO · auto"
-            />
-            <PlateTile
-              icon={LibraryIcon}
-              label="Library"
-              value="0 / ∞"
-              hint="EPUB volumes"
-            />
-            <PlateTile
-              icon={GitBranch}
-              label="Providers"
-              value="02"
-              hint="DeepSeek · Gemini"
-            />
-            <PlateTile
-              icon={Brush}
-              label="Theme"
-              value="01"
-              hint="Gallery Edition"
-            />
-          </motion.div>
-        </motion.div>
-      </section>
-
-      <Rule />
-
-      {/* ── Gallery ──────────────────────────────────────────────────── */}
-      <section id="gallery" className="mx-auto max-w-[1400px] px-6 lg:px-10 py-20">
-        <div className="flex items-end justify-between gap-6">
-          <div>
-            <div className="studio-caps text-muted-foreground">Plate II — On the wall</div>
-            <h2 className="font-display text-4xl mt-2 tracking-tight">
-              A growing shelf, none of it decorative.
-            </h2>
-            <p className="text-muted-foreground mt-3 max-w-[58ch]">
-              Every volume is carried into the studio by the curator. Each
-              page is held up to two providers at once so a single outage does
-              not break a reading session.
+          <motion.div variants={FADE} className="col-span-12 lg:col-span-7 lg:col-start-6">
+            <p className="text-[17px] leading-relaxed text-foreground/80">
+              Atelier is a quiet, client-side studio that unfolds Chinese, Japanese,
+              and Korean books, holds each chapter open to the original on one page
+              and the translation on the other, then binds the finished English
+              version back into a single EPUB. Nothing leaves your machine.
             </p>
-          </div>
-          <Link
-            to={enterTo}
-            className="hidden md:inline-flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-foreground hover:text-foreground/70"
-          >
-            Read the rules <ArrowUpRight className="w-4 h-4" strokeWidth={1.4} />
-          </Link>
-        </div>
-        <div className="mt-10 gallery-grid">
-          {GALLERY_BOOKS.map((b, i) => (
-            <GalleryTile key={i} {...b} />
-          ))}
-        </div>
+
+            <div className="mt-10 flex flex-wrap items-center gap-3">
+              <button
+                onClick={() => navigate(enterTo)}
+                className="group h-12 px-6 inline-flex items-center gap-3 bg-foreground text-background hover:bg-foreground/90 transition-colors"
+              >
+                <span className="text-sm uppercase tracking-[0.22em]">
+                  Enter the library
+                </span>
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" strokeWidth={1.4} />
+              </button>
+
+              <a
+                href="#desk"
+                className="h-12 px-5 inline-flex items-center gap-2 border border-border hover:border-foreground/40 text-sm uppercase tracking-[0.18em]"
+              >
+                See it at the desk
+              </a>
+            </div>
+          </motion.div>
+        </motion.div>
       </section>
 
-      <Rule />
+      <ThinRule />
 
-      {/* ── Capabilities ────────────────────────────────────────────── */}
-      <section className="mx-auto max-w-[1400px] px-6 lg:px-10 py-20 grid md:grid-cols-3 gap-10">
-        <div className="md:col-span-1">
-          <div className="studio-caps text-muted-foreground">Plate III — What lives here</div>
-          <h2 className="font-display text-4xl mt-2 tracking-tight">
-            The studio has three rooms.
+      {/* ── § II · At the Desk — live translation preview ─────────── */}
+      <section
+        id="desk"
+        className="mx-auto max-w-[1200px] px-6 lg:px-10 py-24"
+      >
+        <div className="grid grid-cols-12 gap-8 mb-10">
+          <div className="col-span-12 studio-caps text-muted-foreground">
+            § II · At the Desk
+          </div>
+          <h2 className="col-span-12 lg:col-span-9 font-display text-5xl lg:text-6xl tracking-tight">
+            One paragraph in. One paragraph out.
           </h2>
-          <p className="text-muted-foreground mt-3 leading-relaxed">
-            The gallery, the reading desk, and the back room where translators
-            work. Every part of the interface is built so you can move from one
-            to the next without losing your place.
+          <p className="col-span-12 lg:col-span-5 lg:col-start-8 text-muted-foreground leading-relaxed">
+            The reading desk splits each chapter into a left page of the original
+            and a right page of translation. Press a paragraph to translate just
+            that one — or translate the whole sitting.
           </p>
         </div>
-        <div className="md:col-span-2 grid sm:grid-cols-2 gap-6">
-          <Capability
-            icon={BookOpenCheck}
-            eyebrow="The Gallery"
-            title="A library of EPUBs."
-            copy="Drop an EPUB into the library and we unfold it into chapters, capture the title, author, cover and table of contents. Rename, reorder or remove chapters as the curator wishes."
-          />
-          <Capability
-            icon={Scroll}
-            eyebrow="The Desk"
-            title="Read and translate side by side."
-            copy="Each chapter opens with the original paragraphs on the left and the translated paragraphs on the right. Translate a paragraph at a time, or translate the whole chapter in one sitting."
-          />
-          <Capability
-            icon={GitBranch}
-            eyebrow="The Back Room"
-            title="Two providers, one queue."
-            copy="DeepSeek and Gemini work in tandem. The studio automatically fails over when one provider is rate limited, and remembers every translation so the same line is never translated twice."
-          />
-          <Capability
-            icon={ShieldCheck}
-            eyebrow="The Safe"
-            title="Nothing leaves your machine."
-            copy="Books, translations, settings, and API keys live in the browser's local store. There is no cloud, no server, no telemetry — only what you put there."
-          />
+
+        <DeskPreview />
+      </section>
+
+      <ThinRule />
+
+      {/* ── § III · Plates ────────────────────────────────────────── */}
+      <section className="mx-auto max-w-[1200px] px-6 lg:px-10 py-24">
+        <div className="grid grid-cols-12 gap-8 mb-14">
+          <div className="col-span-12 studio-caps text-muted-foreground">
+            § III · What lives here
+          </div>
+          <h2 className="col-span-12 lg:col-span-9 font-display text-5xl lg:text-6xl tracking-tight">
+            Three rooms, all on one machine.
+          </h2>
+          <p className="col-span-12 lg:col-span-5 lg:col-start-8 text-muted-foreground leading-relaxed">
+            The studio opens into a gallery of imported volumes, a reading desk where
+            translation happens paragraph by paragraph, and a back room where two
+            translation providers keep one another honest.
+          </p>
         </div>
+
+        <ol className="border-t border-border">
+          <Plate
+            numeral="I"
+            eyebrow="The Gallery"
+            icon={BookOpenCheck}
+            title="An EPUB, unfolded."
+            body="Drop a .epub file into the library and the studio reads its spine, captures the title, author, cover and table of contents, and sets each chapter on its own shelf. Rename, reorder, or remove chapters as the curator wishes."
+          />
+          <Plate
+            numeral="II"
+            eyebrow="The Desk"
+            icon={Scroll}
+            title="Read and translate side by side."
+            body="Each chapter opens with the original paragraphs on the left and the translation on the right. Translate a paragraph at a time, or translate the whole chapter in one sitting. Pause when you need to think about what was said."
+          />
+          <Plate
+            numeral="III"
+            eyebrow="The Back Room"
+            icon={GitBranch}
+            title="Two providers. One queue. Zero clouds."
+            body="DeepSeek runs through a small local proxy you control, and Gemini sits beside it. The studio automatically fails over when one rate-limits, caches every translated line so it is never re-translated, and writes the finished EPUB back to your downloads folder."
+          />
+          <Plate
+            numeral="IV"
+            eyebrow="The Safe"
+            icon={ShieldCheck}
+            title="Nothing leaves the studio."
+            body="Books, translations, settings and provider keys live in the browser's local storage. There is no cloud, no server, no telemetry. Open DevTools and you can see exactly where everything is."
+            last
+          />
+        </ol>
       </section>
 
-      <Rule />
+      <ThinRule />
 
-      {/* ── Footer CTA ──────────────────────────────────────────────── */}
-      <section className="mx-auto max-w-[1400px] px-6 lg:px-10 py-24 text-center">
-        <div className="studio-caps text-muted-foreground">Plate IV — Curfew</div>
-        <h2 className="font-display text-5xl lg:text-6xl mt-4 tracking-tight max-w-[24ch] mx-auto leading-tight">
-          Bring a book.
-          <br /> Read it in English.
-        </h2>
-        <button
-          onClick={() => navigate(enterTo)}
-          className="mt-10 h-12 px-6 inline-flex items-center gap-3 bg-foreground text-background hover:bg-foreground/90 transition-colors"
+      {/* ── § IV · Closing CTA ────────────────────────────────────── */}
+      <section className="mx-auto max-w-[1200px] px-6 lg:px-10 py-28 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-10% 0px" }}
+          transition={{ duration: 0.5 }}
         >
-          <span className="text-sm uppercase tracking-[0.22em]">{enterLabel}</span>
-          <ArrowRight className="w-4 h-4" strokeWidth={1.4} />
-        </button>
+          <div className="studio-caps text-muted-foreground">§ IV · Curfew</div>
+          <h2 className="font-display text-6xl lg:text-8xl mt-5 tracking-tight leading-[0.95] max-w-[18ch] mx-auto">
+            Bring a book.
+            <br />
+            Read it in English.
+          </h2>
+          <button
+            onClick={() => navigate(enterTo)}
+            className="mt-12 h-12 px-6 inline-flex items-center gap-3 bg-foreground text-background hover:bg-foreground/90 transition-colors"
+          >
+            <Sparkles className="w-4 h-4" strokeWidth={1.4} />
+            <span className="text-sm uppercase tracking-[0.22em]">
+              Enter the library
+            </span>
+          </button>
+        </motion.div>
       </section>
+
+      {/* ── § V · Curator's note ──────────────────────────────────── */}
+      <div className="border-t border-border">
+        <div className="mx-auto max-w-[1200px] px-6 lg:px-10 py-8 flex flex-wrap items-center justify-between gap-4 text-xs text-muted-foreground">
+          <span className="studio-caps text-foreground">
+            Curator · saberyyang09@gmail.com
+          </span>
+          <span>
+            Atelier runs entirely in your browser. No server. No sign-up. No data leaves until you decide it should.
+          </span>
+        </div>
+      </div>
     </StudioShell>
   );
 }
 
-function Rule() {
-  return <div className="mx-auto max-w-[1400px] px-6 lg:px-10"><div className="rule" /></div>;
-}
+// ─── Tiny primitives ─────────────────────────────────────────────────────
 
-function PlateTile({
-  icon: Icon,
-  label,
-  value,
-  hint,
-}: {
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
-  label: string;
-  value: string;
-  hint: string;
-}) {
+function ThinRule() {
   return (
-    <div className="studio-card p-5">
-      <Icon className="w-5 h-5 text-foreground" strokeWidth={1.4} />
-      <div className="studio-caps text-muted-foreground mt-4">{label}</div>
-      <div className="font-display text-3xl mt-1">{value}</div>
-      <div className="text-xs text-muted-foreground mt-2">{hint}</div>
+    <div className="mx-auto max-w-[1200px] px-6 lg:px-10">
+      <div className="rule" />
     </div>
   );
 }
 
-function Capability({
-  icon: Icon,
+function Plate({
+  numeral,
   eyebrow,
+  icon: Icon,
   title,
-  copy,
+  body,
+  last = false,
 }: {
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  numeral: string;
   eyebrow: string;
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   title: string;
-  copy: string;
+  body: string;
+  last?: boolean;
 }) {
   return (
-    <div className="studio-card p-6">
-      <Icon className="w-6 h-6 text-foreground" strokeWidth={1.4} />
-      <div className="studio-caps text-muted-foreground mt-5">{eyebrow}</div>
-      <h3 className="font-display text-2xl mt-2 tracking-tight leading-tight">{title}</h3>
-      <p className="text-foreground/80 leading-relaxed mt-3 text-sm">{copy}</p>
-    </div>
+    <li
+      className={`grid grid-cols-12 gap-6 lg:gap-10 py-12 lg:py-16 ${
+        last ? "" : "border-b border-border"
+      }`}
+    >
+      <div className="col-span-12 lg:col-span-2 flex items-start gap-3">
+        <span className="font-display text-6xl lg:text-7xl leading-none text-foreground">
+          {numeral}
+        </span>
+      </div>
+      <div className="col-span-12 lg:col-span-10">
+        <div className="flex items-center gap-3 studio-caps text-muted-foreground">
+          <Icon className="w-4 h-4" strokeWidth={1.4} />
+          <span>{eyebrow}</span>
+        </div>
+        <h3 className="mt-4 font-display text-3xl lg:text-4xl tracking-tight leading-tight">
+          {title}
+        </h3>
+        <p className="mt-4 max-w-[64ch] text-[15px] leading-relaxed text-foreground/80">
+          {body}
+        </p>
+      </div>
+    </li>
   );
 }
 
-const GALLERY_BOOKS = [
-  {
-    title: "The Long Path",
-    author: "Anon · CN",
-    tone: "I",
-    accent: "from-[#e9e0d1] to-[#cfc4a7]",
-  },
-  {
-    title: "Snow Above the Sea",
-    author: "Ayumu Tada · JP",
-    tone: "II",
-    accent: "from-[#dde2dc] to-[#a9b3a4]",
-  },
-  {
-    title: "Han River, Slowly",
-    author: "Yejin Park · KR",
-    tone: "III",
-    accent: "from-[#e7d8d3] to-[#b89a90]",
-  },
-  {
-    title: "An Atlas of Kites",
-    author: "L. He · CN",
-    tone: "IV",
-    accent: "from-[#dfd9c9] to-[#b8b39c]",
-  },
-  {
-    title: "Letters from Hokkaido",
-    author: "S. Kagami · JP",
-    tone: "V",
-    accent: "from-[#dad8cf] to-[#9ea395]",
-  },
-  {
-    title: "The Cabinet at Busan",
-    author: "H. Cho · KR",
-    tone: "VI",
-    accent: "from-[#e5dccd] to-[#b1a48b]",
-  },
-  {
-    title: "Mourning Recipes",
-    author: "Y. Mori · JP",
-    tone: "VII",
-    accent: "from-[#e3dfce] to-[#a8a489]",
-  },
-  {
-    title: "Twelve Quiet Mornings",
-    author: "S.W. Lin · CN",
-    tone: "VIII",
-    accent: "from-[#dde2db] to-[#aab0a4]",
-  },
-];
+// ─── DeskPreview — the centerpiece ───────────────────────────────────────
+//
+// A 1:1 reproduction of the actual reading-view in BookReader. Shows the
+// user what translation actually looks like before they click anything.
+// Uses a real Chinese passage from a contemporary novel (synthetic, in the
+// public-domain spirit) and the English translation that the studio would
+// produce.
 
-function GalleryTile({
-  title,
-  author,
-  tone,
-  accent,
-}: {
-  title: string;
-  author: string;
-  tone: string;
-  accent: string;
-}) {
+const PREVIEW_SAMPLE = {
+  title: "Chapter Seven — The Letter Under the Floorboard",
+  author: "Wen Qiang · CN → EN",
+  sourceLabel: "Original · 中文",
+  targetLabel: "English",
+  progress: "100%",
+  provider: "DeepSeek · balanced",
+  paragraphs: [
+    {
+      zh: "夜色已经很深了，月光从老旧的木窗格里漏进来，落在地板上像一层薄薄的霜。她蹲在墙角，手指沿着第三块木板的边缘慢慢摸过去——从前祖母藏信的地方就在那里。",
+      en: "Night had come in earnest. Moonlight leaked through the old wooden window frame and lay on the floorboards like a thin skin of frost. She crouched in the corner, her fingers tracing the seam of the third plank — that was where her grandmother had hidden her letters.",
+    },
+    {
+      zh: "木板松动的时候，她屏住了呼吸。灰尘扬起一点，又很快落下去。一张折过四次的信纸，从缝隙里探出半个角来，纸角发黄，墨色却还清楚得像昨天写下的。",
+      en: "When the board gave, she held her breath. A little dust lifted and quickly settled. A letter, folded four times, poked half a corner out of the gap — the paper had yellowed, but the ink was still sharp, as clear as if it had been written yesterday.",
+    },
+  ],
+};
+
+function DeskPreview() {
   return (
-    <motion.div
-      whileHover={{ y: -3 }}
-      transition={{ duration: 0.2 }}
-      className="studio-card p-3"
+    <motion.article
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-10% 0px" }}
+      transition={{ duration: 0.5 }}
+      className="studio-card overflow-hidden"
     >
-      <div className={`gallery-frame aspect-[3/4] bg-gradient-to-br ${accent}`}>
-        <div className="h-full w-full grid place-items-center p-5 text-center">
-          <div>
-            <div className="studio-caps text-foreground/55">Volume {tone}</div>
-            <div className="font-display text-[20px] leading-tight mt-3 text-foreground/85">{title}</div>
-            <div className="text-[10px] uppercase tracking-[0.2em] text-foreground/55 mt-2">{author}</div>
+      {/* Header bar — exactly like BookReader */}
+      <header className="px-6 lg:px-10 py-5 border-b border-border grid grid-cols-12 items-center gap-4">
+        <div className="col-span-12 lg:col-span-7">
+          <div className="studio-caps text-muted-foreground">Chapter</div>
+          <h3 className="font-display text-2xl mt-1 leading-tight">
+            {PREVIEW_SAMPLE.title}
+          </h3>
+          <div className="text-sm text-muted-foreground mt-1">
+            {PREVIEW_SAMPLE.author}
           </div>
         </div>
+        <div className="col-span-12 lg:col-span-5 grid grid-cols-3 gap-3 lg:text-right">
+          <Mini label="Language" value="ZH → EN" />
+          <Mini label="Provider" value="DeepSeek" />
+          <Mini label="Progress" value={PREVIEW_SAMPLE.progress} />
+        </div>
+      </header>
+
+      {/* Side-by-side reader */}
+      <div className="divide-y divide-border">
+        {PREVIEW_SAMPLE.paragraphs.map((p, idx) => (
+          <div
+            key={idx}
+            className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-border"
+          >
+            <div className="px-6 lg:px-10 py-7 lg:py-9 bg-muted/40">
+              <div className="studio-caps text-muted-foreground mb-2">
+                {PREVIEW_SAMPLE.sourceLabel} · {String(idx + 1).padStart(2, "0")}
+              </div>
+              <p className="font-display text-[19px] leading-[1.65] text-foreground/90">
+                {p.zh}
+              </p>
+            </div>
+            <div className="px-6 lg:px-10 py-7 lg:py-9">
+              <div className="studio-caps text-muted-foreground mb-2">
+                {PREVIEW_SAMPLE.targetLabel} · {String(idx + 1).padStart(2, "0")}
+              </div>
+              <p className="font-display text-[19px] leading-[1.65] text-foreground/90">
+                {p.en}
+              </p>
+            </div>
+          </div>
+        ))}
       </div>
-      <div className="mt-3 flex items-baseline justify-between">
-        <div className="font-display text-sm">{title}</div>
-        <div className="studio-num text-[10px] text-muted-foreground">№{tone}</div>
-      </div>
-    </motion.div>
+
+      {/* Footer recap */}
+      <footer className="px-6 lg:px-10 py-4 border-t border-border flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+        <div className="studio-caps">
+          Translation quality · {PREVIEW_SAMPLE.provider}
+        </div>
+        <div>
+          Cached on first hit · Never translated the same line twice.
+        </div>
+      </footer>
+    </motion.article>
   );
 }
+
+function Mini({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="studio-caps text-muted-foreground">{label}</div>
+      <div className="font-display text-lg mt-0.5">{value}</div>
+    </div>
+  );
+}
+
+// Unused-keeps-import lint murderer.
+void Link;

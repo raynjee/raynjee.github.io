@@ -5,7 +5,7 @@
 import type { ProviderConfig } from "../types";
 import type { TranslateRequest, TranslateResult } from "./types";
 
-const DEFAULT_ENDPOINT = "http://127.0.0.1:8081/v1";
+const DEFAULT_ENDPOINT = "http://127.0.0.1:8001/v1";
 
 export async function callDeepSeek(
   cfg: ProviderConfig,

@@ -59,7 +59,7 @@ function DeepSeekTutorial() {
     "cd Deepseek-API",
     "python -m deepseek.auth",
     "# Once the browser login completes, set the port:",
-    "uvicorn deepseek.server:app --host 127.0.0.1 --port 8081",
+    "uvicorn deepseek.server:app --host 127.0.0.1 --port 8001",
   ].join("\n");
 
   const onCopy = async () => {
@@ -123,10 +123,10 @@ function DeepSeekTutorial() {
                 Port
               </div>
               <div className="font-mono text-lg mt-1">
-                8081
+                8001
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                The port set with <code className="font-mono">--port 8081</code> above. Change
+                The port set with <code className="font-mono">--port 8001</code> above. Change
                 it in the endpoint URL field below if you pick a different one.
               </div>
             </div>

@@ -41,7 +41,7 @@ const DEFAULT_SETTINGS: StudioSettings = {
     {
       id: "deepseek",
       enabled: true,
-      baseUrl: "http://127.0.0.1:8081/v1",
+      baseUrl: "http://127.0.0.1:8001/v1",
       model: "deepseek-chat",
     },
     {
