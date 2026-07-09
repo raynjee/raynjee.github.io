@@ -7,13 +7,14 @@ import {
   getBook,
   listBooks,
   listChapters,
+  listTranslationsByBook,
   putBook,
   putChapters,
   putEpubBlob,
   putTranslation,
 } from "@/lib/db";
 import type { Book, Chapter, ChapterTranslation } from "@/lib/types";
-import { uid } from "@/lib/util";
+import { countWords, uid } from "@/lib/util";
 import { parseEpubFile } from "@/lib/epub";
 
 type LibraryTick = { t: number };
@@ -177,4 +178,107 @@ export async function saveTranslation(
 
 export async function isAdmin(): Promise<true> {
   return true;
+}
+
+// ── Aggregate per-book stats ─────────────────────────────────────────────
+
+export interface BookStats {
+  totalChapters: number;
+  totalWords: number;
+  translatedWords: number;
+  progress: number; // 0..1
+  translatedChapters: number;
+}
+
+// Snapshot the chapter list + all translations for one book and compute
+// word-level progress. Used by the library's index strip and tiles so each
+// card shows a real aggregate, not just chapter 1's progress.
+export async function getBookStats(bookId: string): Promise<BookStats> {
+  const chapters = await listChapters(bookId);
+  const translations = await listTranslationsByBook(bookId);
+  const trMap = new Map(translations.map((t) => [t.chapterId, t]));
+  let totalWords = 0;
+  let translatedWords = 0;
+  let translatedChapters = 0;
+  for (const ch of chapters) {
+    totalWords += ch.wordCount;
+    const tr = trMap.get(ch.id);
+    if (!tr) continue;
+    if (tr.paragraphs.length !== ch.paragraphs.length) continue;
+    let any = false;
+    for (let i = 0; i < tr.paragraphs.length; i++) {
+      const t = tr.paragraphs[i];
+      if (t && t.trim()) {
+        translatedWords += countWords(t);
+        any = true;
+      }
+    }
+    if (any && tr.status === "completed") translatedChapters += 1;
+  }
+  return {
+    totalChapters: chapters.length,
+    totalWords,
+    translatedWords,
+    translatedChapters,
+    progress: totalWords > 0 ? translatedWords / totalWords : 0,
+  };
+}
+
+// Cache the stats map across mounts. Refreshes every time notifyLibraryChanged
+// fires (book added/removed, translation saved, chapter reorder).
+const cachedStats = new Map<string, BookStats>();
+
+export function useAllBookStats(): {
+  statsById: Map<string, BookStats>;
+  loading: boolean;
+} {
+  const [, force] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  const recompute = useCallback(async () => {
+    if (cachedBooks.length === 0) {
+      cachedStats.clear();
+      force((x) => x + 1);
+      return;
+    }
+    setLoading(true);
+    try {
+      const fresh = new Map<string, BookStats>();
+      await Promise.all(
+        cachedBooks.map(async (b) => {
+          try {
+            fresh.set(b.id, await getBookStats(b.id));
+          } catch {
+            /* skip */
+          }
+        }),
+      );
+      cachedStats.clear();
+      for (const [k, v] of fresh) cachedStats.set(k, v);
+    } finally {
+      setLoading(false);
+      force((x) => x + 1);
+    }
+  }, []);
+
+  // Recompute whenever the library version changes (book edited, deleted,
+  // or translation persisted elsewhere in the app).
+  useEffect(() => {
+    const cb = () => {
+      void recompute();
+    };
+    versionListeners.add(cb);
+    return () => {
+      versionListeners.delete(cb);
+    };
+  }, [recompute]);
+
+  // First time books arrive from IndexedDB.
+  useEffect(() => {
+    if (cachedLoaded && cachedStats.size !== cachedBooks.length) {
+      void recompute();
+    }
+  }, [cachedLoaded, recompute]);
+
+  return { statsById: cachedStats, loading };
 }

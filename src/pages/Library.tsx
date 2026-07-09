@@ -1,81 +1,240 @@
 // Library page — the gallery of all imported books.
+// Editorial layout with header (eyebrow + headline + index strip + import
+// panel), a thin toolbar (search / language / sort), and the book wall. Per-
+// book stats come from a cached useAllBookStats hook so each tile shows the
+// real word-level progress of the whole book rather than chapter 1 only.
 
-import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowUp,
   ArrowDown,
-  Trash2,
-  Upload,
+  ArrowUp,
+  Library as LibraryIcon,
   Plus,
   Save,
+  Trash2,
+  Upload,
   X,
-  Pencil,
-  Library as LibraryIcon,
 } from "lucide-react";
 import { useNavigate } from "react-router";
+import { toast } from "sonner";
 import { StudioShell } from "@/components/StudioShell";
 import { BookGalleryTile } from "@/components/studio/BookGallery";
 import {
-  useLibrary,
-  importEpubFile,
-  updateBook,
   deleteBook,
-  renameChapter,
   deleteChapter,
+  importEpubFile,
+  renameChapter,
   reorderChapters,
-  saveTranslation,
+  updateBook,
+  useAllBookStats,
+  useLibrary,
 } from "@/hooks/use-library";
-import { getTranslation, listChapters } from "@/lib/db";
-import type { Book, Chapter, ChapterTranslation } from "@/lib/types";
-import { toast } from "sonner";
+import { listChapters } from "@/lib/db";
+import type { Chapter } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+type LangFilter = "all" | "zh" | "ja" | "ko" | "other";
+type SortBy = "recent" | "title" | "progress";
+
+const LANG_LABELS: Record<LangFilter, string> = {
+  all: "All",
+  zh: "中文",
+  ja: "日本語",
+  ko: "한국어",
+  other: "Other",
+};
 
 export default function Library() {
   const { books, refresh, loading } = useLibrary();
+  const { statsById, loading: statsLoading } = useAllBookStats();
   const navigate = useNavigate();
-  const asAdmin = true; // No auth — everyone is the curator.
+
+  const [query, setQuery] = useState("");
+  const [langFilter, setLangFilter] = useState<LangFilter>("all");
+  const [sortBy, setSortBy] = useState<SortBy>("recent");
+
+  // Filter + sort the catalogue.
+  const filteredBooks = useMemo(() => {
+    let list = books;
+    if (langFilter !== "all") {
+      list = list.filter((b) =>
+        langFilter === "other"
+          ? !["zh", "ja", "ko"].includes(b.language)
+          : b.language === langFilter,
+      );
+    }
+    const q = query.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (b) =>
+          b.title.toLowerCase().includes(q) ||
+          b.author.toLowerCase().includes(q),
+      );
+    }
+    list = [...list];
+    if (sortBy === "title") {
+      list.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortBy === "recent") {
+      list.sort((a, b) => b.updatedAt - a.updatedAt);
+    } else if (sortBy === "progress") {
+      list.sort((a, b) => {
+        const pa = statsById.get(a.id)?.progress ?? 0;
+        const pb = statsById.get(b.id)?.progress ?? 0;
+        return pb - pa;
+      });
+    }
+    return list;
+  }, [books, query, langFilter, sortBy, statsById]);
+
+  const totals = useMemo(() => {
+    let chapters = 0;
+    let words = 0;
+    let tWords = 0;
+    for (const b of books) {
+      chapters += b.chapterOrder.length;
+      const s = statsById.get(b.id);
+      if (s) {
+        words += s.totalWords;
+        tWords += s.translatedWords;
+      }
+    }
+    return {
+      volumes: books.length,
+      chapters,
+      words,
+      translatedWords: tWords,
+      progress: words > 0 ? tWords / words : 0,
+    };
+  }, [books, statsById]);
+
+  const resetFilters = () => {
+    setQuery("");
+    setLangFilter("all");
+  };
 
   return (
     <StudioShell>
-      <div className="mx-auto max-w-[1400px] px-6 lg:px-10 pt-10 pb-20">
-        <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-6">
-          <div>
-            <div className="studio-caps text-muted-foreground">The Gallery</div>
-            <h1 className="font-display text-5xl mt-2 tracking-tight">
-              Library
+      <div className="mx-auto max-w-[1400px] px-6 lg:px-10 pt-12 pb-24">
+        {/* ── § I · Header ───────────────────────────────────────── */}
+        <header className="grid grid-cols-12 gap-8 lg:gap-12 items-end">
+          <div className="col-span-12 lg:col-span-7">
+            <div className="studio-caps text-muted-foreground">
+              Edition 01 · The Gallery
+            </div>
+            <h1 className="font-display text-[60px] lg:text-[80px] mt-2 tracking-tight leading-[0.95]">
+              Library.
             </h1>
-            <p className="mt-2 text-muted-foreground max-w-[58ch]">
+            <p className="text-muted-foreground mt-4 max-w-[56ch] leading-relaxed">
               Every volume brought into the studio. Click a tile to open it at
-              the reading desk.
+              the reading desk; drop a fresh EPUB on the right to add another.
             </p>
+
+            {/* Index strip — counts across the whole gallery */}
+            <div className="mt-10 plate pt-5 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
+              <Stat
+                label="Volumes"
+                value={String(totals.volumes).padStart(2, "0")}
+                sub="in the gallery"
+              />
+              <Stat
+                label="Chapters"
+                value={totals.chapters.toLocaleString()}
+                sub="opened to read"
+              />
+              <Stat
+                label="Words"
+                value={totals.words.toLocaleString()}
+                sub={statsLoading ? "counting…" : "in the originals"}
+              />
+              <Stat
+                label="Translated"
+                value={`${Math.round((totals.progress ?? 0) * 100)}%`}
+                sub="of every line"
+              />
+            </div>
           </div>
-          {asAdmin && <UploadZone onUploaded={refresh} />}
+
+          <div className="col-span-12 lg:col-span-5">
+            <ImportPanel onUploaded={refresh} />
+          </div>
         </header>
 
-        <div className="mt-10">
+        {/* ── § II · Toolbar ────────────────────────────────────── */}
+        <div className="mt-14 flex flex-col md:flex-row md:items-center gap-4 md:gap-8 py-3 border-y border-border">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <span className="studio-caps text-muted-foreground whitespace-nowrap">
+              Search
+            </span>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Title or author"
+              className="flex-1 min-w-0 max-w-[280px] bg-transparent border-b border-border focus:border-foreground outline-none py-1 text-sm caret-ink placeholder:text-muted-foreground/60"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="studio-caps text-muted-foreground mr-1 whitespace-nowrap">
+              Language
+            </span>
+            {(Object.keys(LANG_LABELS) as LangFilter[]).map((opt) => (
+              <LangChip
+                key={opt}
+                value={opt}
+                label={LANG_LABELS[opt]}
+                current={langFilter}
+                onChange={setLangFilter}
+              />
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="studio-caps text-muted-foreground">Sort</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortBy)}
+              className="bg-transparent outline-none cursor-pointer text-[11px] uppercase tracking-[0.18em] py-1 caret-ink"
+            >
+              <option value="recent">Recent</option>
+              <option value="title">Title</option>
+              <option value="progress">Progress</option>
+            </select>
+          </div>
+        </div>
+
+        {/* ── § III · Wall ──────────────────────────────────────── */}
+        <div className="mt-12">
           {loading ? (
             <LoadingGrid />
           ) : books.length === 0 ? (
-            <EmptyShelf asAdmin={asAdmin} />
+            <EmptyWall onUploaded={refresh} />
+          ) : filteredBooks.length === 0 ? (
+            <NoMatch
+              currentQuery={query}
+              hasFilter={langFilter !== "all"}
+              onReset={resetFilters}
+            />
           ) : (
             <div className="gallery-grid">
-              <AnimatePresence>
-                {books.map((b) => (
-                  <BookTileContainer
-                    key={b.id}
-                    book={b}
-                    onOpen={() => navigate(`/library/${b.id}`)}
-                    onEdit={() => navigate(`/library/${b.id}/edit`)}
-                    onDelete={async () => {
-                      if (!confirm(`Delete "${b.title}"? This will remove all translations too.`)) return;
-                      await deleteBook(b.id);
-                      toast.success("Book removed from library.");
-                    }}
-                    asAdmin={asAdmin}
-                  />
-                ))}
-              </AnimatePresence>
+              {filteredBooks.map((b) => (
+                <BookGalleryTile
+                  key={b.id}
+                  book={b}
+                  stats={statsById.get(b.id)}
+                  onOpen={() => navigate(`/library/${b.id}`)}
+                  onEdit={() => navigate(`/library/${b.id}/edit`)}
+                  onDelete={async () => {
+                    if (
+                      !confirm(
+                        `Delete "${b.title}"? This will remove all translations too.`,
+                      )
+                    )
+                      return;
+                    await deleteBook(b.id);
+                    toast.success("Book removed from library.");
+                  }}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -84,59 +243,69 @@ export default function Library() {
   );
 }
 
-function BookTileContainer({
-  book,
-  onOpen,
-  onEdit,
-  onDelete,
-  asAdmin,
+// ─── Subcomponents ───────────────────────────────────────────────────────
+
+function Stat({
+  label,
+  value,
+  sub,
 }: {
-  book: Book;
-  onOpen: () => void;
-  onEdit: () => void;
-  onDelete: () => Promise<void>;
-  asAdmin: boolean;
+  label: string;
+  value: string;
+  sub?: string;
 }) {
-  const [translation, setTranslation] = useState<ChapterTranslation | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    void listChapters(book.id).then(async (chapters) => {
-      const first = chapters[0];
-      if (!first) return;
-      const tr = await getTranslation(book.id, first.id);
-      if (!cancelled) setTranslation(tr ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [book.id, book.updatedAt]);
   return (
-    <BookGalleryTile
-      book={book}
-      translation={translation}
-      onOpen={onOpen}
-      onEdit={onEdit}
-      onDelete={onDelete}
-      asAdmin={asAdmin}
-    />
+    <div>
+      <div className="studio-caps text-muted-foreground">{label}</div>
+      <div className="font-display text-3xl mt-1 studio-num">{value}</div>
+      {sub && (
+        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mt-1">
+          {sub}
+        </div>
+      )}
+    </div>
   );
 }
 
-function UploadZone({ onUploaded }: { onUploaded: () => Promise<void> }) {
+function LangChip({
+  value,
+  label,
+  current,
+  onChange,
+}: {
+  value: LangFilter;
+  label: string;
+  current: LangFilter;
+  onChange: (v: LangFilter) => void;
+}) {
+  const active = current === value;
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(value)}
+      className={cn(
+        "h-7 px-2.5 border text-[10px] uppercase tracking-[0.18em] transition-colors",
+        active
+          ? "bg-foreground text-background border-foreground"
+          : "bg-background text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
-  // Counter-based drag tracking so children don't flicker the highlight when
-  // the pointer crosses nested elements (icon, label, hint).
   const [dragDepth, setDragDepth] = useState(0);
   const dragActive = dragDepth > 0;
-
-  const onPick = () => inputRef.current?.click();
 
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const all = Array.from(files);
     const epubs = all.filter(
-      (f) => /\.epub$/i.test(f.name) || f.type === "application/epub+zip"
+      (f) => /\.epub$/i.test(f.name) || f.type === "application/epub+zip",
     );
     const skipped = all.length - epubs.length;
     if (epubs.length === 0) {
@@ -152,107 +321,95 @@ function UploadZone({ onUploaded }: { onUploaded: () => Promise<void> }) {
         toast.error(
           `Failed to import "${file.name}": ${
             e instanceof Error ? e.message : "unknown error"
-          }`
+          }`,
         );
       }
     }
     setBusy(false);
     if (skipped > 0) {
       toast.message(
-        `Skipped ${skipped} non-${skipped === 1 ? ".epub file" : ".epub files"}.`
+        `Skipped ${skipped} non-${skipped === 1 ? ".epub file" : ".epub files"}.`,
       );
     }
     await onUploaded();
   };
 
-  const onDragEnter = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer.types?.includes("Files")) {
-      setDragDepth((d) => d + 1);
-    }
-  };
-  const onDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragDepth((d) => Math.max(0, d - 1));
-  };
-  const onDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-  };
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragDepth(0);
-    void onFiles(e.dataTransfer.files);
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      onPick();
-    }
-  };
-
   return (
-    <div className="flex flex-col items-stretch sm:items-end gap-3">
+    <div className="studio-card">
       <input
         ref={inputRef}
         type="file"
         accept=".epub,application/epub+zip"
         multiple
         className="hidden"
-        onChange={(e) => onFiles(e.target.files)}
+        onChange={(e) => void onFiles(e.target.files)}
       />
-
-      <button
-        onClick={onPick}
-        disabled={busy}
-        className="h-11 px-5 inline-flex items-center justify-center gap-2 bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
-      >
-        <Upload className="w-4 h-4" strokeWidth={1.5} />
-        <span className="text-sm uppercase tracking-[0.18em]">
-          {busy ? "Reading…" : "Import EPUB"}
-        </span>
-      </button>
-
       <div
         role="button"
         tabIndex={0}
-        onClick={onPick}
-        onKeyDown={onKeyDown}
-        onDragEnter={onDragEnter}
-        onDragLeave={onDragLeave}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          if (e.dataTransfer.types?.includes("Files"))
+            setDragDepth((d) => d + 1);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          setDragDepth((d) => Math.max(0, d - 1));
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragDepth(0);
+          void onFiles(e.dataTransfer.files);
+        }}
         aria-label="Drag EPUB files here to import, or click to browse"
         className={cn(
-          "w-full sm:w-[340px] px-5 py-6 border border-dashed text-center transition-colors select-none cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-foreground/40",
+          "block px-6 py-9 border border-dashed text-center cursor-pointer outline-none select-none transition-colors focus-visible:ring-1 focus-visible:ring-foreground/40",
           dragActive
             ? "border-foreground bg-accent/60"
-            : "border-border hover:border-foreground/40 hover:bg-accent/30"
+            : "border-border hover:border-foreground/40 hover:bg-accent/30",
         )}
       >
         <div className="grid place-items-center gap-2.5">
           <Upload
             className={cn(
-              "w-4 h-4 transition-colors",
-              dragActive ? "text-foreground" : "text-muted-foreground"
+              "w-5 h-5",
+              dragActive ? "text-foreground" : "text-muted-foreground",
             )}
             strokeWidth={1.4}
           />
           <div
             className={cn(
-              "studio-caps transition-colors",
-              dragActive ? "text-foreground" : "text-muted-foreground"
+              "font-display text-lg tracking-tight",
+              dragActive ? "text-foreground" : "text-foreground/90",
             )}
           >
-            {dragActive
-              ? "Release to add to the gallery"
-              : "Or drop .epub file(s) here"}
+            {busy
+              ? "Reading…"
+              : dragActive
+                ? "Release to add to the gallery"
+                : "Drop or click to add"}
           </div>
-          <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
-            {busy ? "Parsing…" : "Multiple allowed · .epub"}
+          <div className="studio-caps text-muted-foreground">
+            .epub · multiple allowed
           </div>
         </div>
+      </div>
+      <div className="px-5 py-3 border-t border-border flex items-center justify-between">
+        <span className="studio-caps text-muted-foreground">Volume source</span>
+        <span className="studio-num text-[11px] text-muted-foreground">
+          Local files only
+        </span>
       </div>
     </div>
   );
@@ -272,33 +429,169 @@ function LoadingGrid() {
   );
 }
 
-function EmptyShelf({ asAdmin }: { asAdmin: boolean }) {
+function EmptyWall({ onUploaded }: { onUploaded: () => Promise<void> }) {
   return (
-    <div className="grid grid-cols-12 gap-6 lg:gap-10 border border-border p-10 bg-card">
-      <div className="col-span-12 lg:col-span-7">
-        <div className="studio-caps text-muted-foreground">Plate 0 — Empty wall</div>
-        <h2 className="font-display text-3xl mt-2 tracking-tight leading-tight">
-          No volumes have been brought in yet.
-        </h2>
-        <p className="text-muted-foreground mt-3 leading-relaxed max-w-[52ch]">
-          {asAdmin
-            ? "Use Import EPUB above to drop an .epub file into the gallery. We'll read its spine, capture the metadata, and hold each chapter open for translation."
-            : "The library is curated by the studio's administrator. Once they have imported volumes, they will appear here."}
-        </p>
+    <div className="max-w-2xl mx-auto studio-card p-10 lg:p-14 text-center">
+      <div className="studio-caps text-muted-foreground">Plate 0 — Empty Wall</div>
+      <h2 className="font-display text-4xl lg:text-5xl mt-3 tracking-tight leading-tight">
+        The wall is bare.
+      </h2>
+      <p className="text-muted-foreground mt-4 leading-relaxed max-w-[48ch] mx-auto">
+        Drop an .epub file below and the studio will unfold its spine, capture
+        the title, author, and cover, and set each chapter on its own shelf.
+      </p>
+      <div className="mt-8 mx-auto max-w-md">
+        <EmptyDrop onUploaded={onUploaded} />
       </div>
-      <div className="col-span-12 lg:col-span-5 grid grid-cols-3 gap-3">
-        {Array.from({ length: 9 }).map((_, i) => (
-          <div
-            key={i}
-            className="aspect-[3/4] border border-border bg-gradient-to-br from-muted to-accent"
-          />
-        ))}
+      <div className="mt-6 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
+        Multiple files · .epub
       </div>
     </div>
   );
 }
 
-// ─── BookEditor (admin only) ─────────────────────────────────────────────
+function EmptyDrop({ onUploaded }: { onUploaded: () => Promise<void> }) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [dragDepth, setDragDepth] = useState(0);
+  const dragActive = dragDepth > 0;
+
+  const onFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const all = Array.from(files);
+    const epubs = all.filter(
+      (f) => /\.epub$/i.test(f.name) || f.type === "application/epub+zip",
+    );
+    const skipped = all.length - epubs.length;
+    if (epubs.length === 0) {
+      toast.error("No .epub files in that drop.");
+      return;
+    }
+    setBusy(true);
+    for (const file of epubs) {
+      try {
+        await importEpubFile(file);
+        toast.success(`"${file.name}" imported.`);
+      } catch (e) {
+        toast.error(
+          `Failed to import "${file.name}": ${
+            e instanceof Error ? e.message : "unknown error"
+          }`,
+        );
+      }
+    }
+    setBusy(false);
+    if (skipped > 0) {
+      toast.message(
+        `Skipped ${skipped} non-${skipped === 1 ? ".epub file" : ".epub files"}.`,
+      );
+    }
+    await onUploaded();
+  };
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".epub,application/epub+zip"
+        multiple
+        className="hidden"
+        onChange={(e) => void onFiles(e.target.files)}
+      />
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
+        onDragEnter={(e) => {
+          e.preventDefault();
+          if (e.dataTransfer.types?.includes("Files"))
+            setDragDepth((d) => d + 1);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          setDragDepth((d) => Math.max(0, d - 1));
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragDepth(0);
+          void onFiles(e.dataTransfer.files);
+        }}
+        aria-label="Drag EPUB files here to import, or click to browse"
+        className={cn(
+          "block px-6 py-12 border border-dashed text-center cursor-pointer outline-none select-none transition-colors focus-visible:ring-1 focus-visible:ring-foreground/40",
+          dragActive
+            ? "border-foreground bg-accent/60"
+            : "border-foreground/20 hover:border-foreground/40 hover:bg-accent/30",
+        )}
+      >
+        <div className="grid place-items-center gap-3">
+          <Upload
+            className={cn(
+              "w-7 h-7",
+              dragActive ? "text-foreground" : "text-muted-foreground",
+            )}
+            strokeWidth={1.3}
+          />
+          <div className="font-display text-2xl tracking-tight">
+            {busy ? "Reading…" : dragActive ? "Release to begin" : "Drop to begin"}
+          </div>
+          <div className="studio-caps text-muted-foreground">
+            or click to browse
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function NoMatch({
+  currentQuery,
+  hasFilter,
+  onReset,
+}: {
+  currentQuery: string;
+  hasFilter: boolean;
+  onReset: () => void;
+}) {
+  return (
+    <div className="py-16 text-center border-y border-border">
+      <div className="studio-caps text-muted-foreground">No volumes match</div>
+      <div className="font-display text-3xl mt-2 tracking-tight">
+        {currentQuery ? (
+          <>
+            Nothing matches{" "}
+            <em className="not-italic text-muted-foreground">
+              &ldquo;{currentQuery}&rdquo;
+            </em>
+            {hasFilter ? " with the current filters" : ""}.
+          </>
+        ) : (
+          <>No volumes in this language.</>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onReset}
+        className="mt-6 h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 text-xs uppercase tracking-[0.18em]"
+      >
+        Clear filters
+      </button>
+    </div>
+  );
+}
+
+// ─── BookEditor (admin only) ───────────────────────────────────────────
 
 export function BookEditor({ bookId }: { bookId: string }) {
   const { books } = useLibrary();
@@ -356,12 +649,12 @@ export function BookEditor({ bookId }: { bookId: string }) {
   const onDelete = async (id: string) => {
     if (!confirm("Delete this chapter and its translation?")) return;
     await deleteChapter(book.id, id);
+    void listChapters(book.id).then(setChapters);
   };
 
   const onAddBlank = async () => {
-    const id = `chap_${Date.now()}`;
     const newChap: Chapter = {
-      id,
+      id: `chap_${Date.now()}`,
       bookId: book.id,
       index: chapters.length,
       title: `Chapter ${chapters.length + 1}`,
@@ -372,15 +665,6 @@ export function BookEditor({ bookId }: { bookId: string }) {
     const next = [...chapters, newChap];
     setChapters(next);
     await reorderChapters(book.id, next.map((c) => c.id));
-    await saveTranslation({
-      id: `${book.id}:${id}`,
-      bookId: book.id,
-      chapterId: id,
-      paragraphs: [],
-      status: "idle",
-      provider: null,
-      progress: 0,
-    });
   };
 
   const onSaveMeta = async () => {
@@ -398,8 +682,10 @@ export function BookEditor({ bookId }: { bookId: string }) {
           ← Back to book
         </button>
         <div className="mt-4">
-          <div className="studio-caps text-muted-foreground">Curator · Editing</div>
-          <h1 className="font-display text-4xl mt-2 tracking-tight">{title || "Untitled"}</h1>
+          <div className="studio-caps text-muted-foreground">Editing</div>
+          <h1 className="font-display text-4xl mt-2 tracking-tight">
+            {title || "Untitled"}
+          </h1>
         </div>
 
         <div className="grid grid-cols-12 gap-8 mt-10">
@@ -414,12 +700,14 @@ export function BookEditor({ bookId }: { bookId: string }) {
                 )}
               </div>
               <div className="mt-3 flex flex-col gap-2">
-                <label className="studio-caps text-muted-foreground">Replace cover</label>
+                <label className="studio-caps text-muted-foreground">
+                  Replace cover
+                </label>
                 <input
                   type="file"
                   accept="image/*"
                   className="text-sm"
-                  onChange={async (e) => {
+                  onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (!f) return;
                     const reader = new FileReader();
@@ -433,7 +721,9 @@ export function BookEditor({ bookId }: { bookId: string }) {
 
           <section className="col-span-12 lg:col-span-7">
             <div className="studio-card p-5">
-              <div className="studio-caps text-muted-foreground">Editorial details</div>
+              <div className="studio-caps text-muted-foreground">
+                Editorial details
+              </div>
               <div className="grid gap-4 mt-3">
                 <Field label="Title">
                   <input
@@ -464,14 +754,18 @@ export function BookEditor({ bookId }: { bookId: string }) {
                     onClick={onSaveMeta}
                   >
                     <Save className="w-4 h-4" strokeWidth={1.4} />
-                    <span className="text-sm uppercase tracking-[0.18em]">Save</span>
+                    <span className="text-sm uppercase tracking-[0.18em]">
+                      Save
+                    </span>
                   </button>
                   <button
                     className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors"
                     onClick={() => navigate(`/library/${book.id}`)}
                   >
                     <X className="w-4 h-4" strokeWidth={1.4} />
-                    <span className="text-sm uppercase tracking-[0.18em]">Cancel</span>
+                    <span className="text-sm uppercase tracking-[0.18em]">
+                      Cancel
+                    </span>
                   </button>
                 </div>
               </div>
@@ -481,15 +775,21 @@ export function BookEditor({ bookId }: { bookId: string }) {
           <section className="col-span-12">
             <div className="flex items-end justify-between">
               <div>
-                <div className="studio-caps text-muted-foreground">Table of contents</div>
-                <h2 className="font-display text-23xl mt-2 tracking-tight text-2xl">Chapters</h2>
+                <div className="studio-caps text-muted-foreground">
+                  Table of contents
+                </div>
+                <h2 className="font-display text-2xl mt-2 tracking-tight">
+                  Chapters
+                </h2>
               </div>
               <button
                 className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
                 onClick={onAddBlank}
               >
                 <Plus className="w-4 h-4" strokeWidth={1.4} />
-                <span className="text-sm uppercase tracking-[0.18em]">Add chapter</span>
+                <span className="text-sm uppercase tracking-[0.18em]">
+                  Add chapter
+                </span>
               </button>
             </div>
             <ol className="mt-6 border border-border divide-y divide-border bg-card">
@@ -542,10 +842,15 @@ export function BookEditor({ bookId }: { bookId: string }) {
       </div>
     </StudioShell>
   );
-  void saveTranslation;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span className="studio-caps text-muted-foreground">{label}</span>
@@ -553,7 +858,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
-
-// Re-export motion to satisfy unused warning.
-void motion;
-void Pencil;

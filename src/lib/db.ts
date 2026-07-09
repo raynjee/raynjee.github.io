@@ -248,6 +248,29 @@ export async function getTranslation(
   );
 }
 
+// Fetch every translation entry belonging to a single book by id-key prefix
+// (keys are stored as `${bookId}:${chapterId}`). Uses IDBKeyRange so we don't
+// pull the entire store.
+export async function listTranslationsByBook(
+  bookId: string,
+): Promise<ChapterTranslation[]> {
+  const d = await db();
+  return new Promise<ChapterTranslation[]>((resolve, reject) => {
+    const t = d.transaction("translations", "readonly");
+    const s = t.objectStore("translations");
+    const range = IDBKeyRange.bound(
+      `${bookId}:`,
+      `${bookId}:\uffff`,
+      false,
+      true,
+    );
+    const req = s.getAll(range);
+    req.onsuccess = () => resolve((req.result ?? []) as ChapterTranslation[]);
+    req.onerror = () => reject(req.error);
+    t.onerror = () => reject(t.error);
+  });
+}
+
 // ── Translation cache ────────────────────────────────────────────────────
 
 export async function getCachedTranslation(

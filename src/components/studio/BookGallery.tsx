@@ -1,42 +1,51 @@
-// Book cover tile — gallery-style with framing, title, author and a
-// minimal language / progress chip.
+// Book cover tile — gallery-style with framing, title, author, language and
+// word-level progress driven by aggregate BookStats for the whole book.
 
-import { motion } from "framer-motion";
-import { Languages, BookOpen } from "lucide-react";
+import { BookOpen, Languages, Pencil, Trash2 } from "lucide-react";
 import type { Book, ChapterTranslation } from "@/lib/types";
+import type { BookStats } from "@/hooks/use-library";
 import { cn } from "@/lib/utils";
-import { formatLanguage } from "@/lib/util";
+import { formatLanguage, formatRelativeTime } from "@/lib/util";
 
 interface BookGalleryTileProps {
   book: Book;
+  stats?: BookStats;
   translation?: ChapterTranslation | null;
   onOpen: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
-  asAdmin: boolean;
 }
 
 export function BookGalleryTile({
   book,
-  translation,
+  stats,
   onOpen,
   onEdit,
   onDelete,
-  asAdmin,
 }: BookGalleryTileProps) {
+  const progress = stats?.progress ?? 0;
+  const totalWords = stats?.totalWords ?? 0;
+  const totalChapters =
+    stats?.totalChapters ?? book.chapterOrder.length;
+  const pct = Math.round(progress * 100);
+  const language = formatLanguage(book.language);
+  const updated = formatRelativeTime(book.updatedAt);
+
   return (
-    <motion.article
-      layout
-      whileHover={{ y: -2 }}
-      transition={{ duration: 0.2 }}
-      className="group bg-card border border-border p-3"
+    <article
+      className={cn(
+        "group relative flex flex-col h-full bg-card border border-border p-3",
+        "transition-[border-color,transform] duration-200 ease-out",
+        "hover:border-foreground/40 hover:-translate-y-0.5",
+      )}
     >
       <button
         onClick={onOpen}
-        className="block w-full text-left"
+        className="block w-full text-left outline-none focus-visible:ring-1 focus-visible:ring-foreground/40"
         aria-label={`Open ${book.title}`}
       >
-        <div className="gallery-frame aspect-[3/4] grid place-items-center bg-muted overflow-hidden">
+        {/* Cover */}
+        <div className="gallery-frame relative aspect-[3/4] overflow-hidden bg-muted">
           {book.coverDataUrl ? (
             <img
               src={book.coverDataUrl}
@@ -44,78 +53,79 @@ export function BookGalleryTile({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="grid place-items-center text-muted-foreground">
+            <div className="grid place-items-center w-full h-full text-muted-foreground">
               <BookOpen className="w-10 h-10" strokeWidth={1.2} />
             </div>
           )}
-        </div>
-        <div className="mt-4 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h3 className="font-display text-[17px] leading-tight line-clamp-2 text-foreground">
-              {book.title}
-            </h3>
-            <p className="mt-1 text-xs text-muted-foreground truncate">
-              {book.author}
-            </p>
+
+          {/* Progress pill, top-right inside the frame */}
+          <div
+            className={cn(
+              "absolute top-2 right-2 inline-flex items-center px-2 py-0.5",
+              "bg-background/95 border border-border backdrop-blur-[2px]",
+            )}
+            aria-hidden="true"
+          >
+            <span className="studio-num text-[10px] text-foreground">
+              {pct}%
+            </span>
           </div>
-          <span className="studio-num text-[10px] text-muted-foreground whitespace-nowrap mt-1.5">
-                · {String(book.chapterOrder.length).padStart(2, "0")}
-          </span>
+        </div>
+
+        {/* Title block */}
+        <div className="mt-4 px-0.5">
+          <div className="studio-caps text-muted-foreground">
+            {language} · {String(totalChapters).padStart(2, "0")} ch
+          </div>
+          <h3 className="font-display text-[17px] leading-tight line-clamp-2 text-foreground mt-1">
+            {book.title}
+          </h3>
+          <p className="mt-1 text-xs text-muted-foreground truncate">
+            {book.author}
+          </p>
         </div>
       </button>
-      <div className="mt-3 flex items-center justify-between gap-2 text-[11px]">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Languages className="w-3.5 h-3.5" strokeWidth={1.4} />
-          <span className="uppercase tracking-[0.16em]">
-            {formatLanguage(book.language)}
-          </span>
-        </div>
-        {asAdmin && (
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                onEdit?.();
-              }}
-              className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground px-1.5 py-1"
-            >
-              Edit
-            </button>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                onDelete?.();
-              }}
-              className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-destructive px-1.5 py-1"
-            >
-              Delete
-            </button>
-          </div>
-        )}
-        <ProgressBar translation={translation} total={book.chapterOrder.length} />
-      </div>
-    </motion.article>
-  );
-}
 
-function ProgressBar({
-  translation,
-  total,
-}: {
-  translation?: ChapterTranslation | null;
-  total: number;
-}) {
-  if (!translation) return <span className={cn("text-muted-foreground")}>—</span>;
-  const v = Math.round((translation.progress ?? 0) * 100);
-  return (
-    <span className="flex items-center gap-2 text-muted-foreground">
-      <span className="studio-num text-foreground">{v}%</span>
-      <span className="block w-10 h-px bg-border relative overflow-hidden">
-        <span
-          className="absolute left-0 top-0 h-full bg-foreground"
-          style={{ width: `${v}%` }}
-        />
-      </span>
-    </span>
+      {/* Stats line — pushed to the bottom so tiles in a row align evenly */}
+      <div className="plate mt-auto pt-3 px-0.5 flex items-center justify-between studio-caps text-[10px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <Languages className="w-3 h-3" strokeWidth={1.4} />
+          <span className="studio-num">{totalWords.toLocaleString()}</span>
+          <span>words</span>
+        </span>
+        <span className="studio-num">{updated}</span>
+      </div>
+
+      {/* Hover-revealed actions — framed below the stats */}
+      <div
+        className={cn(
+          "mt-2 grid grid-cols-2 gap-2",
+          "opacity-0 translate-y-0.5 pointer-events-none",
+          "group-hover:opacity-100 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto",
+          "transition-all duration-200 ease-out",
+        )}
+      >
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            onEdit?.();
+          }}
+          className="h-8 inline-flex items-center justify-center gap-1.5 border border-border hover:border-foreground/40 text-[10px] uppercase tracking-[0.18em]"
+        >
+          <Pencil className="w-3 h-3" strokeWidth={1.4} />
+          Edit
+        </button>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            onDelete?.();
+          }}
+          className="h-8 inline-flex items-center justify-center gap-1.5 border border-border hover:border-destructive hover:text-destructive text-[10px] uppercase tracking-[0.18em]"
+        >
+          <Trash2 className="w-3 h-3" strokeWidth={1.4} />
+          Delete
+        </button>
+      </div>
+    </article>
   );
 }
