@@ -5,13 +5,14 @@
 //   § II ·  At the Desk                   →  live side-by-side translation preview
 //   § III ·  Plates (I, II, III)          →  what lives inside the studio
 //   § IV  ·  Closing                       →  single big CTA
-//   § V   ·  Curator's note (footnote)     →  maker attribution
+//   § V   ·  Ko-fi (footnote)             →  small support link
 
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router";
 import {
   ArrowRight,
   BookOpenCheck,
+  Coffee,
   GitBranch,
   Scroll,
   ShieldCheck,
@@ -190,12 +191,24 @@ export default function Landing() {
         </motion.div>
       </section>
 
-      {/* ── § V · Curator's note ──────────────────────────────────── */}
+      {/* ── § V · Ko-fi (footnote) ────────────────────────────────── */}
       <div className="border-t border-border">
         <div className="mx-auto max-w-[1200px] px-6 lg:px-10 py-8 flex flex-wrap items-center justify-between gap-4 text-xs text-muted-foreground">
-          <span className="studio-caps text-foreground">
-            Curator · saberyyang09@gmail.com
-          </span>
+          <a
+            href="https://ko-fi.com/raynjee"
+            target="_blank"
+            rel="noreferrer noopener"
+            className="group inline-flex items-center gap-2 studio-caps text-foreground hover:text-accent transition-colors"
+          >
+            <span className="inline-flex h-7 w-7 items-center justify-center border border-border group-hover:border-foreground/40 transition-colors">
+              <Coffee className="w-3.5 h-3.5" strokeWidth={1.4} />
+            </span>
+            <span>Buy me a coffee</span>
+            <ArrowRight
+              className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform"
+              strokeWidth={1.4}
+            />
+          </a>
           <span>
             Atelier runs entirely in your browser. No server. No sign-up. No data leaves until you decide it should.
           </span>
