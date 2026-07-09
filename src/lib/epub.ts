@@ -150,7 +150,12 @@ function parseOpfManifest(opf: string): Record<string, ManifestItem> {
   const out: Record<string, ManifestItem> = {};
   const blockMatch = /<manifest\b[^>]*>([\s\S]*?)<\/manifest>/i.exec(opf);
   const block = blockMatch ? blockMatch[1] : "";
-  const itemRe = /<item\b([^/>]*)\/?>/g;
+  // NOTE: the attr-capture group must NOT exclude `/` — every chapter item's
+  // `media-type="application/xhtml+xml"` contains one, and a stricter
+  // character class (e.g. `[^/>]*`) aborts the match mid-attribute, leaving
+  // the manifest empty and every spine item skipped. We capture any character
+  // that's not `>` and let the closing `\/?>` terminator do the demarcation.
+  const itemRe = /<item\b([^>]*?)\/?\s*>/g;
   let m: RegExpExecArray | null;
   while ((m = itemRe.exec(block)) !== null) {
     const attrs = m[1];
@@ -173,7 +178,9 @@ function parseOpfSpine(opf: string): string[] {
   const out: string[] = [];
   const blockMatch = /<spine\b[^>]*>([\s\S]*?)<\/spine>/i.exec(opf);
   const block = blockMatch ? blockMatch[1] : "";
-  const itemRe = /<itemref\b([^/>]*)\/?>/g;
+  // Same `/` caveat as parseOpfManifest above — `idref` values also sometimes
+  // contain slashes in nested-asset EPUBs.
+  const itemRe = /<itemref\b([^>]*?)\/?\s*>/g;
   let m: RegExpExecArray | null;
   while ((m = itemRe.exec(block)) !== null) {
     const id = extractAttrFromStr(m[1], "idref");
