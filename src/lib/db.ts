@@ -41,8 +41,7 @@ const DEFAULT_SETTINGS: StudioSettings = {
     {
       id: "deepseek",
       enabled: true,
-      apiKey: "",
-      baseUrl: "https://api.deepseek.com",
+      baseUrl: "http://127.0.0.1:8081/v1",
       model: "deepseek-chat",
     },
     {

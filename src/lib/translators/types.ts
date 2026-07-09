@@ -293,7 +293,9 @@ export class TranslationManager {
     }
 
     for (const cfg of order) {
-      if (!cfg.enabled || !cfg.apiKey) continue;
+      if (!cfg.enabled) continue;
+      // DeepSeek doesn't need an API key; Gemini still does.
+      if (cfg.id === "gemini" && !cfg.apiKey) continue;
       if (this.rl.isSuspended(cfg.id)) continue;
       const client = PROVIDERS[cfg.id];
       try {
@@ -462,18 +464,31 @@ async function saveProviderStatus(s: ProviderStatus[]) {
 // ── Provider tests (lightweight calls) ──────────────────────────────────
 
 async function testDeepSeek(cfg: ProviderConfig) {
-  if (!cfg.apiKey) return { ok: false, message: "API key missing" };
+  // The proxy runs locally — send a trivial prompt to verify the roundtrip.
+  const base = cfg.baseUrl?.replace(/\/$/, "") || "http://127.0.0.1:8081/v1";
   try {
-    const base = cfg.baseUrl?.replace(/\/$/, "") || "https://api.deepseek.com";
-    const r = await fetch(`${base}/v1/models`, {
-      headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    const r = await fetch(`${base}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        messages: [{ role: "user", content: "Hello" }],
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(10_000),
     });
     if (!r.ok) {
-      return { ok: false, message: `${r.status} ${r.statusText}` };
+      const text = await r.text().catch(() => r.statusText);
+      return { ok: false, message: `${r.status}: ${text.slice(0, 100)}` };
     }
-    return { ok: true, message: "DeepSeek connection verified" };
+    return { ok: true, message: `Proxy at ${base} responded OK` };
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : String(e),
+    };
   }
 }
 

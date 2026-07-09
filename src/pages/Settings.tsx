@@ -1,5 +1,6 @@
 // Settings — API provider configuration, translation preferences, and
-// studio housekeeping (theme, backup, restore).
+// studio housekeeping (theme, backup, restore). Includes a tutorial for
+// the DeepSeek local proxy.
 
 import { useState } from "react";
 import { motion } from "framer-motion";
@@ -8,10 +9,14 @@ import {
   KeyRound,
   Loader2,
   Upload,
+  HelpCircle,
+  Terminal,
+  Check,
+  Copy,
 } from "lucide-react";
 import { StudioShell } from "@/components/StudioShell";
 import { useSettings } from "@/hooks/use-settings";
-import { PROVIDERS, TranslationManager } from "@/lib/translators/types";
+import { PROVIDERS } from "@/lib/translators/types";
 import { buildBackup, restoreBackup, listLogs, appendLog } from "@/lib/db";
 import { toast } from "sonner";
 import { formatRelativeTime } from "@/lib/util";
@@ -26,11 +31,12 @@ export default function SettingsPage() {
         <div className="studio-caps text-muted-foreground">The Back Room</div>
         <h1 className="font-display text-5xl mt-2 tracking-tight">Settings</h1>
         <p className="text-muted-foreground mt-3 max-w-[58ch]">
-          API keys, translation preferences, and the studio's housekeeping.
-          Everything saved here lives on your machine.
+          API keys, proxy configuration, translation preferences, and the
+          studio's housekeeping. Everything lives on your machine.
         </p>
 
-        <div className="mt-10 space-y-10">
+        <div className="mt-10 space-y-12">
+          <DeepSeekTutorial />
           <ProviderSettings settings={settings} update={update} canEdit={true} />
           <TranslationPreferences settings={settings} update={update} canEdit={true} />
           <LogsCard />
@@ -38,6 +44,127 @@ export default function SettingsPage() {
         </div>
       </div>
     </StudioShell>
+  );
+}
+
+// ── DeepSeek Proxy Tutorial ──────────────────────────────────────────────
+
+const DEEPSEEK_REPO = "https://github.com/sums001/Deepseek-API";
+
+function DeepSeekTutorial() {
+  const [copied, setCopied] = useState(false);
+
+  const commands = [
+    "git clone https://github.com/sums001/Deepseek-API",
+    "cd Deepseek-API",
+    "python -m deepseek.auth",
+    "# Once the browser login completes, set the port:",
+    "uvicorn deepseek.server:app --host 127.0.0.1 --port 8081",
+  ].join("\n");
+
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(commands);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success("Commands copied to clipboard.");
+    } catch {
+      toast.error("Failed to copy — copy them manually below.");
+    }
+  };
+
+  return (
+    <section className="studio-card p-6">
+      <div className="flex items-start gap-3">
+        <Terminal className="w-5 h-5 text-foreground mt-0.5" strokeWidth={1.4} />
+        <div className="flex-1">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="studio-caps text-muted-foreground">Setup Guide</div>
+              <h2 className="font-display text-2xl mt-0.5">Run the DeepSeek proxy</h2>
+            </div>
+            <button
+              onClick={onCopy}
+              className="h-9 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
+            >
+              {copied ? (
+                <Check className="w-4 h-4" strokeWidth={1.4} />
+              ) : (
+                <Copy className="w-4 h-4" strokeWidth={1.4} />
+              )}
+              <span className="text-xs uppercase tracking-[0.18em]">
+                {copied ? "Copied" : "Copy"}
+              </span>
+            </button>
+          </div>
+
+          <p className="text-muted-foreground text-sm leading-relaxed mt-3 max-w-[66ch]">
+            DeepSeek translations run through a local proxy — a thin Python
+            server that forwards your paragraph batches to the DeepSeek web
+            client using a one-time browser sign-in. Once it is running, every
+            translate button in the studio talks to it automatically.
+          </p>
+
+          <div className="mt-4 bg-muted/50 border border-border p-4 font-mono text-xs leading-relaxed text-foreground/85 overflow-x-auto">
+            <div className="text-muted-foreground mb-2 uppercase tracking-[0.18em]">
+              Terminal — run these once
+            </div>
+            {commands.split("\n").map((line, i) => (
+              <div key={i} className="flex gap-3">
+                <span className="select-none text-muted-foreground">$</span>
+                <span>{line}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <div className="border border-border p-3">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                Port
+              </div>
+              <div className="font-mono text-lg mt-1">
+                8081
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                The port set with <code className="font-mono">--port 8081</code> above. Change
+                it in the endpoint URL field below if you pick a different one.
+              </div>
+            </div>
+            <div className="border border-border p-3">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                Endpoint
+              </div>
+              <div className="font-mono text-sm mt-1">
+                /v1/chat/completions
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                OpenAI-compatible — the proxy uses the same shape as the
+                official API.
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 p-3 border border-border">
+            <HelpCircle className="w-4 h-4 text-foreground mt-0.5 shrink-0" strokeWidth={1.4} />
+            <div>
+              <span className="font-semibold text-foreground">Note:</span> The
+              proxy serializes requests — it processes one at a time. If
+              translations feel slow, wait for the queue to drain. The 30 RPM
+              rate limit is enforced by the proxy itself. See{" "}
+              <a
+                href={DEEPSEEK_REPO}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground"
+              >
+                sums001/Deepseek-API
+              </a>{" "}
+              for full docs.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -75,28 +202,29 @@ function ProviderSettings({
       message: res.message,
       at: Date.now(),
     });
-    if (res.ok) toast.success(`${cfg.id === "deepseek" ? "DeepSeek" : "Gemini"} ready.`);
-    else toast.error(`${cfg.id === "deepseek" ? "DeepSeek" : "Gemini"} failed: ${res.message}`);
+    if (res.ok) toast.success(`${id === "deepseek" ? "DeepSeek" : "Gemini"} ready.`);
+    else toast.error(`${id === "deepseek" ? "DeepSeek" : "Gemini"} failed: ${res.message}`);
   };
 
   return (
     <section>
       <SectionHeader eyebrow="API Keys" title="Translation providers" />
       <p className="text-muted-foreground max-w-[58ch] text-sm leading-relaxed">
-        Configure one or both providers. The studio automatically fails over when
-        one provider is rate limited or unreachable. Leave DeepSeek's key blank
-        to use the un-authenticated reverse-engineered endpoint.
+        Configure one or both providers. The studio automatically fails over
+        when a provider is rate limited or unreachable. DeepSeek uses the local
+        proxy — Gemini needs an API key.
       </p>
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         {settings.providers.map((cfg) => {
           const result = results[cfg.id];
+          const isDS = cfg.id === "deepseek";
           return (
             <div key={cfg.id} className="studio-card p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="studio-caps text-muted-foreground">{cfg.id}</div>
                   <div className="font-display text-xl mt-1">
-                    {cfg.id === "deepseek" ? "DeepSeek" : "Gemini"}
+                    {isDS ? "DeepSeek" : "Gemini"}
                   </div>
                 </div>
                 <label className="inline-flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
@@ -115,44 +243,15 @@ function ProviderSettings({
                   <span className="uppercase tracking-[0.18em]">Enabled</span>
                 </label>
               </div>
-              <div className="mt-5 grid gap-3">
-                <Field label="API key">
-                  <input
-                    disabled={!canEdit}
-                    type="password"
-                    placeholder={cfg.id === "deepseek" ? "sk-… (optional)" : "AIza…"}
-                    value={cfg.apiKey}
-                    onChange={(e) =>
-                      update({
-                        providers: settings.providers.map((p) =>
-                          p.id === cfg.id ? { ...p, apiKey: e.target.value } : p,
-                        ),
-                      })
-                    }
-                    className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2 font-mono text-sm"
-                  />
-                </Field>
-                <Field label="Model">
-                  <input
-                    disabled={!canEdit}
-                    value={cfg.model ?? ""}
-                    placeholder={cfg.id === "deepseek" ? "deepseek-chat" : "gemini-1.5-flash-latest"}
-                    onChange={(e) =>
-                      update({
-                        providers: settings.providers.map((p) =>
-                          p.id === cfg.id ? { ...p, model: e.target.value } : p,
-                        ),
-                      })
-                    }
-                    className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2"
-                  />
-                </Field>
-                {cfg.id === "deepseek" && (
-                  <Field label="Base URL">
+
+              {isDS ? (
+                /* DeepSeek: proxy endpoint — no API key */
+                <div className="mt-5 grid gap-3">
+                  <Field label="Proxy endpoint URL">
                     <input
                       disabled={!canEdit}
                       value={cfg.baseUrl ?? ""}
-                      placeholder="https://api.deepseek.com"
+                      placeholder="http://127.0.0.1:8081/v1"
                       onChange={(e) =>
                         update({
                           providers: settings.providers.map((p) =>
@@ -163,8 +262,65 @@ function ProviderSettings({
                       className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2 font-mono text-sm"
                     />
                   </Field>
-                )}
-              </div>
+                  <Field label="Model">
+                    <input
+                      disabled={!canEdit}
+                      value={cfg.model ?? ""}
+                      placeholder="deepseek-chat"
+                      onChange={(e) =>
+                        update({
+                          providers: settings.providers.map((p) =>
+                            p.id === cfg.id ? { ...p, model: e.target.value } : p,
+                          ),
+                        })
+                      }
+                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2"
+                    />
+                  </Field>
+                  <div className="border border-border p-3 mt-1 text-xs text-muted-foreground leading-relaxed">
+                    <span className="text-foreground font-medium">No API key required.</span>{" "}
+                    The proxy authenticates via your browser sign-in (see the setup
+                    guide above). Make sure the proxy is running before
+                    translating.
+                  </div>
+                </div>
+              ) : (
+                /* Gemini: needs an API key */
+                <div className="mt-5 grid gap-3">
+                  <Field label="API key">
+                    <input
+                      disabled={!canEdit}
+                      type="password"
+                      placeholder="AIza…"
+                      value={cfg.apiKey ?? ""}
+                      onChange={(e) =>
+                        update({
+                          providers: settings.providers.map((p) =>
+                            p.id === cfg.id ? { ...p, apiKey: e.target.value } : p,
+                          ),
+                        })
+                      }
+                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2 font-mono text-sm"
+                    />
+                  </Field>
+                  <Field label="Model">
+                    <input
+                      disabled={!canEdit}
+                      value={cfg.model ?? ""}
+                      placeholder="gemini-1.5-flash-latest"
+                      onChange={(e) =>
+                        update({
+                          providers: settings.providers.map((p) =>
+                            p.id === cfg.id ? { ...p, model: e.target.value } : p,
+                          ),
+                        })
+                      }
+                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2"
+                    />
+                  </Field>
+                </div>
+              )}
+
               <div className="mt-5 flex items-center justify-between gap-3">
                 <button
                   disabled={testing[cfg.id]}
@@ -302,8 +458,7 @@ function TranslationPreferences({
 
 function LogsCard() {
   const [logs, setLogs] = useState<ApiCallLog[]>([]);
-  const refresh = async () => setLogs(await listLogs());
-  void refresh; // Refresh on first mount via useState closure
+  useState(() => { void (async () => setLogs(await listLogs()))(); });
   return <LogsView logs={logs} />;
 }
 

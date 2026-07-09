@@ -1,24 +1,23 @@
-// DeepSeek adapter — reverse-engineered from the chat.deepseek.com web client.
-// Uses the unauthenticated browser endpoint. No API key required.
-// Ref: https://github.com/sums001/Deepseek-API
+// DeepSeek adapter — connects to the local proxy (sums001/Deepseek-API).
+// Default: http://127.0.0.1:8081/v1
+// The proxy presents an OpenAI-compatible /v1/chat/completions endpoint.
 
 import type { ProviderConfig } from "../types";
 import type { TranslateRequest, TranslateResult } from "./types";
 
-// The reverse-engineered chat endpoint that the web client hits directly.
-const ENDPOINT = "https://chat.deepseek.com/api/v0/chat/completions";
+const DEFAULT_ENDPOINT = "http://127.0.0.1:8081/v1";
 
 export async function callDeepSeek(
   cfg: ProviderConfig,
   req: TranslateRequest,
 ): Promise<Omit<TranslateResult, "provider">> {
+  const base = cfg.baseUrl?.replace(/\/$/, "") || DEFAULT_ENDPOINT;
+  const url = `${base}/chat/completions`;
+
   const systemPrompt = buildSystemPrompt(req);
   const userPrompt = buildUserPrompt(req);
 
-  // DeepSeek's web endpoint expects a slightly different payload shape
-  // than the official API. We omit `model` when not needed and supply
-  // the `chat_id` / `parent_message_id` for threading.
-  const body: Record<string, unknown> = {
+  const body = {
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -30,14 +29,11 @@ export async function callDeepSeek(
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 90_000);
   try {
-    const res = await fetch(ENDPOINT, {
+    const res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
-        // The web client sends these — include them so we look like a real session.
-        "X-DeepSeek-Device": "web",
-        "X-DeepSeek-Platform": "web",
       },
       body: JSON.stringify(body),
       signal: ctrl.signal,
