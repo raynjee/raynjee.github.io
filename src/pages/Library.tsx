@@ -8,7 +8,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
+  BookOpenCheck,
   Library as LibraryIcon,
+  Loader2,
   Plus,
   Save,
   Trash2,
@@ -30,6 +32,7 @@ import {
   useLibrary,
 } from "@/hooks/use-library";
 import { listChapters } from "@/lib/db";
+import { buildSampleEpub } from "@/lib/seed";
 import type { Chapter } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -430,6 +433,24 @@ function LoadingGrid() {
 }
 
 function EmptyWall({ onUploaded }: { onUploaded: () => Promise<void> }) {
+  const [seeding, setSeeding] = useState(false);
+  const onSeed = async () => {
+    if (seeding) return;
+    setSeeding(true);
+    try {
+      const file = await buildSampleEpub();
+      await importEpubFile(file);
+      toast.success("Sample volume added to the library.");
+    } catch (e) {
+      toast.error(
+        `Could not seed sample: ${
+          e instanceof Error ? e.message : "unknown error"
+        }`,
+      );
+    } finally {
+      setSeeding(false);
+    }
+  };
   return (
     <div className="max-w-2xl mx-auto studio-card p-10 lg:p-14 text-center">
       <div className="studio-caps text-muted-foreground">Plate 0 — Empty Wall</div>
@@ -443,7 +464,36 @@ function EmptyWall({ onUploaded }: { onUploaded: () => Promise<void> }) {
       <div className="mt-8 mx-auto max-w-md">
         <EmptyDrop onUploaded={onUploaded} />
       </div>
-      <div className="mt-6 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
+
+      <div className="mt-8 flex items-center justify-center gap-3">
+        <span className="h-px w-12 bg-border" />
+        <span className="studio-caps text-muted-foreground">or</span>
+        <span className="h-px w-12 bg-border" />
+      </div>
+
+      <div className="mt-6">
+        <button
+          type="button"
+          onClick={() => void onSeed()}
+          disabled={seeding}
+          className="h-11 px-5 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
+        >
+          {seeding ? (
+            <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
+          ) : (
+            <BookOpenCheck className="w-4 h-4" strokeWidth={1.4} />
+          )}
+          <span className="text-xs uppercase tracking-[0.22em]">
+            {seeding ? "Seeding sample…" : "Try with the sample volume"}
+          </span>
+        </button>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70 mt-3 max-w-[40ch] mx-auto leading-relaxed">
+          A multilingual travel essay — Japanese, Korean, Chinese & others — so
+          you can test the workflow before uploading your own.
+        </p>
+      </div>
+
+      <div className="mt-8 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
         Multiple files · .epub
       </div>
     </div>
