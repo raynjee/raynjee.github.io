@@ -4,7 +4,8 @@
 
 import { useSyncExternalStore } from "react";
 import { loadSettings, saveSettings } from "@/lib/db";
-import type { StudioSettings } from "@/lib/types";
+import { DEFAULT_READER_PREFS } from "@/lib/types";
+import type { ReaderPrefs, StudioSettings } from "@/lib/types";
 
 const listeners = new Set<() => void>();
 
@@ -53,7 +54,64 @@ export function useSettings() {
     notify();
   };
 
-  return { settings, update };
+  // Apply a partial patch to a single book's reader prefs. We trim `undefined`
+  // values so resetting a control to its global default removes the override
+  // entirely (rather than pinning the book to "undefined").
+  const updateBookPrefs = (
+    bookId: string,
+    patch: Partial<ReaderPrefs>,
+  ) => {
+    const current = getSnapshot();
+    const existing = current.bookReaderPrefs[bookId] ?? {};
+    const cleaned: Partial<ReaderPrefs> = {};
+    for (const [k, v] of Object.entries(patch)) {
+      if (v !== undefined) {
+        (cleaned as Record<string, unknown>)[k] = v;
+      }
+    }
+    const nextPatch: Partial<ReaderPrefs> = { ...existing, ...cleaned };
+    // If the user has now matched the default for every key, drop the record
+    // entirely so the localStorage payload stays tidy.
+    const isEquivDefault = (Object.keys(DEFAULT_READER_PREFS) as Array<keyof ReaderPrefs>)
+      .every((k) => (nextPatch[k] ?? DEFAULT_READER_PREFS[k]) === DEFAULT_READER_PREFS[k]);
+    const nextBookPrefs = { ...current.bookReaderPrefs };
+    if (isEquivDefault) {
+      delete nextBookPrefs[bookId];
+    } else {
+      nextBookPrefs[bookId] = nextPatch;
+    }
+    update({ bookReaderPrefs: nextBookPrefs });
+  };
+
+  // Merge the global default with the book's per-book overrides to get the
+  // reader's effective prefs. Cheap shallow merge — components then look up
+  // individual fields as needed.
+  const prefsFor = (bookId: string | undefined | null): ReaderPrefs => {
+    if (!bookId) return currentDefault();
+    const overrides = settings.bookReaderPrefs[bookId] ?? {};
+    return { ...settings.defaultReaderPrefs, ...overrides };
+  };
+
+  const currentDefault = (): ReaderPrefs => settings.defaultReaderPrefs;
+
+  const resetBookPrefs = (bookId: string) => {
+    const nextBookPrefs = { ...settings.bookReaderPrefs };
+    delete nextBookPrefs[bookId];
+    update({ bookReaderPrefs: nextBookPrefs });
+  };
+
+  const resetAllDefaults = () => {
+    update({ defaultReaderPrefs: { ...DEFAULT_READER_PREFS } });
+  };
+
+  return {
+    settings,
+    update,
+    updateBookPrefs,
+    prefsFor,
+    resetBookPrefs,
+    resetAllDefaults,
+  };
 }
 
 export function toggleThemePref() {

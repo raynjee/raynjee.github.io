@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   Check,
   Download,
+  Focus as FocusIcon,
   Languages,
   Loader2,
   Pause,
@@ -29,6 +30,10 @@ import { buildTranslatedEpub } from "@/lib/epub";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/util";
+import {
+  prefsToCssVars,
+  ReaderSettingsMenu,
+} from "@/components/studio/ReaderSettingsMenu";
 
 export default function BookReader() {
   const { bookId, chapterId } = useParams();
@@ -49,7 +54,31 @@ export default function BookReader() {
   useEffect(() => () => {
     mountedRef.current = false;
   }, []);
-  const { settings } = useSettings();
+  const { settings, prefsFor, updateBookPrefs } = useSettings();
+  // Reader preferences (per-book, falling back to global defaults). Used to
+  // drive typography, layout mode, and toggles for the TOC/original column.
+  const prefs = prefsFor(book?.id);
+  // Focus mode is intentionally session-only — it does NOT persist. Reset to
+  // `false` on every fresh mount of the reader.
+  const [focusMode, setFocusMode] = useState(false);
+
+  // Escape exits focus mode (session-only). Esc inside <input>/<textarea>
+  // fields should still bubble normally, so bail if the focused element is
+  // editable.
+  useEffect(() => {
+    if (!focusMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const el = document.activeElement as HTMLElement | null;
+      const tag = el?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || el?.isContentEditable) {
+        return;
+      }
+      setFocusMode(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [focusMode]);
 
   // Load all chapters + translations when the book opens
   useEffect(() => {
@@ -348,11 +377,23 @@ export default function BookReader() {
     );
   }
 
+  // Compose reader CSS custom properties on the wrapper so the prose inside
+  // can pick up typography, leading, and gap without inline styles.
+  const readerVarStyle = prefsToCssVars(prefs);
+
   return (
     <StudioShell>
-      <div className="mx-auto max-w-[1400px] px-6 lg:px-10 pt-10 pb-20">
-        {/* ── Title bar ─────────────────────────────────────────── */}
-        <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+      <div
+        className="mx-auto max-w-[1400px] px-6 lg:px-10 pt-10 pb-20 reader-root"
+        style={readerVarStyle}
+      >
+        {/* ── Title bar (hidden in focus mode) ─────────────────────── */}
+        <header
+          className={cn(
+            "flex flex-col lg:flex-row lg:items-end justify-between gap-6",
+            focusMode && "focus-mode-hidden",
+          )}
+        >
           <div>
             <button
               className="text-xs uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-2"
@@ -401,11 +442,25 @@ export default function BookReader() {
               <Download className="w-4 h-4" strokeWidth={1.4} />
               <span className="text-xs uppercase tracking-[0.18em]">Export EPUB</span>
             </button>
+            <button
+              onClick={() => setFocusMode(true)}
+              aria-label="Enter focus mode"
+              className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors"
+            >
+              <FocusIcon className="w-4 h-4" strokeWidth={1.4} />
+              <span className="text-xs uppercase tracking-[0.18em]">Focus</span>
+            </button>
+            <ReaderSettingsMenu bookId={book.id} />
           </div>
         </header>
 
-        {/* Progress strip */}
-        <div className="mt-8 border border-border bg-card p-4 grid grid-cols-12 gap-4">
+        {/* Progress strip (hidden in focus mode) */}
+        <div
+          className={cn(
+            "mt-8 border border-border bg-card p-4 grid grid-cols-12 gap-4",
+            focusMode && "focus-mode-hidden",
+          )}
+        >
           <ProgressCell label="Chapter" value={`${chapters.findIndex((c) => c.id === activeId) + 1} / ${chapters.length}`} />
           <ProgressCell label="Words translated" value={`${translatedWordCount.toLocaleString()} / ${totalWordCount.toLocaleString()}`} />
           <ProgressCell
@@ -433,60 +488,68 @@ export default function BookReader() {
           </div>
         )}
 
-        {/* Main split: TOC + reader */}
+        {/* Main split: TOC + reader (TOC hidden when pref off or in focus) */}
         <div className="mt-10 grid grid-cols-12 gap-8">
           {/* TOC */}
-          <aside className="col-span-12 lg:col-span-3 lg:sticky lg:top-24 lg:self-start">
-            <div className="studio-caps text-muted-foreground">Table of contents</div>
-            <ol className="mt-4 border border-border bg-card divide-y divide-border max-h-[calc(100vh-7rem)] overflow-y-auto thin-scrollbar">
-              {chapters.map((c, idx) => {
-                const tr = translations[c.id];
-                const isDone = tr?.status === "completed" && tr.paragraphs.every((p) => p && p.trim());
-                const isActive = c.id === activeId;
-                return (
-                  <li key={c.id}>
-                    <button
-                      onClick={() => setActiveId(c.id)}
-                      className={cn(
-                        "w-full text-left px-4 py-3 grid grid-cols-12 gap-3 items-center hover:bg-muted transition-colors",
-                        isActive && "bg-foreground text-background hover:bg-foreground",
-                      )}
-                    >
-                      <span className="col-span-1 studio-num text-xs opacity-70">
-                        {String(idx + 1).padStart(2, "0")}
-                      </span>
-                      <span className="col-span-9 text-sm font-display line-clamp-2">
-                        {c.title}
-                      </span>
-                      <span className="col-span-2 flex justify-end">
-                        {isDone ? (
-                          <Check className="w-4 h-4" strokeWidth={1.5} />
-                        ) : tr ? (
-                          <span
-                            className={cn(
-                              "studio-num text-[10px]",
-                              isActive ? "opacity-80" : "text-muted-foreground",
-                            )}
-                          >
-                            {Math.round((tr.progress ?? 0) * 100)}%
-                          </span>
-                        ) : (
-                          <span className="studio-num text-[10px] opacity-50">·</span>
+          {!focusMode && prefs.showToc && (
+            <aside className="col-span-12 lg:col-span-3 lg:sticky lg:top-24 lg:self-start">
+              <div className="studio-caps text-muted-foreground">Table of contents</div>
+              <ol className="mt-4 border border-border bg-card divide-y divide-border max-h-[calc(100vh-7rem)] overflow-y-auto thin-scrollbar">
+                {chapters.map((c, idx) => {
+                  const tr = translations[c.id];
+                  const isDone = tr?.status === "completed" && tr.paragraphs.every((p) => p && p.trim());
+                  const isActive = c.id === activeId;
+                  return (
+                    <li key={c.id}>
+                      <button
+                        onClick={() => setActiveId(c.id)}
+                        className={cn(
+                          "w-full text-left px-4 py-3 grid grid-cols-12 gap-3 items-center hover:bg-muted transition-colors",
+                          isActive && "bg-foreground text-background hover:bg-foreground",
                         )}
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          </aside>
+                      >
+                        <span className="col-span-1 studio-num text-xs opacity-70">
+                          {String(idx + 1).padStart(2, "0")}
+                        </span>
+                        <span className="col-span-9 text-sm font-display line-clamp-2">
+                          {c.title}
+                        </span>
+                        <span className="col-span-2 flex justify-end">
+                          {isDone ? (
+                            <Check className="w-4 h-4" strokeWidth={1.5} />
+                          ) : tr ? (
+                            <span
+                              className={cn(
+                                "studio-num text-[10px]",
+                                isActive ? "opacity-80" : "text-muted-foreground",
+                              )}
+                            >
+                              {Math.round((tr.progress ?? 0) * 100)}%
+                            </span>
+                          ) : (
+                            <span className="studio-num text-[10px] opacity-50">·</span>
+                          )}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </aside>
+          )}
 
-          {/* Reader */}
-          <section className="col-span-12 lg:col-span-9">
+          {/* Reader — full width when TOC is hidden / focus mode */}
+          <section
+            className={cn(
+              "col-span-12",
+              !focusMode && prefs.showToc && "lg:col-span-9",
+            )}
+          >
             {activeChapter ? (
               <ChapterReader
                 chapter={activeChapter}
                 translation={activeTranslation ?? null}
+                prefs={prefs}
                 onTranslate={onTranslateActive}
                 onTranslateParagraph={async (paragraphIdx) => {
                   if (!book || !activeChapter) return;
@@ -534,8 +597,51 @@ export default function BookReader() {
             )}
           </section>
         </div>
+
+        {/* Floating exit-focus pill — only visible in focus mode. Fades out
+            after 1.6s of pointer stillness. */}
+        <AnimatePresence>
+          {focusMode && (
+            <FocusExitPill onExit={() => setFocusMode(false)} />
+          )}
+        </AnimatePresence>
       </div>
     </StudioShell>
+  );
+}
+
+function FocusExitPill({ onExit }: { onExit: () => void }) {
+  const [visible, setVisible] = useState(true);
+  const idleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const onMove = () => {
+      setVisible(true);
+      if (idleRef.current) clearTimeout(idleRef.current);
+      idleRef.current = setTimeout(() => setVisible(false), 1600);
+    };
+    window.addEventListener("mousemove", onMove);
+    onMove(); // show on mount for ~1.6s
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      if (idleRef.current) clearTimeout(idleRef.current);
+    };
+  }, []);
+
+  return (
+    <motion.button
+      type="button"
+      onClick={onExit}
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: visible ? 1 : 0, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.25 }}
+      aria-label="Exit focus mode"
+      className="fixed top-4 right-4 z-40 h-9 px-3 inline-flex items-center gap-2 bg-background/90 border border-border text-foreground/80 hover:text-foreground text-[10px] uppercase tracking-[0.2em] backdrop-blur-sm"
+    >
+      <FocusIcon className="w-3.5 h-3.5" strokeWidth={1.4} />
+      Exit focus · esc
+    </motion.button>
   );
 }
 
@@ -586,6 +692,7 @@ function countWords(s: string): number {
 function ChapterReader({
   chapter,
   translation,
+  prefs,
   onTranslate,
   onTranslateParagraph,
   onResetParagraph,
@@ -593,14 +700,26 @@ function ChapterReader({
 }: {
   chapter: Chapter;
   translation: ChapterTranslation | null;
+  prefs: ReturnType<typeof useSettings>["prefsFor"] extends (id?: any) => infer R
+    ? R
+    : never;
   onTranslate: () => void | Promise<void>;
   onTranslateParagraph: (idx: number) => void | Promise<void>;
   onResetParagraph: (idx: number) => void;
   busy: boolean;
 }) {
-  const [showOriginal, setShowOriginal] = useState(true);
+  // showOriginal/layout are now driven by per-book ReaderPrefs instead of
+  // local component state — so changes persist across sessions and stay in
+  // sync across tabs when paired with the useSettings() snapshot.
+  const showOriginal = prefs.showOriginal;
+  const layout = prefs.layout;
   const paragraphs = chapter.paragraphs;
   const translated = translation?.paragraphs ?? Array(paragraphs.length).fill(null);
+
+  // Stack layout: original on top, English directly below in a single
+  // column. The inner divider heading remains so the user can still tell
+  // where the translation begins.
+  const cols = !showOriginal ? 1 : layout === "stack" ? 1 : 2;
 
   return (
     <article className="border border-border bg-card p-6 lg:p-10">
@@ -621,13 +740,12 @@ function ChapterReader({
         <div className="flex items-center gap-2">
           <button
             className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
-            onClick={() => setShowOriginal((v) => !v)}
-            title="Toggle the original column"
+            title={`Original column is ${showOriginal ? "shown" : "hidden"} — change from the Reader menu`}
+            aria-hidden
+            tabIndex={-1}
+            style={{ display: "none" }}
           >
             <Languages className="w-4 h-4" strokeWidth={1.4} />
-            <span className="text-xs uppercase tracking-[0.18em]">
-              {showOriginal ? "Hide original" : "Show original"}
-            </span>
           </button>
           <button
             disabled={busy}
@@ -650,19 +768,81 @@ function ChapterReader({
       <div
         className={cn(
           "mt-10 mb-6 grid gap-4 lg:gap-6 border-b border-border pb-3",
-          showOriginal ? "lg:grid-cols-2" : "lg:grid-cols-1",
+          cols === 1 ? "grid-cols-1" : "lg:grid-cols-2",
         )}
       >
-        {showOriginal && (
+        {showOriginal && layout === "split" && (
           <div className="studio-caps text-muted-foreground">Original</div>
         )}
-        <div className="studio-caps text-muted-foreground">English</div>
+        {showOriginal && layout === "stack" && (
+          <>
+            <div className="studio-caps text-muted-foreground">Original</div>
+            <div className="studio-caps text-muted-foreground">English</div>
+          </>
+        )}
+        {!showOriginal && (
+          <div className="studio-caps text-muted-foreground">English</div>
+        )}
       </div>
 
       {/* Paragraphs flow as continuous prose — breathing space instead of divider plates. */}
-      <div className="space-y-7 lg:space-y-9">
+      <div className={cn("reader-gap", layout === "stack" && showOriginal ? "space-y-0" : "space-y-0")}>
         {paragraphs.map((p, idx) => {
           const t = translated[idx];
+          if (showOriginal && layout === "stack") {
+            // Stacked layout: original line, then English line below it,
+            // with a subtle border-bottom to mark the end of the paragraph.
+            return (
+              <motion.div
+                key={idx}
+                layout
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22, delay: Math.min(idx, 6) * 0.02 }}
+                className="border-b border-border pb-[var(--reader-paragraph-gap)]"
+              >
+                <p className="reader-prose-text text-foreground/80 border-l border-border pl-4">
+                  {p}
+                </p>
+                <div className="group relative mt-3 border-l border-border pl-4 bg-muted/30">
+                  <div className="absolute -top-2 right-0 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                    {t && t.trim() ? (
+                      <>
+                        <button
+                          onClick={() => onTranslateParagraph(idx)}
+                          className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
+                          title="Re-translate this paragraph"
+                        >
+                          Re-translate
+                        </button>
+                        <button
+                          onClick={() => onResetParagraph(idx)}
+                          className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
+                          title="Reset to source"
+                        >
+                          <Undo2 className="w-3 h-3 inline" /> Reset
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => onTranslateParagraph(idx)}
+                        className="text-[10px] uppercase tracking-[0.2em] text-foreground hover:text-foreground/70"
+                        title="Translate this paragraph"
+                      >
+                        Translate →
+                      </button>
+                    )}
+                  </div>
+                  <p className="reader-prose-text text-foreground/85">
+                    {t && t.trim() ? t : (
+                      <span className="text-muted-foreground/70 italic">Not yet translated.</span>
+                    )}
+                  </p>
+                </div>
+              </motion.div>
+            );
+          }
+          // Default: side-by-side split (or translation-only when !showOriginal).
           return (
             <motion.div
               key={idx}
@@ -673,10 +853,11 @@ function ChapterReader({
               className={cn(
                 "grid gap-5 lg:gap-8 items-start",
                 showOriginal ? "lg:grid-cols-2" : "lg:grid-cols-1",
+                "border-b border-border pb-[var(--reader-paragraph-gap)]",
               )}
             >
               {showOriginal && (
-                <p className="border-l border-border pl-4 font-display text-[17px] leading-[1.75] text-foreground/80 lg:text-[19px] lg:leading-[1.75]">
+                <p className="reader-prose-text text-foreground/80 border-l border-border pl-4">
                   {p}
                 </p>
               )}
@@ -709,7 +890,7 @@ function ChapterReader({
                     </button>
                   )}
                 </div>
-                <p className="font-display text-[17px] leading-[1.75] text-foreground/85 lg:text-[19px] lg:leading-[1.75]">
+                <p className="reader-prose-text text-foreground/85">
                   {t && t.trim() ? t : (
                     <span className="text-muted-foreground/70 italic">Not yet translated.</span>
                   )}

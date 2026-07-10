@@ -258,6 +258,35 @@
     border-top: 1px solid var(--foreground);
     opacity: 0.18;
   }
+
+  /* ── Reader controls ──────────────────────────────────────────── */
+  /* Defaults for the reader CSS variables so paragraphs stay legible
+     even if a parent forgets to attach the vars (e.g., outside the
+     BookReader DOM tree). */
+  .reader-root {
+    --reader-font-family: var(--font-display);
+    --reader-font-scale: 1;
+    --reader-leading: 1.75;
+    --reader-paragraph-gap: 1.75rem;
+  }
+  .reader-prose-text {
+    font-family: var(--reader-font-family);
+    line-height: var(--reader-leading);
+    font-size: calc(17px * var(--reader-font-scale));
+  }
+  @media (min-width: 1024px) {
+    .reader-prose-text {
+      font-size: calc(19px * var(--reader-font-scale));
+    }
+  }
+  .reader-gap > * + * {
+    margin-top: var(--reader-paragraph-gap);
+  }
+  /* Focus mode hides the chrome (title bar, progress strip, TOC, controls)
+     while leaving only the reading pane visible. Escape exits. */
+  .focus-mode-hidden {
+    display: none !important;
+  }
 }
 
 /* Custom scrollbar — thin, refined */

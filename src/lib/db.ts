@@ -8,9 +8,11 @@ import type {
   Chapter,
   ChapterTranslation,
   ProviderStatus,
+  ReaderPrefs,
   StudioSettings,
   TranslationCacheEntry,
 } from "./types";
+import { DEFAULT_READER_PREFS } from "./types";
 
 const DB_NAME = "atelier-studio";
 const DB_VERSION = 1;
@@ -58,6 +60,8 @@ const DEFAULT_SETTINGS: StudioSettings = {
   parallelRequests: 2,
   pauseOnError: false,
   themePref: "light",
+  defaultReaderPrefs: { ...DEFAULT_READER_PREFS },
+  bookReaderPrefs: {},
 };
 
 function isBrowser(): boolean {
@@ -131,6 +135,22 @@ export function loadSettings(): StudioSettings {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<StudioSettings>;
+    // Hydrate new reader-prefs keys for users whose saved settings pre-date
+    // the feature, so existing localStorage payloads keep working without
+    // leaking undefined through the UI. We deep-merge defaultReaderPrefs so
+    // future additions land on existing installs automatically, and we
+    // validate each per-book patch is a real ReaderPrefs object so a corrupt
+    // entry never crashes the reader.
+    const hydratedDefaults: ReaderPrefs = {
+      ...DEFAULT_READER_PREFS,
+      ...(parsed.defaultReaderPrefs ?? {}),
+    };
+    const hydratedBookPrefs: Record<string, Partial<ReaderPrefs>> = {};
+    for (const [bookId, patch] of Object.entries(parsed.bookReaderPrefs ?? {})) {
+      if (patch && typeof patch === "object") {
+        hydratedBookPrefs[bookId] = patch as Partial<ReaderPrefs>;
+      }
+    }
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
@@ -138,6 +158,8 @@ export function loadSettings(): StudioSettings {
         const override = parsed.providers?.find((x) => x.id === p.id);
         return override ? { ...p, ...override } : p;
       }),
+      defaultReaderPrefs: hydratedDefaults,
+      bookReaderPrefs: hydratedBookPrefs,
     };
   } catch {
     return DEFAULT_SETTINGS;
