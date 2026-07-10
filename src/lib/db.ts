@@ -12,7 +12,7 @@ import type {
   StudioSettings,
   TranslationCacheEntry,
 } from "./types";
-import { DEFAULT_READER_PREFS } from "./types";
+import { DEFAULT_READER_PREFS, migrateReaderPrefs } from "./types";
 
 const DB_NAME = "atelier-studio";
 const DB_VERSION = 1;
@@ -140,16 +140,23 @@ export function loadSettings(): StudioSettings {
     // leaking undefined through the UI. We deep-merge defaultReaderPrefs so
     // future additions land on existing installs automatically, and we
     // validate each per-book patch is a real ReaderPrefs object so a corrupt
-    // entry never crashes the reader.
-    const hydratedDefaults: ReaderPrefs = {
+    // entry never crashes the reader. Migrate legacy `scale` enum entries
+    // (and any other field-shape drift) to the new continuous fontSize
+    // model via migrateReaderPrefs().
+    const hydratedDefaults: ReaderPrefs = migrateReaderPrefs({
       ...DEFAULT_READER_PREFS,
       ...(parsed.defaultReaderPrefs ?? {}),
-    };
+    });
     const hydratedBookPrefs: Record<string, Partial<ReaderPrefs>> = {};
     for (const [bookId, patch] of Object.entries(parsed.bookReaderPrefs ?? {})) {
-      if (patch && typeof patch === "object") {
-        hydratedBookPrefs[bookId] = patch as Partial<ReaderPrefs>;
-      }
+      if (!patch || typeof patch !== "object") continue;
+      // Partial<ReaderPrefs> on disk may be sparse (only the keys the user
+      // touched). Re-run migrateReaderPrefs over the patch against defaults
+      // so the resulting override is always a self-consistent slice.
+      hydratedBookPrefs[bookId] = migrateReaderPrefs({
+        ...DEFAULT_READER_PREFS,
+        ...(patch as Partial<ReaderPrefs>),
+      });
     }
     return {
       ...DEFAULT_SETTINGS,

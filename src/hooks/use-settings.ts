@@ -73,6 +73,8 @@ export function useSettings() {
     // If the user has now matched the default for every key, drop the record
     // entirely so the localStorage payload stays tidy.
     const isEquivDefault = (Object.keys(DEFAULT_READER_PREFS) as Array<keyof ReaderPrefs>)
+      // Compare every pref field by value (with a fallback to the default
+      // for sparse overrides). Includes numeric fontSize comparison.
       .every((k) => (nextPatch[k] ?? DEFAULT_READER_PREFS[k]) === DEFAULT_READER_PREFS[k]);
     const nextBookPrefs = { ...current.bookReaderPrefs };
     if (isEquivDefault) {

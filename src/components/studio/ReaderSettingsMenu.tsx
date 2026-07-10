@@ -1,8 +1,10 @@
 // ReaderSettingsMenu — a single popover from the BookReader header that
-// gives the user per-book controls: layout, typography, scale, density,
-// plus show/hide toggles for the TOC and the original column. Float
-// above the existing Studio shell; do not depend on the index page.
+// gives the user per-book controls: layout, typography, font size,
+// density, plus show/hide toggles for the original column. The TOC
+// visibility button lives in the chapter header (PanelLeftOpen /
+// PanelLeftClose) so this menu intentionally doesn't duplicate it.
 
+import { useState } from "react";
 import { useSettings } from "@/hooks/use-settings";
 import {
   Popover,
@@ -21,7 +23,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
-  FontScale,
   Leading,
   ParagraphGap,
   ReaderFont,
@@ -30,13 +31,14 @@ import type {
 } from "@/lib/types";
 import {
   FONT_FAMILY,
-  FONT_SCALES,
+  FONT_SIZE_DEFAULT,
+  FONT_SIZE_MAX,
+  FONT_SIZE_MIN,
+  FONT_SIZE_STEP,
   LEADINGS,
   PARAGRAPH_GAPS,
 } from "@/lib/types";
 
-const SCALE_INDEX: FontScale[] = ["xs", "s", "m", "l", "xl"];
-const SCALE_LABELS = ["XS", "S", "M", "L", "XL"];
 const LEADING_INDEX: Leading[] = ["tight", "regular", "airy"];
 const LEADING_LABELS = ["Tight", "Regular", "Airy"];
 const GAP_INDEX: ParagraphGap[] = ["tight", "regular", "roomy"];
@@ -58,9 +60,7 @@ export function ReaderSettingsMenu({ bookId }: { bookId: string }) {
   const prefs = prefsFor(bookId);
   const hasOverride = !!settings.bookReaderPrefs[bookId];
 
-  // Numeric indices for sliders — convert both ways so the slider primitive
-  // (continuous) drives a discrete enum.
-  const scaleIdx = SCALE_INDEX.indexOf(prefs.scale);
+  // Stepped-slider indices for the two enum-based controls.
   const leadingIdx = LEADING_INDEX.indexOf(prefs.leading);
   const gapIdx = GAP_INDEX.indexOf(prefs.gap);
 
@@ -123,15 +123,10 @@ export function ReaderSettingsMenu({ bookId }: { bookId: string }) {
             }
           />
 
-          <SteppedSlider
+          <SizeControl
             label="Size"
-            idx={scaleIdx}
-            total={SCALE_INDEX.length}
-            labels={SCALE_LABELS}
-            onChange={(i) =>
-              updateBookPrefs(bookId, { scale: SCALE_INDEX[i] })
-            }
-            displayValue={SCALE_LABELS[scaleIdx]}
+            value={prefs.fontSize}
+            onChange={(v) => updateBookPrefs(bookId, { fontSize: v })}
           />
 
           <SteppedSlider
@@ -157,9 +152,6 @@ export function ReaderSettingsMenu({ bookId }: { bookId: string }) {
           />
 
           <div className="border-t border-border pt-4 space-y-3">
-            {/* TOC visibility is exposed via the dedicated inline button
-                inside the chapter header (PanelLeftOpen / PanelLeftClose),
-                so it isn't duplicated in this menu. */}
             <Toggle
               label="Original column"
               checked={prefs.showOriginal}
@@ -209,6 +201,86 @@ function Segment<T extends string>({
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// Continuous font-size control: a slider drives the primary value, and a
+// small `<input type="number">` next to the label accepts direct typing so a
+// reader can pin "22" without scrubbing the slider. Both inputs round to
+// the nearest valid step and clamp to [FONT_SIZE_MIN, FONT_SIZE_MAX].
+function SizeControl({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (next: number) => void;
+}) {
+  // Local draft state so users can type "22" without committing on every
+  // keystroke; we flush to the global pref on blur or Enter. Without this,
+  // typing "230" then deleting back to "23" would briefly push the slider
+  // to 230 (clamped) and re-render the input with that value, breaking the
+  // edit cycle.
+  const [draft, setDraft] = useState<string | null>(null);
+  const clamp = (n: number) =>
+    Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, Math.round(n)));
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-2">
+        <span className="studio-caps text-muted-foreground">{label}</span>
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            inputMode="numeric"
+            value={draft ?? String(value)}
+            min={FONT_SIZE_MIN}
+            max={FONT_SIZE_MAX}
+            step={FONT_SIZE_STEP}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={() => {
+              if (draft === null) return;
+              const n = parseInt(draft, 10);
+              onChange(Number.isFinite(n) ? clamp(n) : FONT_SIZE_DEFAULT);
+              setDraft(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                (e.currentTarget as HTMLInputElement).blur();
+              }
+            }}
+            className="h-7 w-14 bg-transparent text-right text-[12px] tabular-nums tracking-[0.04em] text-foreground/85 border-b border-border hover:border-foreground/40 focus:border-foreground focus:outline-none"
+            aria-label={`${label} in pixels`}
+          />
+          <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            px
+          </span>
+        </div>
+      </div>
+      <Slider
+        value={[value]}
+        min={FONT_SIZE_MIN}
+        max={FONT_SIZE_MAX}
+        step={FONT_SIZE_STEP}
+        onValueChange={(v) => {
+          // Drop the pending draft so the input reflects the slider's new
+          // value instead of a stale typed string.
+          setDraft(null);
+          const n = v[0];
+          onChange(Number.isFinite(n) ? clamp(n) : FONT_SIZE_DEFAULT);
+        }}
+        aria-label={`${label} (${value} pixels)`}
+      />
+      {/* Mini tick row under the slider — shows min/default/max anchors so
+          the user knows where the slider sits at a glance without crowding
+          the control with five labels. */}
+      <div className="mt-1.5 grid text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70 grid-cols-3">
+        <span className="text-left">{FONT_SIZE_MIN}</span>
+        <span className="text-center">{FONT_SIZE_DEFAULT}</span>
+        <span className="text-right">{FONT_SIZE_MAX}</span>
       </div>
     </div>
   );
@@ -289,10 +361,14 @@ function Toggle({
 }
 
 // Re-export so BookReader can pull the CSS-var math without duplicating it.
+// We emit literal px for font size (the user picks absolute pixels) and
+// resolved CSS values for the rest. Font family uses the hardcoded stack so
+// the sans/serif toggle visibly switches in the browser without depending on
+// chained var() resolution.
 export function prefsToCssVars(p: ReaderPrefs): React.CSSProperties {
   const styles: Record<string, string> = {};
   styles["--reader-font-family"] = FONT_FAMILY[p.font];
-  styles["--reader-font-scale"] = String(FONT_SCALES[p.scale]);
+  styles["--reader-font-size"] = `${p.fontSize}px`;
   styles["--reader-leading"] = String(LEADINGS[p.leading]);
   styles["--reader-paragraph-gap"] = PARAGRAPH_GAPS[p.gap];
   return styles as React.CSSProperties;

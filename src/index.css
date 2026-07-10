@@ -262,22 +262,21 @@
   /* ── Reader controls ──────────────────────────────────────────── */
   /* Defaults for the reader CSS variables so paragraphs stay legible
      even if a parent forgets to attach the vars (e.g., outside the
-     BookReader DOM tree). */
+     BookReader DOM tree). Font size is a literal pixel value set by
+     the user via the Reader popover — no more scale-multiplier math,
+     no more responsive 17/19 split. Font family uses the hardcoded
+     font stack emitted by prefsToCssVars so the serif/sans toggle
+     never falls through to the wrong fallback. */
   .reader-root {
-    --reader-font-family: var(--font-display);
-    --reader-font-scale: 1;
+    --reader-font-family: "Fraunces", "Cormorant Garamond", ui-serif, Georgia, serif;
+    --reader-font-size: 18px;
     --reader-leading: 1.75;
     --reader-paragraph-gap: 1.75rem;
   }
   .reader-prose-text {
     font-family: var(--reader-font-family);
     line-height: var(--reader-leading);
-    font-size: calc(17px * var(--reader-font-scale));
-  }
-  @media (min-width: 1024px) {
-    .reader-prose-text {
-      font-size: calc(19px * var(--reader-font-scale));
-    }
+    font-size: var(--reader-font-size);
   }
   .reader-gap > * + * {
     margin-top: var(--reader-paragraph-gap);
