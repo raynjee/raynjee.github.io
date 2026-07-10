@@ -4,14 +4,15 @@
 // the active chapter or batch-translate the rest.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Check,
   Download,
-  Focus as FocusIcon,
   Languages,
   Loader2,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pause,
   Play,
   Sparkles,
@@ -58,27 +59,6 @@ export default function BookReader() {
   // Reader preferences (per-book, falling back to global defaults). Used to
   // drive typography, layout mode, and toggles for the TOC/original column.
   const prefs = prefsFor(book?.id);
-  // Focus mode is intentionally session-only — it does NOT persist. Reset to
-  // `false` on every fresh mount of the reader.
-  const [focusMode, setFocusMode] = useState(false);
-
-  // Escape exits focus mode (session-only). Esc inside <input>/<textarea>
-  // fields should still bubble normally, so bail if the focused element is
-  // editable.
-  useEffect(() => {
-    if (!focusMode) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      const el = document.activeElement as HTMLElement | null;
-      const tag = el?.tagName?.toLowerCase();
-      if (tag === "input" || tag === "textarea" || el?.isContentEditable) {
-        return;
-      }
-      setFocusMode(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [focusMode]);
 
   // Load all chapters + translations when the book opens
   useEffect(() => {
@@ -378,8 +358,7 @@ export default function BookReader() {
             className="mt-6 h-11 px-5 inline-flex items-center gap-2 border border-border"
             onClick={() => navigate("/library")}
           >
-            <ArrowLeft className="w-4 h-4" strokeWidth={1.4} />
-            Back to library
+            <ArrowLeft className="w-4 h-4" strokeWidth={1.4} /> Back to library
           </button>
         </div>
       </StudioShell>
@@ -396,13 +375,8 @@ export default function BookReader() {
         className="mx-auto max-w-[1400px] px-6 lg:px-10 pt-10 pb-20 reader-root"
         style={readerVarStyle}
       >
-        {/* ── Title bar (hidden in focus mode) ─────────────────────── */}
-        <header
-          className={cn(
-            "flex flex-col lg:flex-row lg:items-end justify-between gap-6",
-            focusMode && "focus-mode-hidden",
-          )}
-        >
+        {/* ── Title bar ───────────────────────────────────────────── */}
+        <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
           <div>
             <button
               className="text-xs uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-2"
@@ -457,13 +431,8 @@ export default function BookReader() {
           </div>
         </header>
 
-        {/* Progress strip (hidden in focus mode) */}
-        <div
-          className={cn(
-            "mt-8 border border-border bg-card p-4 grid grid-cols-12 gap-4",
-            focusMode && "focus-mode-hidden",
-          )}
-        >
+        {/* Progress strip */}
+        <div className="mt-8 border border-border bg-card p-4 grid grid-cols-12 gap-4">
           <ProgressCell label="Chapter" value={`${chapters.findIndex((c) => c.id === activeId) + 1} / ${chapters.length}`} />
           <ProgressCell label="Words translated" value={`${translatedWordCount.toLocaleString()} / ${totalWordCount.toLocaleString()}`} />
           <ProgressCell
@@ -491,13 +460,18 @@ export default function BookReader() {
           </div>
         )}
 
-        {/* Main split: TOC + reader (TOC hidden when pref off or in focus) */}
+        {/* Main split: TOC + reader (TOC hidden via pref.showToc) */}
         <div className="mt-10 grid grid-cols-12 gap-8">
           {/* TOC */}
-          {!focusMode && prefs.showToc && (
+          {prefs.showToc && (
             <aside className="col-span-12 lg:col-span-3 lg:sticky lg:top-24 lg:self-start">
-              <div className="studio-caps text-muted-foreground">Table of contents</div>
-              <ol className="mt-4 border border-border bg-card divide-y divide-border max-h-[calc(100vh-7rem)] overflow-y-auto thin-scrollbar">
+              <div className="flex items-baseline justify-between">
+                <span className="studio-caps text-muted-foreground">Table of contents</span>
+                <span className="studio-num text-[10px] text-muted-foreground">
+                  {chapters.length.toString().padStart(2, "0")}
+                </span>
+              </div>
+              <ol className="mt-4 divide-y divide-border max-h-[calc(100vh-7rem)] overflow-y-auto thin-scrollbar">
                 {chapters.map((c, idx) => {
                   const tr = translations[c.id];
                   const isDone = tr?.status === "completed" && tr.paragraphs.every((p) => p && p.trim());
@@ -507,7 +481,7 @@ export default function BookReader() {
                       <button
                         onClick={() => setActiveId(c.id)}
                         className={cn(
-                          "w-full text-left px-4 py-3 grid grid-cols-12 gap-3 items-center hover:bg-muted transition-colors",
+                          "w-full text-left px-3 py-2.5 grid grid-cols-12 gap-3 items-center transition-colors hover:bg-muted",
                           isActive && "bg-foreground text-background hover:bg-foreground",
                         )}
                       >
@@ -538,14 +512,24 @@ export default function BookReader() {
                   );
                 })}
               </ol>
+              {/* Inline hide affordance anchored to the bottom of the TOC. */}
+              <button
+                type="button"
+                onClick={() => updateBookPrefs(book.id, { showToc: false })}
+                aria-label="Hide table of contents"
+                className="mt-5 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <PanelLeftClose className="w-3.5 h-3.5" strokeWidth={1.4} />
+                Hide contents
+              </button>
             </aside>
           )}
 
-          {/* Reader — full width when TOC is hidden / focus mode */}
+          {/* Reader — full width when TOC is hidden */}
           <section
             className={cn(
               "col-span-12",
-              !focusMode && prefs.showToc && "lg:col-span-9",
+              prefs.showToc && "lg:col-span-9",
             )}
           >
             {activeChapter ? (
@@ -554,8 +538,6 @@ export default function BookReader() {
                 translation={activeTranslation ?? null}
                 prefs={prefs}
                 bookId={book.id}
-                hideFocusChrome={focusMode}
-                onEnterFocus={() => setFocusMode(true)}
                 onTranslate={onTranslateActive}
                 onTranslateParagraph={async (paragraphIdx) => {
                   if (!book || !activeChapter) return;
@@ -603,51 +585,8 @@ export default function BookReader() {
             )}
           </section>
         </div>
-
-        {/* Floating exit-focus pill — only visible in focus mode. Fades out
-            after 1.6s of pointer stillness. */}
-        <AnimatePresence>
-          {focusMode && (
-            <FocusExitPill onExit={() => setFocusMode(false)} />
-          )}
-        </AnimatePresence>
       </div>
     </StudioShell>
-  );
-}
-
-function FocusExitPill({ onExit }: { onExit: () => void }) {
-  const [visible, setVisible] = useState(true);
-  const idleRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    const onMove = () => {
-      setVisible(true);
-      if (idleRef.current) clearTimeout(idleRef.current);
-      idleRef.current = setTimeout(() => setVisible(false), 1600);
-    };
-    window.addEventListener("mousemove", onMove);
-    onMove(); // show on mount for ~1.6s
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      if (idleRef.current) clearTimeout(idleRef.current);
-    };
-  }, []);
-
-  return (
-    <motion.button
-      type="button"
-      onClick={onExit}
-      initial={{ opacity: 0, y: -4 }}
-      animate={{ opacity: visible ? 1 : 0, y: 0 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.25 }}
-      aria-label="Exit focus mode"
-      className="fixed top-4 right-4 z-40 h-9 px-3 inline-flex items-center gap-2 bg-background/90 border border-border text-foreground/80 hover:text-foreground text-[10px] uppercase tracking-[0.2em] backdrop-blur-sm"
-    >
-      <FocusIcon className="w-3.5 h-3.5" strokeWidth={1.4} />
-      Exit focus · esc
-    </motion.button>
   );
 }
 
@@ -700,8 +639,6 @@ function ChapterReader({
   translation,
   prefs,
   bookId,
-  hideFocusChrome,
-  onEnterFocus,
   onTranslate,
   onTranslateParagraph,
   onResetParagraph,
@@ -713,8 +650,6 @@ function ChapterReader({
     ? R
     : never;
   bookId: string;
-  hideFocusChrome?: boolean;
-  onEnterFocus?: () => void;
   onTranslate: () => void | Promise<void>;
   onTranslateParagraph: (idx: number) => void | Promise<void>;
   onResetParagraph: (idx: number) => void;
@@ -724,7 +659,9 @@ function ChapterReader({
   // local component state — so changes persist across sessions and stay in
   // sync across tabs when paired with the useSettings() snapshot.
   const showOriginal = prefs.showOriginal;
+  const showToc = prefs.showToc;
   const layout = prefs.layout;
+  const { updateBookPrefs } = useSettings();
   const paragraphs = chapter.paragraphs;
   const translated = translation?.paragraphs ?? Array(paragraphs.length).fill(null);
 
@@ -734,8 +671,8 @@ function ChapterReader({
   const cols = !showOriginal ? 1 : layout === "stack" ? 1 : 2;
 
   return (
-    <article className="border border-border bg-card p-6 lg:p-10">
-      <header className="flex items-start justify-between gap-6">
+    <article>
+      <header className="flex items-start justify-between gap-6 flex-wrap">
         <div>
           <div className="studio-caps text-muted-foreground">Chapter</div>
           <h2 className="font-display text-3xl mt-1 tracking-tight">{chapter.title}</h2>
@@ -749,22 +686,23 @@ function ChapterReader({
             ) : null}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Show the Reader menu and Focus entry point right where the
-              reading layout actually lives. They're hidden if the user is
-              already in focus mode (the floating exit pill handles that). */}
-          <ReaderSettingsMenu bookId={bookId} />
-          {onEnterFocus && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Re-entry affordance when the TOC is collapsed: a single icon
+              button that brings the chapter list back. Always rendered so
+              the user can toggle without hunting through menus. */}
+          {!showToc && (
             <button
               type="button"
-              onClick={onEnterFocus}
-              aria-label="Enter focus mode"
+              onClick={() => updateBookPrefs(bookId, { showToc: true })}
+              aria-label="Show table of contents"
+              title="Show table of contents"
               className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors"
             >
-              <FocusIcon className="w-4 h-4" strokeWidth={1.4} />
-              <span className="text-xs uppercase tracking-[0.18em]">Focus</span>
+              <PanelLeftOpen className="w-4 h-4" strokeWidth={1.4} />
+              <span className="text-xs uppercase tracking-[0.18em]">Contents</span>
             </button>
           )}
+          <ReaderSettingsMenu bookId={bookId} />
           <button
             type="button"
             disabled={busy}
@@ -804,13 +742,15 @@ function ChapterReader({
         )}
       </div>
 
-      {/* Paragraphs flow as continuous prose — breathing space instead of divider plates. */}
-      <div className={cn("reader-gap", layout === "stack" && showOriginal ? "space-y-0" : "space-y-0")}>
+      {/* Paragraphs flow as continuous prose, separated only by typographic
+          spacing (`.reader-gap > * + *`) — no internal borders or card
+          chrome. The left rule on each paragraph block keeps Original and
+          English visually distinct when shown side-by-side. */}
+      <div className="reader-gap">
         {paragraphs.map((p, idx) => {
           const t = translated[idx];
           if (showOriginal && layout === "stack") {
-            // Stacked layout: original line, then English line below it,
-            // with a subtle border-bottom to mark the end of the paragraph.
+            // Stacked layout: original line, then English line below it.
             return (
               <motion.div
                 key={idx}
@@ -818,7 +758,6 @@ function ChapterReader({
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.22, delay: Math.min(idx, 6) * 0.02 }}
-                className="border-b border-border pb-[var(--reader-paragraph-gap)]"
               >
                 <p className="reader-prose-text text-foreground/80 border-l border-border pl-4">
                   {p}
@@ -852,7 +791,7 @@ function ChapterReader({
                       </button>
                     )}
                   </div>
-                  <p className="reader-prose-text text-foreground/85">
+                  <p className="reader-prose-text text-foreground/85 py-3">
                     {t && t.trim() ? t : (
                       <span className="text-muted-foreground/70 italic">Not yet translated.</span>
                     )}
@@ -872,11 +811,10 @@ function ChapterReader({
               className={cn(
                 "grid gap-5 lg:gap-8 items-start",
                 showOriginal ? "lg:grid-cols-2" : "lg:grid-cols-1",
-                "border-b border-border pb-[var(--reader-paragraph-gap)]",
               )}
             >
               {showOriginal && (
-                <p className="reader-prose-text text-foreground/80 border-l border-border pl-4">
+                <p className="reader-prose-text text-foreground/80 border-l border-border pl-4 py-3">
                   {p}
                 </p>
               )}
@@ -909,7 +847,7 @@ function ChapterReader({
                     </button>
                   )}
                 </div>
-                <p className="reader-prose-text text-foreground/85">
+                <p className="reader-prose-text text-foreground/85 py-3">
                   {t && t.trim() ? t : (
                     <span className="text-muted-foreground/70 italic">Not yet translated.</span>
                   )}

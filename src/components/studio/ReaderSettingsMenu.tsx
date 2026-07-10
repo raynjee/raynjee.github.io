@@ -157,11 +157,9 @@ export function ReaderSettingsMenu({ bookId }: { bookId: string }) {
           />
 
           <div className="border-t border-border pt-4 space-y-3">
-            <Toggle
-              label="Table of contents"
-              checked={prefs.showToc}
-              onChange={(v) => updateBookPrefs(bookId, { showToc: v })}
-            />
+            {/* TOC visibility is exposed via the dedicated inline button
+                inside the chapter header (PanelLeftOpen / PanelLeftClose),
+                so it isn't duplicated in this menu. */}
             <Toggle
               label="Original column"
               checked={prefs.showOriginal}

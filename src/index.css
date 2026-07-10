@@ -282,11 +282,6 @@
   .reader-gap > * + * {
     margin-top: var(--reader-paragraph-gap);
   }
-  /* Focus mode hides the chrome (title bar, progress strip, TOC, controls)
-     while leaving only the reading pane visible. Escape exits. */
-  .focus-mode-hidden {
-    display: none !important;
-  }
 }
 
 /* Custom scrollbar — thin, refined */
