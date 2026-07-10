@@ -1,6 +1,6 @@
 // Gemini adapter using the official Generative Language API.
 
-import type { ProviderConfig } from "../types";
+import type { GlossaryEntry, ProviderConfig } from "../types";
 import type { TranslateRequest, TranslateResult } from "./types";
 import { parseNumberedResponse } from "./deepseek";
 
@@ -91,7 +91,7 @@ function buildSystemPrompt(req: TranslateRequest): string {
     req.source === "auto"
       ? `the source language`
       : sourceLabel(req.source);
-  return [
+  const base = [
     `You are a literary translator working from ${source} into English.`,
     `Preserve narration, tone, character voice, idioms (adapted), and onomatopoeia.`,
     `Honorifics and archaic terms stay — add a brief English gloss in parentheses if natural.`,
@@ -99,7 +99,24 @@ function buildSystemPrompt(req: TranslateRequest): string {
     `Quality preference: ${req.quality}.`,
     `Output each translated paragraph prefixed with its index in square brackets, e.g. "[1] Translated text".`,
     `One paragraph per line. Keep paragraph order intact.`,
-  ].join(" ");
+  ];
+  const glossaryBlock = buildGlossaryBlock(req.glossary);
+  return glossaryBlock
+    ? `${glossaryBlock}\n\n${base.join(" ")}`
+    : base.join(" ");
+}
+
+function buildGlossaryBlock(entries?: GlossaryEntry[]): string | null {
+  if (!entries || entries.length === 0) return null;
+  const lines = entries.map((e) =>
+    `${e.term} → ${e.translation}${e.gender === "F" || e.gender === "M" ? ` (${e.gender})` : ""}`,
+  );
+  return [
+    "=== GLOSSARY ===",
+    "Use these canonical translations EXACTLY for specific characters, locations, and defined terms. You may adapt them slightly only if the immediate context requires it (e.g., nickname variants).",
+    "",
+    ...lines,
+  ].join("\n");
 }
 
 function buildUserPrompt(req: TranslateRequest): string {

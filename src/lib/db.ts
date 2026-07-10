@@ -7,6 +7,7 @@ import type {
   Book,
   Chapter,
   ChapterTranslation,
+  GlossaryEntry,
   ProviderStatus,
   ReaderPrefs,
   StudioSettings,
@@ -15,7 +16,7 @@ import type {
 import { DEFAULT_READER_PREFS, migrateReaderPrefs } from "./types";
 
 const DB_NAME = "atelier-studio";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export type StoreName =
   | "books"
@@ -24,6 +25,7 @@ export type StoreName =
   | "epubs"
   | "logs"
   | "cache"
+  | "glossary"
   | "providerStatus";
 
 const STORES: StoreName[] = [
@@ -33,6 +35,7 @@ const STORES: StoreName[] = [
   "epubs",
   "logs",
   "cache",
+  "glossary",
   "providerStatus",
 ];
 
@@ -376,7 +379,32 @@ export async function getEpubBlob(id: string): Promise<Blob | undefined> {
   return result?.blob;
 }
 
-// ── Logs ─────────────────────────────────────────────────────────────────
+// ── Glossary ─────────────────────────────────────────────────────────────
+
+export async function putGlossaryEntry(entry: GlossaryEntry): Promise<void> {
+  const d = await db();
+  await tx(d, "glossary", "readwrite", (s) => s.put(entry));
+}
+
+export async function listGlossaryEntries(
+  bookId: string,
+): Promise<GlossaryEntry[]> {
+  const d = await db();
+  const all = await tx<GlossaryEntry[]>(
+    d,
+    "glossary",
+    "readonly",
+    (s) => s.getAll(),
+  );
+  return all
+    .filter((e) => e.bookId === bookId)
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function deleteGlossaryEntry(id: string): Promise<void> {
+  const d = await db();
+  await tx(d, "glossary", "readwrite", (s) => s.delete(id));
+}
 
 export async function appendLog(log: ApiCallLog): Promise<void> {
   const d = await db();

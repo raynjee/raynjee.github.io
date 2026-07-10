@@ -142,6 +142,18 @@ export function migrateReaderPrefs(raw: unknown): ReaderPrefs {
   };
 }
 
+export interface GlossaryEntry {
+  id: string; // `${bookId}:${uuidFragment}`
+  bookId: string;
+  term: string;
+  translation: string;
+  gender: "F" | "M" | "N" | null;
+  category: "character" | "location" | "word" | "slang";
+  notes: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface StudioSettings {
   providers: ProviderConfig[];
   activeProvider: ProviderId;

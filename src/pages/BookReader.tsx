@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
+  BookOpen,
   Check,
   Download,
   Languages,
@@ -17,13 +18,12 @@ import {
   Play,
   Sparkles,
   Undo2,
-  BookOpen,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import { StudioShell } from "@/components/StudioShell";
 import { useLibrary, notifyLibraryChanged, saveTranslation } from "@/hooks/use-library";
-import { listChapters, getChapter, getTranslation } from "@/lib/db";
-import type { Book, Chapter, ChapterTranslation } from "@/lib/types";
+import { listChapters, getChapter, getTranslation, listGlossaryEntries } from "@/lib/db";
+import type { Book, Chapter, ChapterTranslation, GlossaryEntry } from "@/lib/types";
 import { useSettings } from "@/hooks/use-settings";
 import { TranslationManager } from "@/lib/translators/types";
 import { ApiStatusPill } from "@/components/studio/ApiStatusPill";
@@ -44,6 +44,7 @@ export default function BookReader() {
   const book = books.find((b) => b.id === bookId);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [translations, setTranslations] = useState<Record<string, ChapterTranslation>>({});
+  const [glossaryEntries, setGlossaryEntries] = useState<GlossaryEntry[]>([]);
   const [activeId, setActiveId] = useState<string | null>(chapterId ?? null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; provider: any } | null>(null);
@@ -80,6 +81,8 @@ export default function BookReader() {
       if (cancelled) return;
       setChapters(inOrder);
       setTranslations(trs);
+      // Load glossary entries for AI reference during translation.
+      void listGlossaryEntries(book.id).then(setGlossaryEntries);
       if (!activeId && inOrder.length) {
         setActiveId(inOrder[0].id);
       }
@@ -145,6 +148,7 @@ export default function BookReader() {
       const result = await mgr.translateChapter({
         paragraphs: activeChapter.paragraphs,
         contextHint: `Chapter: ${activeChapter.title}. From ${book.title}.`,
+        glossary: glossaryEntries.length ? glossaryEntries : undefined,
         onProgress: (p) => setProgress({ done: p.done, total: p.total, provider: p.provider }),
       });
       const tr: ChapterTranslation = {
@@ -235,6 +239,7 @@ export default function BookReader() {
           const result = await mgr.translateChapter({
             paragraphs: c.paragraphs,
             contextHint: `Chapter: ${c.title}. From ${book.title}.`,
+            glossary: glossaryEntries.length ? glossaryEntries : undefined,
             onProgress: (p) => {
               if (!mountedRef.current) return;
               setProgress({ done: p.done, total: p.total, provider: p.provider });
@@ -547,6 +552,7 @@ export default function BookReader() {
                   const res = await mgr.translateChapter({
                     paragraphs: [activeChapter.paragraphs[paragraphIdx]],
                     contextHint: `Single paragraph from "${activeChapter.title}".`,
+                    glossary: glossaryEntries.length ? glossaryEntries : undefined,
                   });
                   const txt = res.rows[0];
                   const updated = { ...tr, paragraphs: [...tr.paragraphs], provider: res.provider };
@@ -662,6 +668,7 @@ function ChapterReader({
   const showToc = prefs.showToc;
   const layout = prefs.layout;
   const { updateBookPrefs } = useSettings();
+  const navigate = useNavigate();
   const paragraphs = chapter.paragraphs;
   const translated = translation?.paragraphs ?? Array(paragraphs.length).fill(null);
 
@@ -685,8 +692,7 @@ function ChapterReader({
               </span>
             ) : null}
           </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        </div>          <div className="flex items-center gap-2 flex-wrap">
           {/* Re-entry affordance when the TOC is collapsed: a single icon
               button that brings the chapter list back. Always rendered so
               the user can toggle without hunting through menus. */}
@@ -702,6 +708,14 @@ function ChapterReader({
               <span className="text-xs uppercase tracking-[0.18em]">Contents</span>
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => navigate(`/library/${bookId}/glossary`)}
+            className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors"
+          >
+            <BookOpen className="w-4 h-4" strokeWidth={1.4} />
+            <span className="text-xs uppercase tracking-[0.18em]">Glossary</span>
+          </button>
           <ReaderSettingsMenu bookId={bookId} />
           <button
             type="button"

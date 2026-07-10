@@ -2,6 +2,7 @@
 // Each provider exposes translate(...) and a lightweight test() ping.
 
 import type {
+  GlossaryEntry,
   ProviderConfig,
   ProviderId,
   ProviderStatus,
@@ -16,6 +17,7 @@ export interface TranslateRequest {
   target: "en";
   quality: Quality;
   contextHint?: string;
+  glossary?: GlossaryEntry[];
 }
 
 export interface TranslateResult {
@@ -206,6 +208,7 @@ export class TranslationManager {
     contextHint?: string;
     onProgress?: (p: ManagedProgress) => void;
     checkPause?: () => Promise<void>;
+    glossary?: GlossaryEntry[];
   }): Promise<{
     rows: string[];
     provider: ProviderId | null;
@@ -231,6 +234,7 @@ export class TranslationManager {
     const translated = await this.runChunkWithFailover(
       args.paragraphs,
       args.contextHint,
+      args.glossary,
     );
     if (translated.failed) {
       failed = true;
@@ -256,6 +260,7 @@ export class TranslationManager {
   private async runChunkWithFailover(
     chunk: string[],
     contextHint?: string,
+    glossary?: GlossaryEntry[],
   ): Promise<{
     rows: string[];
     provider: ProviderId | null;
@@ -305,6 +310,7 @@ export class TranslationManager {
           target: this.opts.target,
           quality: this.opts.quality,
           contextHint,
+          glossary,
         };
         const res = await client.translate(cfg, req);
         // Fill in fresh translations, write-through the cache.
