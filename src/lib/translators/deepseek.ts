@@ -118,7 +118,15 @@ function buildUserPrompt(req: TranslateRequest): string {
   const lines = req.paragraphs
     .map((p, i) => `[${i + 1}] ${p}`)
     .join("\n");
-  return `${header}Translate each paragraph below. Output each as "[n] translated text" on its own line.\n\n${lines}`;
+  return [
+    header,
+    "Translate each paragraph below into English.",
+    `IMPORTANT: Start EVERY translated paragraph with "[N]" where N is the paragraph number.`,
+    `Example: "[1] This is the first translated paragraph."`,
+    `Do NOT wrap output in markdown code fences. Do NOT add commentary.`,
+    "",
+    lines,
+  ].join("\n");
 }
 
 function sourceLabel(s: string): string {
@@ -149,7 +157,22 @@ export function parseNumberedResponse(
       out[idx] = m[2].trim();
     }
   }
-  // Backfill: any missing entries fall back to the source.
+
+  // If NO numbered lines were matched at all, the LLM probably ignored the
+  // [n] format instruction. Try a 1:1 line pairing as a fallback — filter
+  // out blank/whitespace-only lines and pair them with source paragraphs in
+  // order. This prevents the silent source-copy backfill from kicking in.
+  const anyNumbered = out.some((o) => o !== "");
+  if (!anyNumbered) {
+    const nonBlank = lines
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+    for (let i = 0; i < Math.min(nonBlank.length, sourceParagraphs.length); i++) {
+      out[i] = nonBlank[i];
+    }
+  }
+
+  // Backfill: any STILL-missing entries fall back to the source.
   for (let i = 0; i < out.length; i++) {
     if (!out[i]) out[i] = sourceParagraphs[i];
   }

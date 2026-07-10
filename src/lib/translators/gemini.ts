@@ -126,7 +126,15 @@ function buildUserPrompt(req: TranslateRequest): string {
   const lines = req.paragraphs
     .map((p, i) => `[${i + 1}] ${p}`)
     .join("\n");
-  return `${header}Translate each paragraph below. Output each as "[n] translated text" on its own line.\n\n${lines}`;
+  return [
+    header,
+    "Translate each paragraph below into English.",
+    `IMPORTANT: Start EVERY translated paragraph with "[N]" where N is the paragraph number.`,
+    `Example: "[1] This is the first translated paragraph."`,
+    `Do NOT wrap output in markdown code fences. Do NOT add commentary.`,
+    "",
+    lines,
+  ].join("\n");
 }
 
 function sourceLabel(s: string): string {
