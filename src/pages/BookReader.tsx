@@ -103,90 +103,80 @@ export default function BookReader() {
   }, [activeId, book?.id]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────
+  // Use capture phase so we beat the browser's built-in "quick find"
+  // (type-ahead search) which intercepts single-letter keys.  We match
+  // on e.code for stability and lower-case e.key for letter chords.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // Don't capture keystrokes when the user is typing in an input.
-      const tag = (e.target as HTMLElement).tagName;
-      const isInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target as HTMLElement).isContentEditable;
+      const el = e.target as HTMLElement;
+      const tag = el.tagName;
+      const isInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
       if (isInput) return;
-      // Don't capture when a modifier is held (Cmd+S, Ctrl+W, etc.).
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const idx = chapters.findIndex((c) => c.id === activeId);
       const total = chapters.length;
-      const viewH = window.innerHeight * 0.85;
+      const key = e.key.toLowerCase();
+      const code = e.code;
 
-      switch (e.key) {
-        // ── Scroll ───────────────────────────────────────────
-        case " ":
-          e.preventDefault();
-          window.scrollBy({ top: viewH, behavior: "smooth" });
-          break;
-        case "Shift":
-          // Handled together with Space below via e.shiftKey.
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          window.scrollBy({ top: -120, behavior: "smooth" });
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          window.scrollBy({ top: 120, behavior: "smooth" });
-          break;
-
-        // ── Chapter navigation ───────────────────────────────
-        case "ArrowLeft":
-        case "[":
-        case "j":
-          e.preventDefault();
-          if (idx > 0) { setActiveId(chapters[idx - 1].id); window.scrollTo({ top: 0, behavior: "smooth" }); }
-          break;
-        case "ArrowRight":
-        case "]":
-        case "k":
-          e.preventDefault();
-          if (idx < total - 1) { setActiveId(chapters[idx + 1].id); window.scrollTo({ top: 0, behavior: "smooth" }); }
-          break;
-
-        // ── Toggles ──────────────────────────────────────────
-        case "t":
-          e.preventDefault();
-          if (book) updateBookPrefs(book.id, { showToc: !prefs.showToc });
-          break;
-        case "o":
-          e.preventDefault();
-          if (book) updateBookPrefs(book.id, { showOriginal: !prefs.showOriginal });
-          break;
-        case "l":
-          e.preventDefault();
-          if (book) updateBookPrefs(book.id, { layout: prefs.layout === "split" ? "stack" : "split" });
-          break;
-
-        default:
-          break;
-      }
-    };
-
-    // Shift+Space: scroll up. Handled separately because Shift alone
-    // doesn't preventDefault cleanly — we check e.shiftKey on Space.
-    const onKeyWithShift = (e: KeyboardEvent) => {
-      if (e.key === " " && !e.shiftKey) return; // plain Space already handled
-      const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target as HTMLElement).isContentEditable) return;
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === " " && e.shiftKey) {
+      // ── Space: page scroll ────────────────────────────────────
+      if (code === "Space") {
         e.preventDefault();
-        window.scrollBy({ top: -window.innerHeight * 0.85, behavior: "smooth" });
+        e.stopPropagation();
+        const amount = window.innerHeight * 0.85;
+        window.scrollBy({ top: e.shiftKey ? -amount : amount, behavior: "smooth" });
+        return;
+      }
+
+      // ── Arrow keys: line scroll ───────────────────────────────
+      if (code === "ArrowUp") {
+        e.preventDefault();
+        window.scrollBy({ top: -120, behavior: "smooth" });
+        return;
+      }
+      if (code === "ArrowDown") {
+        e.preventDefault();
+        window.scrollBy({ top: 120, behavior: "smooth" });
+        return;
+      }
+
+      // ── Chapter navigation ────────────────────────────────────
+      const prev = code === "ArrowLeft" || key === "j" || key === "[";
+      const next = code === "ArrowRight" || key === "k" || key === "]";
+      if (prev && idx > 0) {
+        e.preventDefault();
+        setActiveId(chapters[idx - 1].id);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      if (next && idx < total - 1) {
+        e.preventDefault();
+        setActiveId(chapters[idx + 1].id);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      // ── Toggles ───────────────────────────────────────────────
+      if (key === "t") {
+        e.preventDefault();
+        if (book) updateBookPrefs(book.id, { showToc: !prefs.showToc });
+        return;
+      }
+      if (key === "o") {
+        e.preventDefault();
+        if (book) updateBookPrefs(book.id, { showOriginal: !prefs.showOriginal });
+        return;
+      }
+      if (key === "l") {
+        e.preventDefault();
+        if (book) updateBookPrefs(book.id, { layout: prefs.layout === "split" ? "stack" : "split" });
+        return;
       }
     };
 
-    window.addEventListener("keydown", onKey);
-    window.addEventListener("keydown", onKeyWithShift);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      window.removeEventListener("keydown", onKeyWithShift);
-    };
-  }, [activeId, chapters, prefs.showToc, prefs.showOriginal, prefs.layout, book?.id, updateBookPrefs]);
+    window.addEventListener("keydown", onKey, { capture: true });
+    return () => window.removeEventListener("keydown", onKey, { capture: true });
+  }, [activeId, chapters, prefs.showToc, prefs.showOriginal, prefs.layout, book, updateBookPrefs]);
 
   const activeChapter = useMemo(
     () => chapters.find((c) => c.id === activeId) ?? null,
