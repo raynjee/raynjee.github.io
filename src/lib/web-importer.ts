@@ -348,28 +348,85 @@ const kakuyomuAdapter: SiteAdapter = {
   },
 };
 
+/** Check if an href looks like a chapter page URL. */
+function isChapterUrl(href: string): boolean {
+  return /\/(\d+)\.html?$/i.test(href)
+    || /\/(\d+)\/?$/i.test(href)
+    || /[?&]id=\d+/i.test(href)
+    || /\/chapter[/_-]?\d+/i.test(href)
+    || /\/read[/_-]?\d+/i.test(href);
+}
+
 const genericChineseAdapter: SiteAdapter = {
   label: "Generic",
   canHandle(_u: URL) { return true; },
   parseToc(html: string, baseUrl: URL): NovelPreview {
     const doc = new DOMParser().parseFromString(html, "text/html");
-    const title = doc.querySelector("h1")?.textContent?.trim() || doc.querySelector(".book-title")?.textContent?.trim() || doc.querySelector(".btitle")?.textContent?.trim() || doc.querySelector("title")?.textContent?.trim() || "Untitled";
-    const author = doc.querySelector(".author")?.textContent?.trim() || doc.querySelector(".writer")?.textContent?.trim() || doc.querySelector('[property="og:novel:author"]')?.getAttribute("content")?.trim() || "Unknown";
-    const container = doc.querySelector("#list") || doc.querySelector("#chapterlist") || doc.querySelector(".chapterlist") || doc.querySelector(".ml_list") || doc.querySelector("#chapters") || doc.querySelector(".catalog") || doc.querySelector(".mulu") || doc.body;
-    const allLinks = container.querySelectorAll<HTMLAnchorElement>("a");
+    const title = doc.querySelector("h1")?.textContent?.trim()
+      || doc.querySelector(".book-title")?.textContent?.trim()
+      || doc.querySelector(".btitle")?.textContent?.trim()
+      || doc.querySelector('meta[property="og:title"]')?.getAttribute("content")?.trim()
+      || doc.querySelector("title")?.textContent?.trim()
+      || "Untitled";
+    const author = doc.querySelector(".author")?.textContent?.trim()
+      || doc.querySelector(".writer")?.textContent?.trim()
+      || doc.querySelector('meta[property="og:novel:author"]')?.getAttribute("content")?.trim()
+      || "Unknown";
+
+    // Phase 1: try known containers first (most accurate)
+    const container = doc.querySelector("#list, #chapterlist, .chapterlist, .ml_list, #chapters, .catalog, .mulu, #ulist, .dirlist, #chapters-list, .book-list");
+    const scope = container ?? doc.body;
+    const allLinks = scope.querySelectorAll<HTMLAnchorElement>("a");
+
     const chapters: TocItem[] = [];
     const seen = new Set<string>();
+
+    const skipText = /^(首页|书签|排行|搜索|书架|登录|注册|下载|手机版|电脑版|上一页|下一页|返回|加入书签|推荐|收藏|投推荐|打赏|评论|举报|报错)/;
+    const skipHref = /^(javascript|mailto|#)/;
+
     for (const a of allLinks) {
       const href = a.getAttribute("href");
-      const text = a.textContent?.trim();
-      if (!href || !text || text.length < 2) continue;
+      const text = a.textContent?.trim() ?? "";
+      if (!href || skipHref.test(href) || href === "/" || href === "#") continue;
+      if (!text || text.length < 1) continue;
+      if (skipText.test(text)) continue;
       const resolved = resolveUrl(baseUrl, href);
-      if (seen.has(resolved)) continue;
-      if (/^(首页|书签|排行|搜索|书架|登录|注册|下载|手机版|电脑版|上一页|下一页|返回)/.test(text)) continue;
-      if (/^(home|search|login|register|about|contact|index)/i.test(text)) continue;
-      const looksLikeChapter = /\d/.test(text) || /第[一二三四五六七八九十百千\d]+[章节回]/.test(text) || text.length > 4;
-      if (looksLikeChapter) { seen.add(resolved); chapters.push({ title: text, url: resolved }); }
+      if (seen.has(resolved) || seen.has(href)) continue;
+
+      const hasNumber = /\d/.test(text);
+      const hasChapterWord = /第[一二三四五六七八九十百千零\d]+[章节回話話節]/i.test(text)
+        || /chapter|episode|ch\.?\s*\d|part\s*\d/i.test(text)
+        || /^\s*\d+[\s.\-、，,_]/.test(text)
+        || /^\s*第\s*\d+/.test(text);
+      const isLongEnough = text.length >= 2;
+
+      if ((hasNumber || hasChapterWord || isChapterUrl(href)) && isLongEnough) {
+        seen.add(resolved);
+        seen.add(href);
+        chapters.push({ title: text, url: resolved });
+      }
     }
+
+    // Phase 2: if still empty, scan EVERY link on the page with even looser criteria
+    if (chapters.length === 0) {
+      const allPageLinks = doc.querySelectorAll<HTMLAnchorElement>("a");
+      for (const a of allPageLinks) {
+        const href = a.getAttribute("href");
+        const text = a.textContent?.trim() ?? "";
+        if (!href || skipHref.test(href) || href === "/") continue;
+        if (skipText.test(text)) continue;
+        const resolved = resolveUrl(baseUrl, href);
+        if (seen.has(resolved)) continue;
+        const sameDomain = (() => {
+          try { return new URL(resolved).hostname === baseUrl.hostname; } catch { return false; }
+        })();
+        if (sameDomain && text.length >= 2 && (isChapterUrl(href) || /\d/.test(text))) {
+          seen.add(resolved);
+          chapters.push({ title: text, url: resolved });
+        }
+      }
+    }
+
     return { title, author, coverUrl: null, chapters, siteLabel: "Generic" };
   },
   extractContent(html: string, _url: URL): string {
