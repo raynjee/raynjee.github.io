@@ -4,7 +4,13 @@ import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
 import { StrictMode, useEffect, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Route, Routes, useLocation } from "react-router";
+import {
+  BrowserRouter,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from "react-router";
 import "./index.css";
 import "./types/global.d.ts";
 
@@ -73,7 +79,9 @@ createRoot(document.getElementById("root")!).render(
 
 import { BookEditor as BookEditorImpl } from "./pages/Library";
 function BookEditorRoute() {
-  const { useParams } = require("react-router") as typeof import("react-router");
+  // useParams comes from the top-level "react-router" import above. Don't
+  // reintroduce a runtime require() here — it throws "require is not defined"
+  // under Vite's browser ESM bundle.
   const { bookId } = useParams();
   if (!bookId) return null;
   return <BookEditorImpl bookId={bookId} />;
