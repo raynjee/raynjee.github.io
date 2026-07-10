@@ -207,6 +207,7 @@ export class TranslationManager {
     paragraphs: string[];
     contextHint?: string;
     onProgress?: (p: ManagedProgress) => void;
+    onPartialRows?: (rows: (string | null)[]) => void;
     checkPause?: () => Promise<void>;
     glossary?: GlossaryEntry[];
   }): Promise<{
@@ -215,7 +216,7 @@ export class TranslationManager {
     failed: boolean;
   }> {
     const total = args.paragraphs.length;
-    const rows: string[] = Array(total).fill("");
+    const rows: (string | null)[] = Array(total).fill(null);
     let failed = false;
     let providerUsed: ProviderId | null = null;
     args.onProgress?.({ done: 0, total, provider: null, index: 0 });
@@ -276,15 +277,18 @@ export class TranslationManager {
         this.currentProvider = translated.provider;
       }
       doneCount += chunk.paragraphs.length;
-      args.onProgress?.({
+      args.onProgress?.(({
         done: doneCount,
         total,
         provider: providerUsed,
         index: chunk.startIdx,
-      });
+      }));
+      // Stream partial results so the reader can render translated
+      // paragraphs immediately — no need to wait for the full chapter.
+      args.onPartialRows?.([...rows]);
     }
 
-    return { rows, provider: providerUsed, failed };
+    return { rows: rows.map((r) => r ?? ""), provider: providerUsed, failed };
   }
 
   private async runChunkWithFailover(

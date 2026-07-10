@@ -150,6 +150,25 @@ export default function BookReader() {
         contextHint: `Chapter: ${activeChapter.title}. From ${book.title}.`,
         glossary: glossaryEntries.length ? glossaryEntries : undefined,
         onProgress: (p) => setProgress({ done: p.done, total: p.total, provider: p.provider }),
+        onPartialRows: (partialRows) => {
+          // Stream translated paragraphs immediately — the reader renders
+          // each chunk as it completes while the rest shows "Translating…".
+          const partialTr: ChapterTranslation = {
+            id: `${book.id}:${activeChapter.id}`,
+            bookId: book.id,
+            chapterId: activeChapter.id,
+            paragraphs: partialRows.map((r, i) =>
+              r && r.trim() && r.trim() !== activeChapter.paragraphs[i].trim() ? r : null,
+            ),
+            status: "in_progress",
+            provider: null,
+            progress: partialRows.filter((r) => r !== null).length / Math.max(1, partialRows.length),
+          };
+          void saveTranslation(partialTr).catch(() => {});
+          if (mountedRef.current) {
+            setTranslations((m) => ({ ...m, [activeChapter.id]: partialTr }));
+          }
+        },
       });
       const tr: ChapterTranslation = {
         id: `${book.id}:${activeChapter.id}`,
@@ -235,25 +254,40 @@ export default function BookReader() {
           // proceed. Log so the issue is at least visible.
           console.error("Failed to persist in-progress marker", err);
         }
-        try {
-          const result = await mgr.translateChapter({
-            paragraphs: c.paragraphs,
-            contextHint: `Chapter: ${c.title}. From ${book.title}.`,
-            glossary: glossaryEntries.length ? glossaryEntries : undefined,
-            onProgress: (p) => {
-              if (!mountedRef.current) return;
-              setProgress({ done: p.done, total: p.total, provider: p.provider });
-              setTranslations((m) => ({
-                ...m,
-                [c.id]: {
-                  ...(m[c.id] ?? loadingTr),
-                  progress: p.total ? p.done / p.total : 0,
-                  provider: p.provider,
-                  status: "in_progress",
+        try {              const result = await mgr.translateChapter({
+                paragraphs: c.paragraphs,
+                contextHint: `Chapter: ${c.title}. From ${book.title}.`,
+                glossary: glossaryEntries.length ? glossaryEntries : undefined,
+                onProgress: (p) => {
+                  if (!mountedRef.current) return;
+                  setProgress({ done: p.done, total: p.total, provider: p.provider });
+                  setTranslations((m) => ({
+                    ...m,
+                    [c.id]: {
+                      ...(m[c.id] ?? loadingTr),
+                      progress: p.total ? p.done / p.total : 0,
+                      provider: p.provider,
+                      status: "in_progress",
+                    },
+                  }));
                 },
-              }));
-            },
-          });
+                onPartialRows: (partialRows) => {
+                  if (!mountedRef.current) return;
+                  const partialTr: ChapterTranslation = {
+                    id: `${book.id}:${c.id}`,
+                    bookId: book.id,
+                    chapterId: c.id,
+                    paragraphs: partialRows.map((r, i) =>
+                      r && r.trim() && r.trim() !== c.paragraphs[i].trim() ? r : null,
+                    ),
+                    status: "in_progress",
+                    provider: null,
+                    progress: partialRows.filter((r) => r !== null).length / Math.max(1, partialRows.length),
+                  };
+                  void saveTranslation(partialTr).catch(() => {});
+                  setTranslations((m) => ({ ...m, [c.id]: partialTr }));
+                },
+              });
           if (!mountedRef.current) break;
           const finalTr: ChapterTranslation = {
             id: `${book.id}:${c.id}`,
@@ -807,7 +841,7 @@ function ChapterReader({
                   </div>
                   <p className="reader-prose-text text-foreground/85 py-3">
                     {t && t.trim() ? t : (
-                      <span className="text-muted-foreground/70 italic">Not yet translated.</span>
+                      <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
                     )}
                   </p>
                 </div>
@@ -863,7 +897,7 @@ function ChapterReader({
                 </div>
                 <p className="reader-prose-text text-foreground/85 py-3">
                   {t && t.trim() ? t : (
-                    <span className="text-muted-foreground/70 italic">Not yet translated.</span>
+                    <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
                   )}
                 </p>
               </div>
