@@ -59,6 +59,19 @@ interface FetchedPage {
   format: "markdown" | "html";
 }
 
+/** Check if text from Jina Reader is actually an error page. */
+function isJinaError(text: string): boolean {
+  const firstLine = text.split("\n")[0]?.trim() ?? "";
+  return (
+    /^Warning:\s/i.test(firstLine) ||
+    /error\s\d{3}/i.test(firstLine) ||
+    /forbidden/i.test(firstLine) ||
+    /target url returned error/i.test(text.slice(0, 200)) ||
+    /blocked/i.test(firstLine) ||
+    /maybe not yet fully loaded/i.test(text.slice(0, 300))
+  );
+}
+
 /** Fetch a page — Jina Reader first, then CORS proxy chain as fallback. */
 async function fetchPage(url: string): Promise<FetchedPage> {
   // ── Step 1: Try Jina Reader ────────────────────────────────────
@@ -67,7 +80,8 @@ async function fetchPage(url: string): Promise<FetchedPage> {
     const res = await fetchWithTimeout(jinaUrl, FETCH_TIMEOUT_MS);
     if (res.ok) {
       const text = await res.text();
-      if (text && text.trim().length > 50) {
+      // Reject if Jina returned an error page instead of real content
+      if (text && text.trim().length > 50 && !isJinaError(text)) {
         return { text, format: "markdown" };
       }
     }
@@ -79,38 +93,64 @@ async function fetchPage(url: string): Promise<FetchedPage> {
   const custom = loadCustomProxy();
   const proxies = custom ? [custom, ...FALLBACK_PROXIES] : FALLBACK_PROXIES;
   const errors: string[] = [];
+  const userAgent =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 
   for (const proxy of proxies) {
-    const proxied = proxy + encodeURIComponent(url);
-    try {
-      const res = await fetchWithTimeout(proxied, FETCH_TIMEOUT_MS);
-      if (!res.ok) {
-        errors.push(`${proxy.slice(0, 40)}… → HTTP ${res.status}`);
-        continue;
-      }
-      // Fallback proxies return raw HTML — handle encoding
-      const buffer = await res.arrayBuffer();
-      const head = new TextDecoder("ascii").decode(buffer.slice(0, 2048));
-      const charsetMatch = /charset[=]["']?\s*([\w-]+)/i.exec(head);
-      let charset = "utf-8";
-      if (charsetMatch) {
-        const c = charsetMatch[1].toLowerCase();
-        charset = c === "shift-jis" || c === "shift_jis" ? "shift-jis"
-          : c === "gbk" || c === "gb2312" ? "gb18030" : c;
-      } else if (/shift.jis/i.test(head)) {
-        charset = "shift-jis";
-      } else if (/[\u4e00-\u9fff]/.test(head.slice(0, 200))) {
-        charset = "gb18030";
-      }
+    // Try both encoded and raw URL — some proxies double-encode
+    const variants = [proxy + encodeURIComponent(url)];
+    if (encodeURIComponent(url) !== url) variants.push(proxy + url);
+
+    for (const proxied of variants) {
       try {
-        return { text: new TextDecoder(charset, { fatal: false }).decode(buffer), format: "html" };
-      } catch {
-        return { text: new TextDecoder("utf-8", { fatal: false }).decode(buffer), format: "html" };
+        const res = await fetchWithTimeout(proxied, FETCH_TIMEOUT_MS);
+        if (!res.ok) {
+          errors.push(`${proxy.slice(0, 35)}… → HTTP ${res.status}`);
+          break; // don't try the other variant for this proxy
+        }
+        const buffer = await res.arrayBuffer();
+        const head = new TextDecoder("ascii").decode(buffer.slice(0, 2048));
+        // Reject if the proxy returned an error page
+        if (/forbidden|blocked|access denied/i.test(head.slice(0, 200))) {
+          errors.push(`${proxy.slice(0, 35)}… → site blocked`);
+          break;
+        }
+        const charsetMatch = /charset[=]["']?\s*([\w-]+)/i.exec(head);
+        let charset = "utf-8";
+        if (charsetMatch) {
+          const c = charsetMatch[1].toLowerCase();
+          charset = c === "shift-jis" || c === "shift_jis" ? "shift-jis"
+            : c === "gbk" || c === "gb2312" ? "gb18030" : c;
+        } else if (/shift.jis/i.test(head)) {
+          charset = "shift-jis";
+        } else if (/[\u4e00-\u9fff]/.test(head.slice(0, 200))) {
+          charset = "gb18030";
+        }
+        try {
+          return { text: new TextDecoder(charset, { fatal: false }).decode(buffer), format: "html" };
+        } catch {
+          return { text: new TextDecoder("utf-8", { fatal: false }).decode(buffer), format: "html" };
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`${proxy.slice(0, 35)}… → ${msg.includes("aborted") ? "timeout" : msg.slice(0, 25)}`);
+        break;
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      errors.push(`${proxy.slice(0, 40)}… → ${msg.includes("aborted") ? "timeout" : msg.slice(0, 30)}`);
     }
+  }
+
+  // ── Step 3: Last resort — try direct fetch (some sites allow it) ─
+  try {
+    const res = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
+    if (res.ok) {
+      const buffer = await res.arrayBuffer();
+      const text = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+      if (text.trim().length > 200 && !/forbidden|blocked/i.test(text.slice(0, 300))) {
+        return { text, format: "html" };
+      }
+    }
+  } catch {
+    // Direct fetch failed too
   }
 
   // All failed
