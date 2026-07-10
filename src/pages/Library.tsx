@@ -9,9 +9,7 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpenCheck,
-  Globe,
   Library as LibraryIcon,
-  Link,
   Loader2,
   Plus,
   Save,
@@ -27,7 +25,6 @@ import {
   deleteBook,
   deleteChapter,
   importEpubFile,
-  importWebNovel,
   renameChapter,
   reorderChapters,
   updateBook,
@@ -37,7 +34,6 @@ import {
 import { listChapters } from "@/lib/db";
 import { buildSampleEpub } from "@/lib/seed";
 import type { Chapter } from "@/lib/types";
-import type { ImportProgress } from "@/lib/web-importer";
 import { cn } from "@/lib/utils";
 
 type LangFilter = "all" | "zh" | "ja" | "ko" | "other";
@@ -309,12 +305,6 @@ function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
   const dragActive = dragDepth > 0;
 
   // ── URL import state ──────────────────────────────────────────────
-  const [urlMode, setUrlMode] = useState(false);
-  const [urlInput, setUrlInput] = useState("");
-  const [urlImporting, setUrlImporting] = useState(false);
-  const [urlProgress, setUrlProgress] = useState<ImportProgress | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const all = Array.from(files);
@@ -346,49 +336,6 @@ function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
       );
     }
     await onUploaded();
-  };
-
-  const onUrlImport = async () => {
-    const url = urlInput.trim();
-    if (!url) {
-      toast.error("Paste a novel page URL first.");
-      return;
-    }
-    try {
-      new URL(url);
-    } catch {
-      toast.error("That doesn't look like a valid URL.");
-      return;
-    }
-    setUrlImporting(true);
-    setUrlProgress(null);
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    try {
-      const book = await importWebNovel(
-        url,
-        (p) => setUrlProgress(p),
-        ctrl.signal,
-      );
-      toast.success(
-        `"${book.title}" imported with ${book.chapterOrder.length} chapters.`,
-      );
-      await onUploaded();
-      setUrlInput("");
-      setUrlMode(false);
-    } catch (e) {
-      if (ctrl.signal.aborted) {
-        toast("Import cancelled.", { icon: "⏹" });
-      } else {
-        toast.error(
-          `Import failed: ${e instanceof Error ? e.message : "unknown error"}`,
-        );
-      }
-    } finally {
-      setUrlImporting(false);
-      setUrlProgress(null);
-      abortRef.current = null;
-    }
   };
 
   return (
@@ -465,104 +412,6 @@ function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
         </div>
       </div>
 
-      {/* Footer with source toggle + URL import */}
-      <div className="px-5 py-3 border-t border-border flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => setUrlMode((m) => !m)}
-          className={cn(
-            "studio-caps inline-flex items-center gap-1.5 transition-colors",
-            urlMode ? "text-foreground" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          <Globe className="w-3 h-3" strokeWidth={1.4} />
-          Import from URL
-        </button>
-        <span className="studio-num text-[11px] text-muted-foreground">
-          {urlMode ? "Web novel URL" : "Local files only"}
-        </span>
-      </div>
-
-      {/* URL import panel — slides in below the drop zone */}
-      {urlMode && (
-        <div className="px-5 py-4 border-t border-border bg-accent/20">
-          <div className="studio-caps text-muted-foreground mb-2">
-            Paste a novel page URL
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0 relative">
-              <Link
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground"
-                strokeWidth={1.4}
-              />
-              <input
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void onUrlImport();
-                }}
-                placeholder="https://ncode.syosetu.com/n1234/"
-                disabled={urlImporting}
-                className="w-full h-9 pl-8 pr-3 bg-background border border-border focus:border-foreground outline-none text-xs disabled:opacity-50 caret-ink"
-              />
-            </div>
-            {urlImporting ? (
-              <button
-                type="button"
-                onClick={() => abortRef.current?.abort()}
-                className="h-9 px-3 inline-flex items-center gap-1.5 border border-border hover:border-destructive hover:text-destructive text-xs uppercase tracking-[0.18em] whitespace-nowrap"
-              >
-                <X className="w-3 h-3" strokeWidth={1.5} />
-                Cancel
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void onUrlImport()}
-                disabled={!urlInput.trim()}
-                className="h-9 px-4 inline-flex items-center gap-1.5 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 text-xs uppercase tracking-[0.18em] whitespace-nowrap"
-              >
-                {urlImporting ? (
-                  <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.4} />
-                ) : (
-                  <Globe className="w-3 h-3" strokeWidth={1.4} />
-                )}
-                Import
-              </button>
-            )}
-          </div>
-
-          {/* Progress bar */}
-          {urlProgress && (
-            <div className="mt-3">
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground truncate">
-                  {urlProgress.phase === "toc"
-                    ? urlProgress.currentChapter
-                    : urlProgress.currentChapter.slice(0, 48)}
-                </span>
-                <span className="studio-num text-[10px] text-muted-foreground whitespace-nowrap">
-                  {urlProgress.done} / {urlProgress.total}
-                </span>
-              </div>
-              <div className="mt-1.5 h-0.5 w-full bg-border overflow-hidden">
-                <div
-                  className="h-full bg-foreground transition-all duration-300"
-                  style={{
-                    width: `${(urlProgress.done / Math.max(1, urlProgress.total)) * 100}%`,
-                  }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Supported sites hint */}
-          <div className="mt-3 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/60 leading-relaxed">
-            Supports: syosetu.com · kakuyomu.jp · 69shuba.com · novel543.com
-            · shuhaige.net · xbiqige.cc · yxshufang.com & more
-          </div>
-        </div>
-      )}
     </div>
   );
 }
