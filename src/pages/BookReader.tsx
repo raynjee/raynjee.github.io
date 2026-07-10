@@ -646,7 +646,21 @@ function ChapterReader({
         </div>
       </header>
 
-      <div className="mt-8 space-y-5">
+      {/* Column headings — once per chapter, not per paragraph. */}
+      <div
+        className={cn(
+          "mt-10 mb-6 grid gap-4 lg:gap-6 border-b border-border pb-3",
+          showOriginal ? "lg:grid-cols-2" : "lg:grid-cols-1",
+        )}
+      >
+        {showOriginal && (
+          <div className="studio-caps text-muted-foreground">Original</div>
+        )}
+        <div className="studio-caps text-muted-foreground">English</div>
+      </div>
+
+      {/* Paragraphs flow as continuous prose — breathing space instead of divider plates. */}
+      <div className="space-y-7 lg:space-y-9">
         {paragraphs.map((p, idx) => {
           const t = translated[idx];
           return (
@@ -655,63 +669,52 @@ function ChapterReader({
               layout
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.18, delay: Math.min(idx, 6) * 0.02 }}
-              className="grid gap-6"
+              transition={{ duration: 0.22, delay: Math.min(idx, 6) * 0.02 }}
+              className={cn(
+                "grid gap-5 lg:gap-8 items-start",
+                showOriginal ? "lg:grid-cols-2" : "lg:grid-cols-1",
+              )}
             >
-              <div
-                className={cn(
-                  "grid gap-4 lg:gap-6 items-start",
-                  showOriginal ? "lg:grid-cols-2" : "lg:grid-cols-1",
-                )}
-              >
-                {showOriginal && (
-                  <div className="border-l border-border pl-4">
-                    <div className="studio-caps text-muted-foreground mb-1">Original · {(idx + 1).toString().padStart(2, "0")}</div>
-                    <p className="font-display text-[16px] leading-snug text-foreground/85 lg:text-[18px]">
-                      {p}
-                    </p>
-                  </div>
-                )}
-                <div className={cn(showOriginal ? "border-l border-border pl-4 bg-muted/30" : "bg-muted/30 border-l border-border pl-4")}>
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="studio-caps text-muted-foreground">
-                      English · {(idx + 1).toString().padStart(2, "0")}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {t && t.trim() ? (
-                        <button
-                          onClick={() => onTranslateParagraph(idx)}
-                          className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
-                        >
-                          Re-translate
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => onTranslateParagraph(idx)}
-                          className="text-[10px] uppercase tracking-[0.2em] text-foreground hover:text-foreground/70"
-                        >
-                          Translate →
-                        </button>
-                      )}
-                      {t && t.trim() && (
-                        <button
-                          onClick={() => onResetParagraph(idx)}
-                          className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
-                          title="Reset to source"
-                        >
-                          <Undo2 className="w-3 h-3 inline" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <p className="font-display text-[16px] leading-snug text-foreground/85 lg:text-[18px]">
-                    {t && t.trim() ? t : (
-                      <span className="text-muted-foreground/80 italic">Not yet translated.</span>
-                    )}
-                  </p>
+              {showOriginal && (
+                <p className="border-l border-border pl-4 font-display text-[17px] leading-[1.75] text-foreground/80 lg:text-[19px] lg:leading-[1.75]">
+                  {p}
+                </p>
+              )}
+              <div className="group relative border-l border-border pl-4 bg-muted/30">
+                <div className="absolute -top-2 right-0 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                  {t && t.trim() ? (
+                    <>
+                      <button
+                        onClick={() => onTranslateParagraph(idx)}
+                        className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
+                        title="Re-translate this paragraph"
+                      >
+                        Re-translate
+                      </button>
+                      <button
+                        onClick={() => onResetParagraph(idx)}
+                        className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
+                        title="Reset to source"
+                      >
+                        <Undo2 className="w-3 h-3 inline" /> Reset
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => onTranslateParagraph(idx)}
+                      className="text-[10px] uppercase tracking-[0.2em] text-foreground hover:text-foreground/70"
+                      title="Translate this paragraph"
+                    >
+                      Translate →
+                    </button>
+                  )}
                 </div>
+                <p className="font-display text-[17px] leading-[1.75] text-foreground/85 lg:text-[19px] lg:leading-[1.75]">
+                  {t && t.trim() ? t : (
+                    <span className="text-muted-foreground/70 italic">Not yet translated.</span>
+                  )}
+                </p>
               </div>
-              <div className="plate" />
             </motion.div>
           );
         })}
