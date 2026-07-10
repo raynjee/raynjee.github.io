@@ -35,6 +35,7 @@ import {
   prefsToCssVars,
   ReaderSettingsMenu,
 } from "@/components/studio/ReaderSettingsMenu";
+import { Kbd } from "@/components/ui/kbd";
 
 export default function BookReader() {
   const { bookId, chapterId } = useParams();
@@ -100,6 +101,92 @@ export default function BookReader() {
       navigate(wanted, { replace: true });
     }
   }, [activeId, book?.id]);
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Don't capture keystrokes when the user is typing in an input.
+      const tag = (e.target as HTMLElement).tagName;
+      const isInput = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target as HTMLElement).isContentEditable;
+      if (isInput) return;
+      // Don't capture when a modifier is held (Cmd+S, Ctrl+W, etc.).
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      const idx = chapters.findIndex((c) => c.id === activeId);
+      const total = chapters.length;
+      const viewH = window.innerHeight * 0.85;
+
+      switch (e.key) {
+        // ── Scroll ───────────────────────────────────────────
+        case " ":
+          e.preventDefault();
+          window.scrollBy({ top: viewH, behavior: "smooth" });
+          break;
+        case "Shift":
+          // Handled together with Space below via e.shiftKey.
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          window.scrollBy({ top: -120, behavior: "smooth" });
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          window.scrollBy({ top: 120, behavior: "smooth" });
+          break;
+
+        // ── Chapter navigation ───────────────────────────────
+        case "ArrowLeft":
+        case "[":
+        case "j":
+          e.preventDefault();
+          if (idx > 0) { setActiveId(chapters[idx - 1].id); window.scrollTo({ top: 0, behavior: "smooth" }); }
+          break;
+        case "ArrowRight":
+        case "]":
+        case "k":
+          e.preventDefault();
+          if (idx < total - 1) { setActiveId(chapters[idx + 1].id); window.scrollTo({ top: 0, behavior: "smooth" }); }
+          break;
+
+        // ── Toggles ──────────────────────────────────────────
+        case "t":
+          e.preventDefault();
+          if (book) updateBookPrefs(book.id, { showToc: !prefs.showToc });
+          break;
+        case "o":
+          e.preventDefault();
+          if (book) updateBookPrefs(book.id, { showOriginal: !prefs.showOriginal });
+          break;
+        case "l":
+          e.preventDefault();
+          if (book) updateBookPrefs(book.id, { layout: prefs.layout === "split" ? "stack" : "split" });
+          break;
+
+        default:
+          break;
+      }
+    };
+
+    // Shift+Space: scroll up. Handled separately because Shift alone
+    // doesn't preventDefault cleanly — we check e.shiftKey on Space.
+    const onKeyWithShift = (e: KeyboardEvent) => {
+      if (e.key === " " && !e.shiftKey) return; // plain Space already handled
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (e.target as HTMLElement).isContentEditable) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === " " && e.shiftKey) {
+        e.preventDefault();
+        window.scrollBy({ top: -window.innerHeight * 0.85, behavior: "smooth" });
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKeyWithShift);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keydown", onKeyWithShift);
+    };
+  }, [activeId, chapters, prefs.showToc, prefs.showOriginal, prefs.layout, book?.id, updateBookPrefs]);
 
   const activeChapter = useMemo(
     () => chapters.find((c) => c.id === activeId) ?? null,
@@ -408,6 +495,9 @@ export default function BookReader() {
   // can pick up typography, leading, and gap without inline styles.
   const readerVarStyle = prefsToCssVars(prefs);
 
+  // Current chapter index for the shortcuts hint.
+  const activeIdx = chapters.findIndex((c) => c.id === activeId);
+
   return (
     <StudioShell>
       <div
@@ -499,8 +589,26 @@ export default function BookReader() {
           </div>
         )}
 
+        {/* Keyboard shortcuts hint bar */}
+        <div className="mt-6 flex items-center gap-5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50 border-b border-border/50 pb-4 overflow-x-auto">
+          <span className="text-muted-foreground/70">Shortcuts</span>
+          <span className="inline-flex items-center gap-1"><Kbd>←</Kbd><Kbd>→</Kbd> or <Kbd>J</Kbd><Kbd>K</Kbd> prev/next chapter</span>
+          <span className="w-px h-3 bg-border/50" />
+          <span className="inline-flex items-center gap-1"><Kbd>Space</Kbd> scroll page · <Kbd>↑</Kbd><Kbd>↓</Kbd> scroll line</span>
+          <span className="w-px h-3 bg-border/50" />
+          <span className="inline-flex items-center gap-1"><Kbd>T</Kbd> toggle contents · <Kbd>O</Kbd> original · <Kbd>L</Kbd> layout</span>
+          {activeIdx >= 0 && (
+            <>
+              <span className="w-px h-3 bg-border/50" />
+              <span className="studio-num text-muted-foreground/50">
+                Ch {activeIdx + 1}/{chapters.length}
+              </span>
+            </>
+          )}
+        </div>
+
         {/* Main split: TOC + reader (TOC hidden via pref.showToc) */}
-        <div className="mt-10 grid grid-cols-12 gap-8">
+        <div className="mt-8 grid grid-cols-12 gap-8">
           {/* TOC */}
           {prefs.showToc && (
             <aside className="col-span-12 lg:col-span-3 lg:sticky lg:top-24 lg:self-start">
