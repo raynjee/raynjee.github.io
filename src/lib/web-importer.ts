@@ -7,54 +7,119 @@ import { uid } from "./util";
 import type { Book, Chapter } from "./types";
 
 // ── CORS proxy ─────────────────────────────────────────────────────────
-// Default proxy. Users can override this in Settings → Translation Preferences
-// if they run their own proxy. The proxy must accept ?url=<encoded-url> and
-// return the raw page body with CORS headers.
-const DEFAULT_PROXY = "https://api.allorigins.win/raw?url=";
+// Free public CORS proxies are unreliable — they go offline, get rate-limited,
+// or get blocked by target sites. We try a chain of them with short timeouts.
+// If the user runs their own proxy (e.g. a /proxy endpoint on their local
+// DeepSeek server at http://127.0.0.1:8001), they can set a custom URL via
+// setProxyUrl() or localStorage key "atelier.cors-proxy".
+// The custom proxy must accept ?url=<encoded-url> and return the raw page
+// body with CORS headers.
 
-let _proxyUrl = DEFAULT_PROXY;
-export function setProxyUrl(url: string) { _proxyUrl = url; }
-export function getProxyUrl() { return _proxyUrl; }
+const FALLBACK_PROXIES = [
+  "https://corsproxy.io/?url=",
+  "https://api.allorigins.win/raw?url=",
+  "https://cors-anywhere.onrender.com/",
+];
+
+const FETCH_TIMEOUT_MS = 8000;
+
+function loadCustomProxy(): string | null {
+  if (typeof window === "undefined") return null;
+  const val = window.localStorage.getItem("atelier.cors-proxy");
+  return val && val.trim() ? val.trim() : null;
+}
+
+export function setProxyUrl(url: string | null): void {
+  if (typeof window === "undefined") return;
+  if (url && url.trim()) {
+    window.localStorage.setItem("atelier.cors-proxy", url.trim());
+  } else {
+    window.localStorage.removeItem("atelier.cors-proxy");
+  }
+}
+
+export function getProxyUrl(): string {
+  return loadCustomProxy() ?? FALLBACK_PROXIES[0];
+}
+
+function buildProxyList(): string[] {
+  const custom = loadCustomProxy();
+  if (custom) return [custom, ...FALLBACK_PROXIES];
+  return FALLBACK_PROXIES;
+}
+
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs: number,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+      },
+    });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 async function fetchViaProxy(url: string): Promise<string> {
-  const proxied = _proxyUrl + encodeURIComponent(url);
-  const res = await fetch(proxied, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-    },
-  });
-  if (!res.ok) {
-    throw new Error(
-      `Failed to fetch ${url} (HTTP ${res.status}). The site may be blocking automated requests, or the CORS proxy is down.`,
-    );
+  const proxies = buildProxyList();
+  const errors: string[] = [];
+
+  for (const proxy of proxies) {
+    const proxied = proxy + encodeURIComponent(url);
+    try {
+      const res = await fetchWithTimeout(proxied, FETCH_TIMEOUT_MS);
+      if (!res.ok) {
+        errors.push(`${proxy.slice(0, 40)}… → HTTP ${res.status}`);
+        continue;
+      }
+      const buffer = await res.arrayBuffer();
+      // Detect charset from meta tag or heuristics
+      const head = new TextDecoder("ascii").decode(buffer.slice(0, 2048));
+      const charsetMatch = /charset[=]["']?\s*([\w-]+)/i.exec(head);
+      const charset = charsetMatch
+        ? charsetMatch[1].toLowerCase()
+        : /shift.jis/i.test(head)
+          ? "shift-jis"
+          : /gb|gbk|gb2312/i.test(head) || /[\u4e00-\u9fff]/.test(head.slice(0, 200))
+            ? "gb18030"
+            : "utf-8";
+      const mappedCharset =
+        charset === "shift-jis" || charset === "shift_jis"
+          ? "shift-jis"
+          : charset === "gbk" || charset === "gb2312"
+            ? "gb18030"
+            : charset;
+      try {
+        return new TextDecoder(mappedCharset, { fatal: false }).decode(buffer);
+      } catch {
+        return new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const short = msg.includes("aborted") ? "timeout" : msg.slice(0, 40);
+      errors.push(`${proxy.slice(0, 40)}… → ${short}`);
+      continue;
+    }
   }
-  // Fetch as ArrayBuffer so we can detect encoding from meta tags, not just
-  // trust the Content-Type header.
-  const buffer = await res.arrayBuffer();
-  // Try to detect charset from meta tag in the first chunk
-  const head = new TextDecoder("ascii").decode(buffer.slice(0, 2048));
-  const charsetMatch = /charset[=]["']?\s*([\w-]+)/i.exec(head);
-  const charset = charsetMatch
-    ? charsetMatch[1].toLowerCase()
-    : /shift.jis/i.test(head)
-      ? "shift-jis"
-      : /gb|gbk|gb2312/i.test(head) || /[\u4e00-\u9fff]/.test(head.slice(0, 200))
-        ? "gb18030"
-        : "utf-8";
-  // Map common charset names to TextDecoder-compatible ones
-  const mappedCharset =
-    charset === "shift-jis" || charset === "shift_jis"
-      ? "shift-jis"
-      : charset === "gbk" || charset === "gb2312"
-        ? "gb18030"
-        : charset;
-  try {
-    return new TextDecoder(mappedCharset, { fatal: false }).decode(buffer);
-  } catch {
-    // Fallback to UTF-8 with replacement chars
-    return new TextDecoder("utf-8", { fatal: false }).decode(buffer);
-  }
+
+  // All proxies failed — give the user actionable instructions.
+  const detail = errors.map((e) => `  • ${e}`).join("\n");
+  throw new Error(
+    `All CORS proxies failed. Tried:\n${detail}\n\n` +
+      `To fix: run a tiny proxy server on your machine. If you already have\n` +
+      `the DeepSeek proxy at http://127.0.0.1:8001, add this endpoint:\n\n` +
+      `  GET /proxy?url=<encoded-url>\n` +
+      `  → fetch the URL, return the body + header "Access-Control-Allow-Origin: *"\n\n` +
+      `Then paste http://127.0.0.1:8001/proxy?url= as your custom proxy in Settings.`,
+  );
 }
 
 // ── Types ────────────────────────────────────────────────────────────────
