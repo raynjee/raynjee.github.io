@@ -26,7 +26,10 @@ let cachedBooks: Book[] = [];
 let cachedLoaded = false;
 
 export function notifyLibraryChanged() {
-  cachedBooks = [];
+  // Don't set cachedBooks = [] here — that would cause every mounted
+  // BookReader to briefly find no book and flash "That volume is not in
+  // the library." Just mark the cache stale so the next refresh picks up
+  // changes; the old data stays valid for the ~5 ms gap.
   cachedLoaded = false;
   ticks.t++;
   for (const l of versionListeners) l();
