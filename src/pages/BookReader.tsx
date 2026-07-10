@@ -186,8 +186,17 @@ export default function BookReader() {
       await saveTranslation(tr);
       setTranslations((m) => ({ ...m, [activeChapter.id]: tr }));
       notifyLibraryChanged();
-      if (!result.failed) toast.success("Chapter translated.");
-      else toast.warning("Some paragraphs could not be translated — check provider status.");
+      if (!result.failed) {
+        // Chapter is fully translated — collapse the side-by-side layout to
+        // a single English column. The Reader menu's "Original column"
+        // switch brings the source back instantly.
+        updateBookPrefs(book.id, { showOriginal: false });
+        toast.success("Chapter translated.");
+      } else {
+        toast.warning(
+          "Some paragraphs could not be translated — check provider status.",
+        );
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(`Translation failed: ${msg.slice(0, 200)}`);
@@ -408,6 +417,7 @@ export default function BookReader() {
           <div className="flex flex-wrap items-center gap-3">
             <ApiLender settings={settings} />
             <button
+              type="button"
               disabled={busy}
               onClick={onPauseToggle}
               className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 disabled:opacity-50"
@@ -422,6 +432,7 @@ export default function BookReader() {
               </span>
             </button>
             <button
+              type="button"
               disabled={busy}
               onClick={onBatchTranslate}
               className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
@@ -436,21 +447,13 @@ export default function BookReader() {
               </span>
             </button>
             <button
+              type="button"
               onClick={onExport}
               className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
             >
               <Download className="w-4 h-4" strokeWidth={1.4} />
               <span className="text-xs uppercase tracking-[0.18em]">Export EPUB</span>
             </button>
-            <button
-              onClick={() => setFocusMode(true)}
-              aria-label="Enter focus mode"
-              className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors"
-            >
-              <FocusIcon className="w-4 h-4" strokeWidth={1.4} />
-              <span className="text-xs uppercase tracking-[0.18em]">Focus</span>
-            </button>
-            <ReaderSettingsMenu bookId={book.id} />
           </div>
         </header>
 
@@ -550,6 +553,9 @@ export default function BookReader() {
                 chapter={activeChapter}
                 translation={activeTranslation ?? null}
                 prefs={prefs}
+                bookId={book.id}
+                hideFocusChrome={focusMode}
+                onEnterFocus={() => setFocusMode(true)}
                 onTranslate={onTranslateActive}
                 onTranslateParagraph={async (paragraphIdx) => {
                   if (!book || !activeChapter) return;
@@ -693,6 +699,9 @@ function ChapterReader({
   chapter,
   translation,
   prefs,
+  bookId,
+  hideFocusChrome,
+  onEnterFocus,
   onTranslate,
   onTranslateParagraph,
   onResetParagraph,
@@ -703,6 +712,9 @@ function ChapterReader({
   prefs: ReturnType<typeof useSettings>["prefsFor"] extends (id?: any) => infer R
     ? R
     : never;
+  bookId: string;
+  hideFocusChrome?: boolean;
+  onEnterFocus?: () => void;
   onTranslate: () => void | Promise<void>;
   onTranslateParagraph: (idx: number) => void | Promise<void>;
   onResetParagraph: (idx: number) => void;
@@ -738,16 +750,23 @@ function ChapterReader({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Show the Reader menu and Focus entry point right where the
+              reading layout actually lives. They're hidden if the user is
+              already in focus mode (the floating exit pill handles that). */}
+          <ReaderSettingsMenu bookId={bookId} />
+          {onEnterFocus && (
+            <button
+              type="button"
+              onClick={onEnterFocus}
+              aria-label="Enter focus mode"
+              className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors"
+            >
+              <FocusIcon className="w-4 h-4" strokeWidth={1.4} />
+              <span className="text-xs uppercase tracking-[0.18em]">Focus</span>
+            </button>
+          )}
           <button
-            className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
-            title={`Original column is ${showOriginal ? "shown" : "hidden"} — change from the Reader menu`}
-            aria-hidden
-            tabIndex={-1}
-            style={{ display: "none" }}
-          >
-            <Languages className="w-4 h-4" strokeWidth={1.4} />
-          </button>
-          <button
+            type="button"
             disabled={busy}
             onClick={onTranslate}
             className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"

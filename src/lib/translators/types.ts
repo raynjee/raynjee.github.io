@@ -215,40 +215,40 @@ export class TranslationManager {
     const rows: string[] = [];
     let failed = false;
     let providerUsed: ProviderId | null = null;
-    let done = 0;
     args.onProgress?.({ done: 0, total, provider: null, index: 0 });
 
-    const chunkSize = this.opts.quality === "fast" ? 8 : this.opts.quality === "balanced" ? 5 : 3;
-
-    for (let i = 0; i < args.paragraphs.length; i += chunkSize) {
-      if (this.pauseRequested) {
-        await waitForResume(
-          () => this.pauseRequested,
-          () => args.checkPause?.(),
-        );
-      }
-      const chunk = args.paragraphs.slice(i, i + chunkSize);
-      const translated = await this.runChunkWithFailover(chunk, args.contextHint);
-      if (translated.failed) {
-        failed = true;
-        // Use whatever was translated, fill remaining with source
-        for (let k = 0; k < chunk.length; k++) {
-          rows.push(translated.rows[k] ?? chunk[k]);
-        }
-        if (this.opts.pauseOnError) break;
-      } else {
-        for (const row of translated.rows) rows.push(row);
-        providerUsed = translated.provider;
-        this.currentProvider = translated.provider;
-      }
-      done += chunk.length;
-      args.onProgress?.({
-        done: Math.min(done, total),
-        total,
-        provider: providerUsed,
-        index: i,
-      });
+    if (this.pauseRequested) {
+      await waitForResume(
+        () => this.pauseRequested,
+        () => args.checkPause?.(),
+      );
     }
+
+    // Send the entire chapter in one API roundtrip. The previous chunked
+    // implementation made paragraphs stream in 3-at-a-time, which produced
+    // visible flicker on long chapters and a progress bar that jumped in
+    // steps. With a single call the user sees a clean 0→total fill once.
+    const translated = await this.runChunkWithFailover(
+      args.paragraphs,
+      args.contextHint,
+    );
+    if (translated.failed) {
+      failed = true;
+      for (let k = 0; k < args.paragraphs.length; k++) {
+        rows.push(translated.rows[k] ?? args.paragraphs[k]);
+      }
+    } else {
+      for (const row of translated.rows) rows.push(row);
+      providerUsed = translated.provider;
+      this.currentProvider = translated.provider;
+    }
+
+    args.onProgress?.({
+      done: failed ? rows.length : total,
+      total,
+      provider: providerUsed,
+      index: 0,
+    });
 
     return { rows, provider: providerUsed, failed };
   }

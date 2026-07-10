@@ -68,6 +68,7 @@ export function ReaderSettingsMenu({ bookId }: { bookId: string }) {
     <Popover>
       <PopoverTrigger asChild>
         <button
+          type="button"
           aria-label="Reader settings"
           className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors"
         >
@@ -86,6 +87,7 @@ export function ReaderSettingsMenu({ bookId }: { bookId: string }) {
           <span className="studio-caps text-foreground">Reader</span>
           {hasOverride && (
             <button
+              type="button"
               onClick={() => resetBookPrefs(bookId)}
               className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5"
               aria-label="Reset reader settings to default"
