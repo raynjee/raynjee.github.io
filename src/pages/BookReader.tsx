@@ -62,6 +62,23 @@ export default function BookReader() {
   // drive typography, layout mode, and toggles for the TOC/original column.
   const prefs = prefsFor(book?.id);
 
+  // Keyboard shortcuts hint bar — shown by default, dismissed for power users.
+  // Persisted in localStorage so it stays hidden across sessions.
+  const [showShortcuts, setShowShortcuts] = useState(() => {
+    try {
+      return localStorage.getItem("atelier.reader.showShortcuts") !== "false";
+    } catch {
+      return true;
+    }
+  });
+  const toggleShortcuts = useCallback(() => {
+    setShowShortcuts((v) => {
+      const next = !v;
+      try { localStorage.setItem("atelier.reader.showShortcuts", String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
   // Load all chapters + translations when the book opens
   useEffect(() => {
     if (!book) return;
@@ -579,23 +596,46 @@ export default function BookReader() {
           </div>
         )}
 
-        {/* Keyboard shortcuts hint bar */}
-        <div className="mt-6 flex items-center gap-5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50 border-b border-border/50 pb-4 overflow-x-auto">
-          <span className="text-muted-foreground/70">Shortcuts</span>
-          <span className="inline-flex items-center gap-1"><Kbd>←</Kbd><Kbd>→</Kbd> or <Kbd>J</Kbd><Kbd>K</Kbd> prev/next chapter</span>
-          <span className="w-px h-3 bg-border/50" />
-          <span className="inline-flex items-center gap-1"><Kbd>Space</Kbd> scroll page · <Kbd>↑</Kbd><Kbd>↓</Kbd> scroll line</span>
-          <span className="w-px h-3 bg-border/50" />
-          <span className="inline-flex items-center gap-1"><Kbd>T</Kbd> toggle contents · <Kbd>O</Kbd> original · <Kbd>L</Kbd> layout</span>
-          {activeIdx >= 0 && (
-            <>
-              <span className="w-px h-3 bg-border/50" />
-              <span className="studio-num text-muted-foreground/50">
-                Ch {activeIdx + 1}/{chapters.length}
-              </span>
-            </>
-          )}
-        </div>
+        {/* Keyboard shortcuts hint bar — dismissible for power users */}
+        {showShortcuts && (
+          <div className="mt-6 flex items-center gap-5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50 border-b border-border/50 pb-4 overflow-x-auto">
+            <span className="text-muted-foreground/70">Shortcuts</span>
+            <span className="inline-flex items-center gap-1"><Kbd>←</Kbd><Kbd>→</Kbd> or <Kbd>J</Kbd><Kbd>K</Kbd> prev/next chapter</span>
+            <span className="w-px h-3 bg-border/50" />
+            <span className="inline-flex items-center gap-1"><Kbd>Space</Kbd> scroll page · <Kbd>↑</Kbd><Kbd>↓</Kbd> scroll line</span>
+            <span className="w-px h-3 bg-border/50" />
+            <span className="inline-flex items-center gap-1"><Kbd>T</Kbd> toggle contents · <Kbd>O</Kbd> original · <Kbd>L</Kbd> layout</span>
+            {activeIdx >= 0 && (
+              <>
+                <span className="w-px h-3 bg-border/50" />
+                <span className="studio-num text-muted-foreground/50">
+                  Ch {activeIdx + 1}/{chapters.length}
+                </span>
+              </>
+            )}
+            {/* Dismiss button */}
+            <button
+              type="button"
+              onClick={toggleShortcuts}
+              aria-label="Hide keyboard shortcuts"
+              title="Hide shortcuts bar"
+              className="ml-auto shrink-0 px-2 py-0.5 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+            >
+              Hide
+            </button>
+          </div>
+        )}
+
+        {/* Show-shortcuts re-entry when bar is hidden */}
+        {!showShortcuts && (
+          <button
+            type="button"
+            onClick={toggleShortcuts}
+            className="mt-6 text-[10px] uppercase tracking-[0.2em] text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors border-b border-transparent hover:border-border/30 pb-1"
+          >
+            Show shortcuts
+          </button>
+        )}
 
         {/* Main split: TOC + reader (TOC hidden via pref.showToc) */}
         <div className="mt-8 grid grid-cols-12 gap-8">
