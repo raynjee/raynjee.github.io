@@ -215,7 +215,7 @@ export class TranslationManager {
     failed: boolean;
   }> {
     const total = args.paragraphs.length;
-    const rows: string[] = [];
+    const rows: string[] = Array(total).fill("");
     let failed = false;
     let providerUsed: ProviderId | null = null;
     args.onProgress?.({ done: 0, total, provider: null, index: 0 });
@@ -227,29 +227,62 @@ export class TranslationManager {
       );
     }
 
-    // Send the entire chapter in one API roundtrip.
-    const translated = await this.runChunkWithFailover(
-      args.paragraphs,
-      args.contextHint,
-      args.glossary,
-    );
-    if (translated.failed) {
-      failed = true;
-      for (let k = 0; k < args.paragraphs.length; k++) {
-        rows.push(translated.rows[k] ?? args.paragraphs[k]);
+    // "Semi-whole" chunking: group paragraphs into batches of ~3000 chars
+    // each. This avoids both the per-paragraph API overhead (wastes tokens)
+    // and the whole-chapter dump (overwhelms the model, loses focus). Each
+    // chunk gets its own API roundtrip with the full glossary + context.
+    const CHUNK_CHARS = 3000;
+    const chunks: { startIdx: number; paragraphs: string[] }[] = [];
+    let buf: string[] = [];
+    let bufStart = 0;
+    let bufChars = 0;
+    for (let i = 0; i < total; i++) {
+      const pLen = args.paragraphs[i].length;
+      if (buf.length > 0 && bufChars + pLen > CHUNK_CHARS) {
+        chunks.push({ startIdx: bufStart, paragraphs: buf });
+        buf = [];
+        bufChars = 0;
+        bufStart = i;
       }
-    } else {
-      for (const row of translated.rows) rows.push(row);
-      providerUsed = translated.provider;
-      this.currentProvider = translated.provider;
+      buf.push(args.paragraphs[i]);
+      bufChars += pLen;
+    }
+    if (buf.length > 0) {
+      chunks.push({ startIdx: bufStart, paragraphs: buf });
     }
 
-    args.onProgress?.({
-      done: failed ? rows.length : total,
-      total,
-      provider: providerUsed,
-      index: 0,
-    });
+    let doneCount = 0;
+    for (const chunk of chunks) {
+      if (this.pauseRequested) {
+        await waitForResume(
+          () => this.pauseRequested,
+          () => args.checkPause?.(),
+        );
+      }
+      if (args.checkPause) await args.checkPause();
+
+      const translated = await this.runChunkWithFailover(
+        chunk.paragraphs,
+        args.contextHint,
+        args.glossary,
+      );
+      for (let k = 0; k < chunk.paragraphs.length; k++) {
+        const globalIdx = chunk.startIdx + k;
+        rows[globalIdx] = translated.rows[k] ?? args.paragraphs[globalIdx];
+      }
+      if (translated.failed) failed = true;
+      if (!providerUsed && translated.provider) {
+        providerUsed = translated.provider;
+        this.currentProvider = translated.provider;
+      }
+      doneCount += chunk.paragraphs.length;
+      args.onProgress?.({
+        done: doneCount,
+        total,
+        provider: providerUsed,
+        index: chunk.startIdx,
+      });
+    }
 
     return { rows, provider: providerUsed, failed };
   }
