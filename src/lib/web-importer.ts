@@ -290,13 +290,104 @@ interface SiteAdapter {
 
 function cleanText(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
-  for (const el of doc.querySelectorAll(
-    "script, style, nav, iframe, ins, .ad, .ads, .advertisement, [class*=ad-], [id*=ad-], noscript",
-  )) el.remove();
-  const text = (doc.body || doc).textContent ?? "";
-  return text.replace(/[\t\r]/g, "").replace(/\n{3,}/g, "\n\n")
-    .split("\n").map((l) => l.trim()).filter((l) => l.length > 0)
-    .join("\n\n").trim();
+
+  // Remove ALL elements that are definitely not story content.
+  // This is an aggressive list — if it's not a paragraph, heading,
+  // or blockquote, it gets nuked before we extract any text.
+  const junkSelectors = [
+    "script", "style", "nav", "iframe", "ins", "noscript",
+    "form", "input", "button", "select", "textarea",
+    "header", "footer", "aside",
+    // Ad/tracking
+    ".ad", ".ads", ".advertisement", "[class*=ad-]", "[id*=ad-]",
+    // Navigation
+    ".chapter-nav", ".page-nav", ".read-nav", ".bottom-nav",
+    ".chapter-control", ".bottem", ".bottem2", ".toplink",
+    ".prev-link", ".next-link", ".nav-btn",
+    // Junk repeated text
+    "[class*=bottom]", "[class*=footer]", "[class*=header]",
+    "[class*=breadcrumb]", "[class*=recommend]", "[class*=related]",
+    // Chinese site specific
+    ".chapter-opt", ".read-opt", ".read-btn",
+    "[class*=remind]", "[class*=notice]", "[class*=tip]",
+    // Comments/social
+    ".comments", ".comment", "[class*=comment]", "[class*=reply]",
+    "[class*=share]", "[class*=report]", "[class*=feedback]",
+    // Author notes / interludes
+    "[class*=author-note]", "[class*=authornote]", "[class*=interlude]",
+  ];
+  for (const el of doc.querySelectorAll(junkSelectors.join(","))) {
+    el.remove();
+  }
+
+  const body = doc.body;
+  if (!body) return "";
+
+  // Also remove any element whose entire text content is just navigation
+  // patterns (these often slip through as plain <div>s or <span>s)
+  const allEls = body.querySelectorAll("*");
+  for (const el of allEls) {
+    const t = el.textContent?.trim() ?? "";
+    if (!t) { el.remove(); continue; }
+    // If the element's ONLY text is navigation junk, remove it
+    const navOnly = /^(上一章|下一章|上一页|下一页|返回目录|加入书签|推荐票|投推荐|打赏|举报|报错|书签|←|→|上一章\s*→|←\s*下一章|Next|Previous|Back to|Table of Contents)$/i;
+    if (navOnly.test(t) && el.children.length === 0) {
+      el.remove();
+    }
+  }
+
+  // Extract remaining text
+  const text = body.textContent ?? "";
+
+  // Text-level filtering: remove lines that are clearly not story prose
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => {
+      if (l.length === 0) return false;
+
+      // Single char or just punctuation
+      if (l.length <= 1) return false;
+
+      // Pure URL
+      if (/^https?:\/\//i.test(l)) return false;
+
+      // Navigation lines (even if they survived HTML removal)
+      if (/^(上一章|下一章|上一页|下一页|返回目录|返回首页|加入书架|推荐投票|投推荐票|打赏作者|举报本章|报错|书签|←|→|回目录|回書目|章节目录|目录|Next|Previous|Back|TOC|Contents?)\s*$/i.test(l)) return false;
+
+      // Chapter/part labels (already in title, don't duplicate in content)
+      if (/^第[一二三四五六七八九十百千零\d]+[章节回話話節]\s*$/i.test(l)) return false;
+      if (/^Chapter\s+\d+\s*$/i.test(l)) return false;
+
+      // Meta lines
+      if (/^(作者[：:]|发布|更新|字数[：:]|时间[：:]|来源[：:]|请记住|记住本站|域名|网址|收藏本站|推荐收藏)/i.test(l)) return false;
+      if (/^(请在|阅读提示|温馨提示|ps[：:]|Ps[：:]|PS[：:])/i.test(l)) return false;
+      if (/^(未完待续|本章完|本章结束|本书由)/i.test(l)) return false;
+      if (/请收藏|求收藏|求推荐|求月票|求订阅|求打赏/i.test(l)) return false;
+
+      // Timestamps
+      if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}\s*$/.test(l)) return false;
+
+      // Pure horizontal rules / dividers
+      if (/^[*-=_]{3,}$/.test(l)) return false;
+
+      // Lines that are just a URL fragment or domain
+      if (/^(www\.|[a-z]+\.[a-z]{2,}$)/i.test(l) && l.length < 50) return false;
+
+      return true;
+    });
+
+  // Collapse multiple blank lines
+  const result = lines
+    .reduce<string[]>((acc, line) => {
+      acc.push(line);
+      return acc;
+    }, [])
+    .join("\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  return result;
 }
 
 const syosetuAdapter: SiteAdapter = {
