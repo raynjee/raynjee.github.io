@@ -16,6 +16,8 @@ import {
 import type { Book, Chapter, ChapterTranslation } from "@/lib/types";
 import { countWords, uid } from "@/lib/util";
 import { parseEpubFile } from "@/lib/epub";
+import { importWebNovel as doImportWebNovel } from "@/lib/web-importer";
+import type { ImportProgress } from "@/lib/web-importer";
 
 type LibraryTick = { t: number };
 
@@ -177,6 +179,41 @@ export async function saveTranslation(
 ): Promise<void> {
   await putTranslation(translation);
   notifyLibraryChanged();
+}
+
+export async function importWebNovel(
+  url: string,
+  onProgress?: (p: ImportProgress) => void,
+  signal?: AbortSignal,
+): Promise<Book> {
+  const result = await doImportWebNovel(url, onProgress, signal);
+  const id = uid("book");
+  const now = Date.now();
+
+  const chapters: Chapter[] = result.chapters.map((c, i) => ({
+    ...c,
+    id: uid("chap"),
+    bookId: id,
+    index: i,
+  }));
+
+  const book: Book = {
+    id,
+    title: result.book.title,
+    author: result.book.author,
+    description: result.book.description,
+    language: result.book.language,
+    coverDataUrl: result.book.coverDataUrl,
+    originalEpub: null,
+    createdAt: now,
+    updatedAt: now,
+    chapterOrder: chapters.map((c) => c.id),
+  };
+
+  await putBook(book);
+  await putChapters(chapters);
+  notifyLibraryChanged();
+  return book;
 }
 
 export async function isAdmin(): Promise<true> {
