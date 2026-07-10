@@ -1,27 +1,24 @@
-// Web novel importer — fetches chapters from web novel sites via a CORS proxy
-// and imports them into the library. Each site gets its own adapter that knows
-// how to find the table of contents and extract clean story text from chapter
-// pages. A generic fallback handles unrecognized Chinese novel sites.
+// Web novel importer — fetches chapters from web novel sites.
+// Primary: Jina Reader (r.jina.ai) — free, reliable, returns clean markdown
+//          with proper CORS headers. Handles JS-rendered sites too.
+// Fallback: chain of free CORS proxies for raw HTML access.
 
-import { uid } from "./util";
 import type { Book, Chapter } from "./types";
 
-// ── CORS proxy ─────────────────────────────────────────────────────────
-// Free public CORS proxies are unreliable — they go offline, get rate-limited,
-// or get blocked by target sites. We try a chain of them with short timeouts.
-// If the user runs their own proxy (e.g. a /proxy endpoint on their local
-// DeepSeek server at http://127.0.0.1:8001), they can set a custom URL via
-// setProxyUrl() or localStorage key "atelier.cors-proxy".
-// The custom proxy must accept ?url=<encoded-url> and return the raw page
-// body with CORS headers.
+// ── Fetcher layer ──────────────────────────────────────────────────────
+// Jina Reader is a purpose-built content extraction service. It fetches any
+// URL, strips ads/nav/junk, and returns clean markdown with CORS headers.
+// Free tier: generous limits, no API key needed for basic use.
+// Format: https://r.jina.ai/{url} → clean markdown text
+
+const JINA_PREFIX = "https://r.jina.ai/";
 
 const FALLBACK_PROXIES = [
   "https://corsproxy.io/?url=",
   "https://api.allorigins.win/raw?url=",
-  "https://cors-anywhere.onrender.com/",
 ];
 
-const FETCH_TIMEOUT_MS = 8000;
+const FETCH_TIMEOUT_MS = 15000;
 
 function loadCustomProxy(): string | null {
   if (typeof window === "undefined") return null;
@@ -39,13 +36,7 @@ export function setProxyUrl(url: string | null): void {
 }
 
 export function getProxyUrl(): string {
-  return loadCustomProxy() ?? FALLBACK_PROXIES[0];
-}
-
-function buildProxyList(): string[] {
-  const custom = loadCustomProxy();
-  if (custom) return [custom, ...FALLBACK_PROXIES];
-  return FALLBACK_PROXIES;
+  return loadCustomProxy() ?? "Jina Reader (r.jina.ai)";
 }
 
 async function fetchWithTimeout(
@@ -55,21 +46,38 @@ async function fetchWithTimeout(
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
-      signal: ctrl.signal,
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
-      },
-    });
-    return res;
+    return await fetch(url, { signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function fetchViaProxy(url: string): Promise<string> {
-  const proxies = buildProxyList();
+interface FetchedPage {
+  /** Raw text content of the page */
+  text: string;
+  /** Whether the text is clean markdown (Jina) or raw HTML (proxy fallback) */
+  format: "markdown" | "html";
+}
+
+/** Fetch a page — Jina Reader first, then CORS proxy chain as fallback. */
+async function fetchPage(url: string): Promise<FetchedPage> {
+  // ── Step 1: Try Jina Reader ────────────────────────────────────
+  try {
+    const jinaUrl = JINA_PREFIX + url;
+    const res = await fetchWithTimeout(jinaUrl, FETCH_TIMEOUT_MS);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.trim().length > 50) {
+        return { text, format: "markdown" };
+      }
+    }
+  } catch {
+    // Jina failed — fall through to proxies
+  }
+
+  // ── Step 2: Try CORS proxies (returns raw HTML) ────────────────
+  const custom = loadCustomProxy();
+  const proxies = custom ? [custom, ...FALLBACK_PROXIES] : FALLBACK_PROXIES;
   const errors: string[] = [];
 
   for (const proxy of proxies) {
@@ -80,45 +88,40 @@ async function fetchViaProxy(url: string): Promise<string> {
         errors.push(`${proxy.slice(0, 40)}… → HTTP ${res.status}`);
         continue;
       }
+      // Fallback proxies return raw HTML — handle encoding
       const buffer = await res.arrayBuffer();
-      // Detect charset from meta tag or heuristics
       const head = new TextDecoder("ascii").decode(buffer.slice(0, 2048));
       const charsetMatch = /charset[=]["']?\s*([\w-]+)/i.exec(head);
-      const charset = charsetMatch
-        ? charsetMatch[1].toLowerCase()
-        : /shift.jis/i.test(head)
-          ? "shift-jis"
-          : /gb|gbk|gb2312/i.test(head) || /[\u4e00-\u9fff]/.test(head.slice(0, 200))
-            ? "gb18030"
-            : "utf-8";
-      const mappedCharset =
-        charset === "shift-jis" || charset === "shift_jis"
-          ? "shift-jis"
-          : charset === "gbk" || charset === "gb2312"
-            ? "gb18030"
-            : charset;
+      let charset = "utf-8";
+      if (charsetMatch) {
+        const c = charsetMatch[1].toLowerCase();
+        charset = c === "shift-jis" || c === "shift_jis" ? "shift-jis"
+          : c === "gbk" || c === "gb2312" ? "gb18030" : c;
+      } else if (/shift.jis/i.test(head)) {
+        charset = "shift-jis";
+      } else if (/[\u4e00-\u9fff]/.test(head.slice(0, 200))) {
+        charset = "gb18030";
+      }
       try {
-        return new TextDecoder(mappedCharset, { fatal: false }).decode(buffer);
+        return { text: new TextDecoder(charset, { fatal: false }).decode(buffer), format: "html" };
       } catch {
-        return new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+        return { text: new TextDecoder("utf-8", { fatal: false }).decode(buffer), format: "html" };
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      const short = msg.includes("aborted") ? "timeout" : msg.slice(0, 40);
-      errors.push(`${proxy.slice(0, 40)}… → ${short}`);
-      continue;
+      errors.push(`${proxy.slice(0, 40)}… → ${msg.includes("aborted") ? "timeout" : msg.slice(0, 30)}`);
     }
   }
 
-  // All proxies failed — give the user actionable instructions.
+  // All failed
   const detail = errors.map((e) => `  • ${e}`).join("\n");
   throw new Error(
-    `All CORS proxies failed. Tried:\n${detail}\n\n` +
-      `To fix: run a tiny proxy server on your machine. If you already have\n` +
-      `the DeepSeek proxy at http://127.0.0.1:8001, add this endpoint:\n\n` +
-      `  GET /proxy?url=<encoded-url>\n` +
-      `  → fetch the URL, return the body + header "Access-Control-Allow-Origin: *"\n\n` +
-      `Then paste http://127.0.0.1:8001/proxy?url= as your custom proxy in Settings.`,
+    `Could not fetch the page. Both Jina Reader and CORS proxies failed.\n\n` +
+    `Tried:\n${detail}\n\n` +
+    `To fix: run a tiny proxy on your machine. Add a /proxy?url= endpoint to\n` +
+    `your DeepSeek server at http://127.0.0.1:8001 that fetches the URL and\n` +
+    `returns the body + header "Access-Control-Allow-Origin: *". Then run:\n` +
+    `  localStorage.setItem("atelier.cors-proxy", "http://127.0.0.1:8001/proxy?url=")`,
   );
 }
 
@@ -144,15 +147,6 @@ export interface ImportProgress {
   currentChapter: string;
 }
 
-// ── Site adapter interface ──────────────────────────────────────────────
-
-interface SiteAdapter {
-  label: string;
-  canHandle(url: URL): boolean;
-  parseToc(html: string, baseUrl: URL): NovelPreview;
-  extractContent(html: string, url: URL): string;
-}
-
 // ── Helper: resolve relative URLs ───────────────────────────────────────
 
 function resolveUrl(base: URL, href: string): string {
@@ -163,256 +157,185 @@ function resolveUrl(base: URL, href: string): string {
   }
 }
 
-// ── Helper: clean chapter content ────────────────────────────────────────
+// ── Markdown-based TOC parser (for Jina Reader output) ──────────────────
+
+function parseTocFromMarkdown(md: string, baseUrl: URL): NovelPreview {
+  // Title: first heading or first non-empty line
+  const h1 = /^#\s+(.+)$/m.exec(md);
+  const title = h1?.[1]?.trim()
+    || md.split("\n").find((l) => l.trim().length > 5)?.trim()
+    || "Untitled";
+
+  // Author: look for common patterns near the top
+  const authorMatch =
+    /作者[：:]\s*(.+)/i.exec(md) ||
+    /Author[：:]\s*(.+)/i.exec(md) ||
+    /著者[：:]\s*(.+)/i.exec(md);
+  const author = authorMatch?.[1]?.trim()
+    || /by\s+(.+)/im.exec(md.slice(0, 500))?.[1]?.trim()
+    || "Unknown";
+
+  // Extract chapter links from markdown: [text](url)
+  const linkRe = /\[([^\]]+)\]\(([^)]+)\)/g;
+  const chapters: TocItem[] = [];
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+
+  while ((m = linkRe.exec(md)) !== null) {
+    const text = m[1].trim();
+    const href = m[2].trim();
+    if (!text || !href || text.length < 2) continue;
+    // Filter out non-chapter links
+    if (/^(Home|Search|Login|Register|About|Contact|首页|搜索|登录|注册)/i.test(text)) continue;
+    if (/^(javascript|mailto|#)/i.test(href)) continue;
+    if (href === "/" || href === "#") continue;
+
+    const resolved = resolveUrl(baseUrl, href);
+    if (seen.has(resolved)) continue;
+    // Chapter links usually have numbers or chapter indicators
+    const looksLikeChapter =
+      /\d/.test(text) ||
+      /第[一二三四五六七八九十百千\d]+[章节回話話]/.test(text) ||
+      /chapter|episode|ch\.?\s*\d/i.test(text) ||
+      /^(\d+[-.\s])/.test(text) ||
+      text.length > 3;
+    if (looksLikeChapter) {
+      seen.add(resolved);
+      chapters.push({ title: text, url: resolved });
+    }
+  }
+
+  // If markdown links didn't yield enough chapters, try plain-text URL regex
+  if (chapters.length === 0) {
+    const urlRe = /(https?:\/\/[^\s<>"')\]]+)/g;
+    while ((m = urlRe.exec(md)) !== null) {
+      const u = m[1];
+      if (seen.has(u)) continue;
+      // Try to find a nearby label
+      const before = md.slice(Math.max(0, m.index - 80), m.index);
+      const labelMatch = before.match(/(.{4,40})\s*$/);
+      const label = labelMatch?.[1]?.trim() || `Chapter ${chapters.length + 1}`;
+      if (/home|search|login|register|about/i.test(label)) continue;
+      seen.add(u);
+      chapters.push({ title: label, url: u });
+    }
+  }
+
+  return {
+    title: title.length > 120 ? title.slice(0, 117) + "…" : title,
+    author,
+    coverUrl: null,
+    chapters,
+    siteLabel: "Jina Reader",
+  };
+}
+
+// ── HTML-based adapters (CORS proxy fallback) ───────────────────────────
+
+interface SiteAdapter {
+  label: string;
+  canHandle(url: URL): boolean;
+  parseToc(html: string, baseUrl: URL): NovelPreview;
+  extractContent(html: string, url: URL): string;
+}
 
 function cleanText(html: string): string {
   const doc = new DOMParser().parseFromString(html, "text/html");
-  // Remove scripts, styles, and common junk elements
   for (const el of doc.querySelectorAll(
     "script, style, nav, iframe, ins, .ad, .ads, .advertisement, [class*=ad-], [id*=ad-], noscript",
-  )) {
-    el.remove();
-  }
-  // Get remaining text content, collapse whitespace
+  )) el.remove();
   const text = (doc.body || doc).textContent ?? "";
-  return text
-    .replace(/[\t\r]/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
-    .join("\n\n")
-    .trim();
+  return text.replace(/[\t\r]/g, "").replace(/\n{3,}/g, "\n\n")
+    .split("\n").map((l) => l.trim()).filter((l) => l.length > 0)
+    .join("\n\n").trim();
 }
 
-// ── Syosetu adapter (ncode.syosetu.com, novel18.syosetu.com) ──────────
-
 const syosetuAdapter: SiteAdapter = {
-  label: "小説家になろう / Syosetu",
-
-  canHandle(url: URL) {
-    return (
-      url.hostname === "ncode.syosetu.com" ||
-      url.hostname === "novel18.syosetu.com"
-    );
-  },
-
+  label: "Syosetu",
+  canHandle(u: URL) { return u.hostname === "ncode.syosetu.com" || u.hostname === "novel18.syosetu.com"; },
   parseToc(html: string, baseUrl: URL): NovelPreview {
     const doc = new DOMParser().parseFromString(html, "text/html");
-    const title =
-      doc.querySelector(".novel_title")?.textContent?.trim() ||
-      doc.querySelector("title")?.textContent?.trim() ||
-      "Untitled";
-    const author =
-      doc.querySelector(".novel_writername a")?.textContent?.trim() ||
-      doc.querySelector(".novel_writername")?.textContent?.trim() ||
-      "Unknown";
-    // Syosetu TOC: chapters are in .chapter_title > a or .novel_sublist2 > dd > a
-    const links = doc.querySelectorAll<HTMLAnchorElement>(
-      ".chapter_title a, .novel_sublist2 dd a, .index_box dd a",
-    );
+    const title = doc.querySelector(".novel_title")?.textContent?.trim() || doc.querySelector("title")?.textContent?.trim() || "Untitled";
+    const author = doc.querySelector(".novel_writername a")?.textContent?.trim() || doc.querySelector(".novel_writername")?.textContent?.trim() || "Unknown";
+    const links = doc.querySelectorAll<HTMLAnchorElement>(".chapter_title a, .novel_sublist2 dd a, .index_box dd a");
     const chapters: TocItem[] = [];
     for (const a of links) {
       const href = a.getAttribute("href");
       const text = a.textContent?.trim();
-      if (href && text) {
-        chapters.push({ title: text, url: resolveUrl(baseUrl, href) });
-      }
+      if (href && text) chapters.push({ title: text, url: resolveUrl(baseUrl, href) });
     }
-    return {
-      title,
-      author,
-      coverUrl: null,
-      chapters,
-      siteLabel: "Syosetu",
-    };
+    return { title, author, coverUrl: null, chapters, siteLabel: "Syosetu" };
   },
-
   extractContent(html: string, _url: URL): string {
     const doc = new DOMParser().parseFromString(html, "text/html");
-    const body =
-      doc.querySelector("#novel_honbun") ||
-      doc.querySelector(".novel_view") ||
-      doc.querySelector("#novel_color");
+    const body = doc.querySelector("#novel_honbun") || doc.querySelector(".novel_view") || doc.querySelector("#novel_color");
     if (!body) return cleanText(html);
-    // Remove navigation links and author notes
-    for (const el of body.querySelectorAll(
-      ".novel_bn, .novel_header, .novel_footer",
-    )) {
-      el.remove();
-    }
+    for (const el of body.querySelectorAll(".novel_bn, .novel_header, .novel_footer")) el.remove();
     return cleanText(body.innerHTML);
   },
 };
-
-// ── Kakuyomu adapter ────────────────────────────────────────────────────
 
 const kakuyomuAdapter: SiteAdapter = {
-  label: "カクヨム / Kakuyomu",
-
-  canHandle(url: URL) {
-    return url.hostname === "kakuyomu.jp";
-  },
-
+  label: "Kakuyomu",
+  canHandle(u: URL) { return u.hostname === "kakuyomu.jp"; },
   parseToc(html: string, baseUrl: URL): NovelPreview {
     const doc = new DOMParser().parseFromString(html, "text/html");
-    const title =
-      doc.querySelector("#workTitle")?.textContent?.trim() ||
-      doc.querySelector("h1")?.textContent?.trim() ||
-      "Untitled";
-    const author =
-      doc.querySelector("#workAuthor-activityName a")?.textContent?.trim() ||
-      doc.querySelector(".partialGiftWidgetActivityName a")?.textContent?.trim() ||
-      "Unknown";
-    // Kakuyomu TOC: episodes are in .widget-episodeList or .widget-toc-items
-    const links = doc.querySelectorAll<HTMLAnchorElement>(
-      ".widget-episodeList a, .widget-toc-items a, .TableOfContents a",
-    );
+    const title = doc.querySelector("#workTitle")?.textContent?.trim() || doc.querySelector("h1")?.textContent?.trim() || "Untitled";
+    const author = doc.querySelector("#workAuthor-activityName a")?.textContent?.trim() || doc.querySelector(".partialGiftWidgetActivityName a")?.textContent?.trim() || "Unknown";
+    const links = doc.querySelectorAll<HTMLAnchorElement>(".widget-episodeList a, .widget-toc-items a, .TableOfContents a");
     const chapters: TocItem[] = [];
     for (const a of links) {
       const href = a.getAttribute("href");
       const text = a.textContent?.trim();
-      if (href && text && href.includes("/episodes/")) {
-        chapters.push({ title: text, url: resolveUrl(baseUrl, href) });
-      }
+      if (href && text && href.includes("/episodes/")) chapters.push({ title: text, url: resolveUrl(baseUrl, href) });
     }
-    return {
-      title,
-      author,
-      coverUrl: null,
-      chapters,
-      siteLabel: "Kakuyomu",
-    };
+    return { title, author, coverUrl: null, chapters, siteLabel: "Kakuyomu" };
   },
-
   extractContent(html: string, _url: URL): string {
     const doc = new DOMParser().parseFromString(html, "text/html");
-    // Kakuyomu wraps story text in p.jo-episode-body or .widget-episodeBody
-    const body =
-      doc.querySelector(".widget-episodeBody") ||
-      doc.querySelector(".widget-episode-body");
+    const body = doc.querySelector(".widget-episodeBody") || doc.querySelector(".widget-episode-body");
     if (!body) return cleanText(html);
     return cleanText(body.innerHTML);
   },
 };
 
-// ── Generic Chinese novel site adapter ──────────────────────────────────
-// Most Chinese novel sites use similar CMS templates. This adapter tries
-// common selectors and falls back to Readability-like heuristics.
-
 const genericChineseAdapter: SiteAdapter = {
-  label: "Chinese Novel Site (generic)",
-
-  canHandle(_url: URL) {
-    // This is the fallback adapter — it always returns true but is checked
-    // last, after all specific adapters.
-    return true;
-  },
-
+  label: "Generic",
+  canHandle(_u: URL) { return true; },
   parseToc(html: string, baseUrl: URL): NovelPreview {
     const doc = new DOMParser().parseFromString(html, "text/html");
-    const title =
-      doc.querySelector("h1")?.textContent?.trim() ||
-      doc.querySelector(".book-title")?.textContent?.trim() ||
-      doc.querySelector(".btitle")?.textContent?.trim() ||
-      doc.querySelector("title")?.textContent?.trim() ||
-      "Untitled";
-    const author =
-      doc.querySelector(".author")?.textContent?.trim() ||
-      doc.querySelector(".writer")?.textContent?.trim() ||
-      doc.querySelector('[property="og:novel:author"]')?.getAttribute("content")?.trim() ||
-      "Unknown";
-
-    // Try common chapter list containers
-    const container =
-      doc.querySelector("#list") ||
-      doc.querySelector("#chapterlist") ||
-      doc.querySelector(".chapterlist") ||
-      doc.querySelector(".ml_list") ||
-      doc.querySelector("#chapters") ||
-      doc.querySelector(".catalog") ||
-      doc.querySelector(".mulu") ||
-      doc.body;
-
-    // Find all links that look like chapter links (have numbers in href/text)
+    const title = doc.querySelector("h1")?.textContent?.trim() || doc.querySelector(".book-title")?.textContent?.trim() || doc.querySelector(".btitle")?.textContent?.trim() || doc.querySelector("title")?.textContent?.trim() || "Untitled";
+    const author = doc.querySelector(".author")?.textContent?.trim() || doc.querySelector(".writer")?.textContent?.trim() || doc.querySelector('[property="og:novel:author"]')?.getAttribute("content")?.trim() || "Unknown";
+    const container = doc.querySelector("#list") || doc.querySelector("#chapterlist") || doc.querySelector(".chapterlist") || doc.querySelector(".ml_list") || doc.querySelector("#chapters") || doc.querySelector(".catalog") || doc.querySelector(".mulu") || doc.body;
     const allLinks = container.querySelectorAll<HTMLAnchorElement>("a");
     const chapters: TocItem[] = [];
     const seen = new Set<string>();
-
     for (const a of allLinks) {
       const href = a.getAttribute("href");
       const text = a.textContent?.trim();
       if (!href || !text || text.length < 2) continue;
       const resolved = resolveUrl(baseUrl, href);
       if (seen.has(resolved)) continue;
-      // Filter out obvious non-chapter links
-      if (
-        /^(首页|书签|排行|搜索|书架|登录|注册|下载|手机版|电脑版|上一页|下一页|返回)/.test(text)
-      )
-        continue;
-      if (
-        /^(home|search|login|register|about|contact|index)/i.test(text)
-      )
-        continue;
-      // Chapter links usually have numeric patterns
-      const looksLikeChapter =
-        /\d/.test(text) ||
-        /第[一二三四五六七八九十百千\d]+[章节回]/.test(text) ||
-        text.length > 4;
-      if (looksLikeChapter) {
-        seen.add(resolved);
-        chapters.push({ title: text, url: resolved });
-      }
+      if (/^(首页|书签|排行|搜索|书架|登录|注册|下载|手机版|电脑版|上一页|下一页|返回)/.test(text)) continue;
+      if (/^(home|search|login|register|about|contact|index)/i.test(text)) continue;
+      const looksLikeChapter = /\d/.test(text) || /第[一二三四五六七八九十百千\d]+[章节回]/.test(text) || text.length > 4;
+      if (looksLikeChapter) { seen.add(resolved); chapters.push({ title: text, url: resolved }); }
     }
-
-    return {
-      title,
-      author,
-      coverUrl: null,
-      chapters,
-      siteLabel: "Generic",
-    };
+    return { title, author, coverUrl: null, chapters, siteLabel: "Generic" };
   },
-
   extractContent(html: string, _url: URL): string {
     const doc = new DOMParser().parseFromString(html, "text/html");
-    // Try common content containers
-    const body =
-      doc.querySelector("#content") ||
-      doc.querySelector("#chaptercontent") ||
-      doc.querySelector("#BookText") ||
-      doc.querySelector("#htmlContent") ||
-      doc.querySelector(".content") ||
-      doc.querySelector(".showtxt") ||
-      doc.querySelector("#nr1") ||
-      doc.querySelector(".yd_text2") ||
-      doc.querySelector(".article-content");
+    const body = doc.querySelector("#content") || doc.querySelector("#chaptercontent") || doc.querySelector("#BookText") || doc.querySelector("#htmlContent") || doc.querySelector(".content") || doc.querySelector(".showtxt") || doc.querySelector("#nr1") || doc.querySelector(".yd_text2") || doc.querySelector(".article-content");
     if (!body) return cleanText(html);
-    // Remove junk elements inside content blocks
-    for (const el of body.querySelectorAll(
-      "script, style, ins, iframe, .ad, .ads, noscript, " +
-        "[class*=ad-], [id*=ad-], .chapter-nav, .page-nav, " +
-        ".read-nav, .bottom-nav, .chapter-control, .bottem, " +
-        '.bottem2, .toplink, [class*="bottom"], [class*="footer"]',
-    )) {
-      el.remove();
-    }
+    for (const el of body.querySelectorAll("script, style, ins, iframe, .ad, .ads, noscript, [class*=ad-], [id*=ad-], .chapter-nav, .page-nav, .read-nav, .bottom-nav, .chapter-control, .bottem, .bottem2, .toplink, [class*=bottom], [class*=footer]")) el.remove();
     return cleanText(body.innerHTML);
   },
 };
 
-// ── Adapter registry ────────────────────────────────────────────────────
-
-const adapters: SiteAdapter[] = [
-  syosetuAdapter,
-  kakuyomuAdapter,
-  genericChineseAdapter, // fallback, checked last
-];
+const adapters: SiteAdapter[] = [syosetuAdapter, kakuyomuAdapter, genericChineseAdapter];
 
 function findAdapter(url: URL): SiteAdapter {
-  for (const a of adapters) {
-    if (a.canHandle(url)) return a;
-  }
+  for (const a of adapters) if (a.canHandle(url)) return a;
   return genericChineseAdapter;
 }
 
@@ -420,18 +343,40 @@ function findAdapter(url: URL): SiteAdapter {
 
 export async function fetchPreview(url: string): Promise<NovelPreview> {
   const parsed = new URL(url);
+  const page = await fetchPage(url);
+
+  if (page.format === "markdown") {
+    // Jina Reader returned clean markdown — parse TOC from markdown links
+    const preview = parseTocFromMarkdown(page.text, parsed);
+    if (preview.chapters.length > 0) return preview;
+    // If markdown parsing found nothing, fall through to HTML adapter
+  }
+
+  // HTML path (CORS proxy fallback) — use site-specific adapters
   const adapter = findAdapter(parsed);
-  const html = await fetchViaProxy(url);
-  return adapter.parseToc(html, parsed);
+  return adapter.parseToc(page.text, parsed);
 }
 
-export async function fetchChapterContent(
-  chapterUrl: string,
-): Promise<string> {
+export async function fetchChapterContent(chapterUrl: string): Promise<string> {
   const parsed = new URL(chapterUrl);
+  const page = await fetchPage(chapterUrl);
+
+  if (page.format === "markdown") {
+    // Jina Reader already stripped ads/nav/junk — the markdown IS the story.
+    // Remove the Jina header/footer lines ("Title:", "URL Source:", etc.)
+    const cleaned = page.text
+      .replace(/^Title:.*$/m, "")
+      .replace(/^URL Source:.*$/m, "")
+      .replace(/^Published Time:.*$/m, "")
+      .replace(/^Markdown Content:.*$/m, "")
+      .replace(/^={3,}\s*$/gm, "")
+      .trim();
+    if (cleaned.length > 20) return cleaned;
+  }
+
+  // HTML path — use site adapter to extract content
   const adapter = findAdapter(parsed);
-  const html = await fetchViaProxy(chapterUrl);
-  return adapter.extractContent(html, parsed);
+  return adapter.extractContent(page.text, parsed);
 }
 
 export interface ImportResult {
@@ -445,7 +390,6 @@ export async function importWebNovel(
   onProgress?: (p: ImportProgress) => void,
   signal?: AbortSignal,
 ): Promise<ImportResult> {
-  // Phase 1: fetch TOC
   onProgress?.({ phase: "toc", done: 0, total: 1, currentChapter: "Fetching table of contents…" });
   const preview = await fetchPreview(url);
 
@@ -454,74 +398,43 @@ export async function importWebNovel(
   }
 
   if (preview.chapters.length === 0) {
-    throw new Error(
-      "Could not find any chapters on this page. Make sure you pasted the novel's main/TOC page URL, not a single chapter URL.",
-    );
+    throw new Error("Could not find any chapters on this page. Make sure you pasted the novel's main/TOC page URL, not a single chapter URL.");
   }
 
   onProgress?.({ phase: "toc", done: 1, total: 1, currentChapter: `Found ${preview.chapters.length} chapters` });
 
-  // Phase 2: fetch chapter contents one by one with rate-limiting delays
   const chapters: Array<Omit<Chapter, "id" | "bookId">> = [];
   let skipped = 0;
 
   for (let i = 0; i < preview.chapters.length; i++) {
     if (signal?.aborted) {
       return {
-        book: {
-          title: preview.title,
-          author: preview.author,
-          description: `Imported from ${preview.siteLabel}: ${url}`,
-          language: "auto",
-          coverDataUrl: preview.coverUrl,
-          originalEpub: null,
-        },
-        chapters,
-        aborted: true,
+        book: { title: preview.title, author: preview.author, description: `Imported from ${preview.siteLabel}: ${url}`, language: "auto", coverDataUrl: preview.coverUrl, originalEpub: null },
+        chapters, aborted: true,
       };
     }
 
     const toc = preview.chapters[i];
-    onProgress?.({
-      phase: "chapters",
-      done: i + 1,
-      total: preview.chapters.length,
-      currentChapter: toc.title,
-    });
+    onProgress?.({ phase: "chapters", done: i + 1, total: preview.chapters.length, currentChapter: toc.title });
 
     try {
       const content = await fetchChapterContent(toc.url);
       if (signal?.aborted) {
         return {
-          book: {
-            title: preview.title,
-            author: preview.author,
-            description: `Imported from ${preview.siteLabel}: ${url}`,
-            language: "auto",
-            coverDataUrl: preview.coverUrl,
-            originalEpub: null,
-          },
-          chapters,
-          aborted: true,
+          book: { title: preview.title, author: preview.author, description: `Imported from ${preview.siteLabel}: ${url}`, language: "auto", coverDataUrl: preview.coverUrl, originalEpub: null },
+          chapters, aborted: true,
         };
       }
 
-      // Split content into paragraphs (double newline or single newline breaks)
       const paragraphs = content
         .split(/\n{2,}/)
         .flatMap((block) => block.split("\n").filter(Boolean))
         .map((p) => p.trim())
         .filter((p) => p.length > 0);
 
-      if (paragraphs.length === 0) {
-        skipped++;
-        continue;
-      }
+      if (paragraphs.length === 0) { skipped++; continue; }
 
-      const wordCount = paragraphs.reduce(
-        (s, p) => s + (p.replace(/\s/g, "").length || p.split(/\s+/).length),
-        0,
-      );
+      const wordCount = paragraphs.reduce((s, p) => s + (p.replace(/\s/g, "").length || p.split(/\s+/).length), 0);
 
       chapters.push({
         title: toc.title,
@@ -531,22 +444,18 @@ export async function importWebNovel(
         wordCount,
       });
     } catch {
-      // Skip failed chapters but continue importing the rest
       skipped++;
     }
 
-    // Rate limiting: 1.5s delay between requests
     if (i < preview.chapters.length - 1) {
       await new Promise((r) => setTimeout(r, 1500));
     }
   }
 
   const language =
-    /[\u4e00-\u9fff]/.test(preview.title + chapters.slice(0, 3).map((c) => c.title).join(""))
-      ? "zh"
-      : /[\u3040-\u30ff]/.test(preview.title + chapters.slice(0, 3).map((c) => c.title).join(""))
-        ? "ja"
-        : "auto";
+    /[\u4e00-\u9fff]/.test(preview.title + chapters.slice(0, 3).map((c) => c.title).join("")) ? "zh"
+    : /[\u3040-\u30ff]/.test(preview.title + chapters.slice(0, 3).map((c) => c.title).join("")) ? "ja"
+    : "auto";
 
   return {
     book: {
