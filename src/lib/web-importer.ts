@@ -554,20 +554,71 @@ export async function fetchPreview(url: string): Promise<NovelPreview> {
   return adapter.parseToc(page.text, parsed);
 }
 
+/** Strip all markdown formatting and links from text, leaving only prose. */
+function stripMarkdown(text: string): string {
+  return text
+    // Nuke all markdown links but keep the link text: [text](url) → text
+    .replace(/\[([^\]]*)\]\([^)]+\)/g, "$1")
+    // Nuke images: ![alt](url)
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    // Nuke markdown heading markers (keep the heading text)
+    .replace(/^#{1,6}\s+/gm, "")
+    // Nuke bold/italic markers
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+    .replace(/_{1,3}([^_]+)_{1,3}/g, "$1")
+    // Nuke inline code
+    .replace(/`([^`]+)`/g, "$1")
+    // Nuke blockquote markers
+    .replace(/^>\s?/gm, "")
+    // Nuke horizontal rules
+    .replace(/^[*-_]{3,}\s*$/gm, "")
+    // Nuke HTML tags that survived
+    .replace(/<[^>]+>/g, "")
+    // Collapse whitespace
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** Text-level filtering — same rules as cleanText, applied to raw lines. */
+function filterJunkLines(text: string): string {
+  return text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => {
+      if (l.length <= 1) return false;
+      if (/^https?:\/\//i.test(l)) return false;
+      if (/^(上一章|下一章|上一页|下一页|返回目录|返回首页|加入书架|推荐投票|投推荐票|打赏作者|举报本章|报错|书签|←|→|回目录|回書目|章节目录|目录|Next|Previous|Back|TOC|Contents?)\s*$/i.test(l)) return false;
+      if (/^(作者[：:]|发布|更新|字数[：:]|时间[：:]|来源[：:]|请记住|记住本站|域名|网址|收藏本站|推荐收藏|加入书签|推荐投票|打赏|举报)/i.test(l)) return false;
+      if (/^(请在|阅读提示|温馨提示|ps[：:]|Ps[：:]|PS[：:])/i.test(l)) return false;
+      if (/^(未完待续|本章完|本章结束|本书由)/i.test(l)) return false;
+      if (/请收藏|求收藏|求推荐|求月票|求订阅|求打赏/i.test(l)) return false;
+      if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}\s*$/.test(l)) return false;
+      if (/^[*-=_]{3,}$/.test(l)) return false;
+      if (/^(www\.|[a-z]+\.[a-z]{2,}$)/i.test(l) && l.length < 50) return false;
+      return true;
+    })
+    .join("\n\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export async function fetchChapterContent(chapterUrl: string): Promise<string> {
   const parsed = new URL(chapterUrl);
   const page = await fetchPage(chapterUrl);
 
   if (page.format === "markdown") {
-    // Jina Reader already stripped ads/nav/junk — the markdown IS the story.
-    // Remove the Jina header/footer lines ("Title:", "URL Source:", etc.)
-    const cleaned = page.text
-      .replace(/^Title:.*$/m, "")
-      .replace(/^URL Source:.*$/m, "")
-      .replace(/^Published Time:.*$/m, "")
-      .replace(/^Markdown Content:.*$/m, "")
-      .replace(/^={3,}\s*$/gm, "")
-      .trim();
+    // Strip Jina metadata headers, then strip ALL markdown formatting
+    // and filter out any remaining junk lines.
+    const cleaned = filterJunkLines(
+      stripMarkdown(
+        page.text
+          .replace(/^Title:.*$/m, "")
+          .replace(/^URL Source:.*$/m, "")
+          .replace(/^Published Time:.*$/m, "")
+          .replace(/^Markdown Content:.*$/m, "")
+          .replace(/^={3,}\s*$/gm, ""),
+      ),
+    );
     if (cleaned.length > 20) return cleaned;
   }
 
