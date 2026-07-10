@@ -1,7 +1,15 @@
 // Web novel importer — fetches chapters from web novel sites.
-// Primary: Jina Reader (r.jina.ai) — free, reliable, returns clean markdown
-//          with proper CORS headers. Handles JS-rendered sites too.
-// Fallback: chain of free CORS proxies for raw HTML access.
+// Fetch chain (tried in order):
+//   1. Direct browser fetch  — works if user has "Allow CORS" extension or
+//                               the site happens to send CORS headers.
+//   2. Jina Reader (r.jina.ai) — free, returns clean markdown, handles most
+//                                 Japanese sites perfectly. Blocked by Chinese
+//                                 sites that check for data-center IPs.
+//   3. Free CORS proxies — last resort, also blocked by aggressive sites.
+// Chinese novel sites (69shuba, xbiqige, etc.) use Cloudflare anti-bot
+// protection that blocks data-center IPs. Only the user's own browser
+// (residential IP) can reliably pass these checks. Install a "CORS bypass"
+// browser extension to make direct fetch work for any site.
 
 import type { Book, Chapter } from "./types";
 
@@ -72,32 +80,46 @@ function isJinaError(text: string): boolean {
   );
 }
 
-/** Fetch a page — Jina Reader first, then CORS proxy chain as fallback. */
+/** Fetch a page using the best available method. */
 async function fetchPage(url: string): Promise<FetchedPage> {
-  // ── Step 1: Try Jina Reader ────────────────────────────────────
+  // ── Step 1: Direct browser fetch (your IP, your cookies) ───────
+  // Works if you have a CORS-bypass extension installed, or if the
+  // target site happens to send permissive CORS headers. This is the
+  // only method that passes Cloudflare anti-bot checks on Chinese sites
+  // because the request comes from a residential IP with cookies.
+  try {
+    const res = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
+    if (res.ok) {
+      const buffer = await res.arrayBuffer();
+      const text = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
+      if (text.trim().length > 200 && !/forbidden|blocked/i.test(text.slice(0, 300))) {
+        return { text, format: "html" };
+      }
+    }
+  } catch {
+    // CORS blocked — continue to Jina
+  }
+
+  // ── Step 2: Jina Reader (clean markdown) ───────────────────────
   try {
     const jinaUrl = JINA_PREFIX + url;
     const res = await fetchWithTimeout(jinaUrl, FETCH_TIMEOUT_MS);
     if (res.ok) {
       const text = await res.text();
-      // Reject if Jina returned an error page instead of real content
       if (text && text.trim().length > 50 && !isJinaError(text)) {
         return { text, format: "markdown" };
       }
     }
   } catch {
-    // Jina failed — fall through to proxies
+    // Jina failed — continue to proxies
   }
 
-  // ── Step 2: Try CORS proxies (returns raw HTML) ────────────────
+  // ── Step 3: CORS proxy chain (raw HTML, last resort) ───────────
   const custom = loadCustomProxy();
   const proxies = custom ? [custom, ...FALLBACK_PROXIES] : FALLBACK_PROXIES;
   const errors: string[] = [];
-  const userAgent =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 
   for (const proxy of proxies) {
-    // Try both encoded and raw URL — some proxies double-encode
     const variants = [proxy + encodeURIComponent(url)];
     if (encodeURIComponent(url) !== url) variants.push(proxy + url);
 
@@ -106,11 +128,10 @@ async function fetchPage(url: string): Promise<FetchedPage> {
         const res = await fetchWithTimeout(proxied, FETCH_TIMEOUT_MS);
         if (!res.ok) {
           errors.push(`${proxy.slice(0, 35)}… → HTTP ${res.status}`);
-          break; // don't try the other variant for this proxy
+          break;
         }
         const buffer = await res.arrayBuffer();
         const head = new TextDecoder("ascii").decode(buffer.slice(0, 2048));
-        // Reject if the proxy returned an error page
         if (/forbidden|blocked|access denied/i.test(head.slice(0, 200))) {
           errors.push(`${proxy.slice(0, 35)}… → site blocked`);
           break;
@@ -139,29 +160,17 @@ async function fetchPage(url: string): Promise<FetchedPage> {
     }
   }
 
-  // ── Step 3: Last resort — try direct fetch (some sites allow it) ─
-  try {
-    const res = await fetchWithTimeout(url, FETCH_TIMEOUT_MS);
-    if (res.ok) {
-      const buffer = await res.arrayBuffer();
-      const text = new TextDecoder("utf-8", { fatal: false }).decode(buffer);
-      if (text.trim().length > 200 && !/forbidden|blocked/i.test(text.slice(0, 300))) {
-        return { text, format: "html" };
-      }
-    }
-  } catch {
-    // Direct fetch failed too
-  }
-
-  // All failed
+  // ── All methods failed ─────────────────────────────────────────
   const detail = errors.map((e) => `  • ${e}`).join("\n");
   throw new Error(
-    `Could not fetch the page. Both Jina Reader and CORS proxies failed.\n\n` +
-    `Tried:\n${detail}\n\n` +
-    `To fix: run a tiny proxy on your machine. Add a /proxy?url= endpoint to\n` +
-    `your DeepSeek server at http://127.0.0.1:8001 that fetches the URL and\n` +
-    `returns the body + header "Access-Control-Allow-Origin: *". Then run:\n` +
-    `  localStorage.setItem("atelier.cors-proxy", "http://127.0.0.1:8001/proxy?url=")`,
+    `Can't reach this site. All fetch methods failed.\n\n` +
+    `This usually means the site blocks automated requests (Cloudflare\n` +
+    `anti-bot, 403 Forbidden). Fix it in 30 seconds:\n\n` +
+    `1. Install "Allow CORS" browser extension (Chrome/Firefox)\n` +
+    `2. Refresh the page and try importing again\n\n` +
+    `The extension lets your browser fetch the page directly with your\n` +
+    `own IP and cookies, bypassing all bot detection.\n\n` +
+    (detail ? `Technical details:\n${detail}` : ""),
   );
 }
 
