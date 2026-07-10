@@ -227,32 +227,40 @@ export class TranslationManager {
       );
     }
 
-    // Send the entire chapter in one API roundtrip. The previous chunked
-    // implementation made paragraphs stream in 3-at-a-time, which produced
-    // visible flicker on long chapters and a progress bar that jumped in
-    // steps. With a single call the user sees a clean 0→total fill once.
-    const translated = await this.runChunkWithFailover(
-      args.paragraphs,
-      args.contextHint,
-      args.glossary,
-    );
-    if (translated.failed) {
-      failed = true;
-      for (let k = 0; k < args.paragraphs.length; k++) {
-        rows.push(translated.rows[k] ?? args.paragraphs[k]);
+    // Translate paragraph-by-paragraph. Each paragraph gets its own API
+    // call so the AI can focus on one passage at a time and the user sees
+    // each translation stream in as it completes.
+    for (let i = 0; i < total; i++) {
+      if (this.pauseRequested) {
+        await waitForResume(
+          () => this.pauseRequested,
+          () => args.checkPause?.(),
+        );
       }
-    } else {
-      for (const row of translated.rows) rows.push(row);
-      providerUsed = translated.provider;
-      this.currentProvider = translated.provider;
-    }
+      // Honour the external stop signal so batch loops can cancel.
+      if (args.checkPause) await args.checkPause();
 
-    args.onProgress?.({
-      done: failed ? rows.length : total,
-      total,
-      provider: providerUsed,
-      index: 0,
-    });
+      const translated = await this.runChunkWithFailover(
+        [args.paragraphs[i]],
+        args.contextHint,
+        args.glossary,
+      );
+      if (translated.failed) {
+        failed = true;
+        rows.push(args.paragraphs[i]);
+      } else {
+        rows.push(translated.rows[0] ?? args.paragraphs[i]);
+        if (!providerUsed) providerUsed = translated.provider;
+        this.currentProvider = translated.provider;
+      }
+
+      args.onProgress?.({
+        done: i + 1,
+        total,
+        provider: providerUsed,
+        index: i,
+      });
+    }
 
     return { rows, provider: providerUsed, failed };
   }
@@ -266,46 +274,35 @@ export class TranslationManager {
     provider: ProviderId | null;
     failed: boolean;
   }> {
-    // Try preferred first, then walk through others.
+    // Translate a single paragraph-array (normally just one paragraph now
+    // that translateChapter sends them one at a time). Try preferred first,
+    // then walk through fallback providers.
     const order = orderProviders(this.opts.preferred, this.opts.providers);
-    // Consult cache for each paragraph first.
-    const cached: (string | null)[] = [];
-    for (const p of chunk) {
-      const keyFor = (id: ProviderId) =>
-        TranslationMemory.cacheKey(p, this.opts.target, this.opts.quality, id);
-      // Try cache for any enabled provider, prefer the active one.
-      let hit: string | null = null;
-      for (const cfg of order) {
-        if (!cfg.enabled) continue;
-        const v = await this.mem.get(await keyFor(cfg.id));
-        if (v) {
-          hit = v;
-          break;
-        }
-      }
-      cached.push(hit);
-    }
-    const missingIndices = chunk
-      .map((_, i) => i)
-      .filter((i) => !cached[i]);
+    const source = chunk[0];
 
-    if (missingIndices.length === 0) {
-      return {
-        rows: cached.map((c, i) => c ?? chunk[i]),
-        provider: this.opts.preferred,
-        failed: false,
-      };
+    // Consult cache first.
+    for (const cfg of order) {
+      if (!cfg.enabled) continue;
+      const key = await TranslationMemory.cacheKey(
+        source,
+        this.opts.target,
+        this.opts.quality,
+        cfg.id,
+      );
+      const hit = await this.mem.get(key);
+      if (hit) {
+        return { rows: [hit], provider: cfg.id, failed: false };
+      }
     }
 
     for (const cfg of order) {
       if (!cfg.enabled) continue;
-      // DeepSeek doesn't need an API key; Gemini still does.
       if (cfg.id === "gemini" && !cfg.apiKey) continue;
       if (this.rl.isSuspended(cfg.id)) continue;
       const client = PROVIDERS[cfg.id];
       try {
         const req: TranslateRequest = {
-          paragraphs: missingIndices.map((i) => chunk[i]),
+          paragraphs: [source],
           source: this.opts.source,
           target: this.opts.target,
           quality: this.opts.quality,
@@ -313,20 +310,15 @@ export class TranslationManager {
           glossary,
         };
         const res = await client.translate(cfg, req);
-        // Fill in fresh translations, write-through the cache.
-        for (let k = 0; k < missingIndices.length; k++) {
-          const translated = res.paragraphs[k];
-          const source = chunk[missingIndices[k]];
-          const finalText = translated ?? source;
-          cached[missingIndices[k]] = finalText;
-          const key = await TranslationMemory.cacheKey(
-            source,
-            this.opts.target,
-            this.opts.quality,
-            cfg.id,
-          );
-          await this.mem.put(key, finalText, cfg.id);
-        }
+        const finalText = res.paragraphs[0] ?? source;
+        // Write-through cache.
+        const key = await TranslationMemory.cacheKey(
+          source,
+          this.opts.target,
+          this.opts.quality,
+          cfg.id,
+        );
+        await this.mem.put(key, finalText, cfg.id);
         const status = this.status.get(cfg.id);
         if (status) {
           status.ok = true;
@@ -335,11 +327,7 @@ export class TranslationManager {
           status.lastUsed = Date.now();
         }
         this.persist();
-        return {
-          rows: cached.map((c, i) => c ?? chunk[i]),
-          provider: cfg.id,
-          failed: false,
-        };
+        return { rows: [finalText], provider: cfg.id, failed: false };
       } catch (err) {
         const status = this.status.get(cfg.id);
         if (status) {
@@ -358,11 +346,9 @@ export class TranslationManager {
           message: describeError(err),
         });
         this.persist();
-        // Continue to next provider.
       }
     }
-    // All providers fail — return source for missing paragraphs.
-    return { rows: cached.map((c, i) => c ?? chunk[i]), provider: null, failed: true };
+    return { rows: [source], provider: null, failed: true };
   }
 }
 

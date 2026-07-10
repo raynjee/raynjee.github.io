@@ -437,7 +437,7 @@ export default function BookReader() {
         </header>
 
         {/* Progress strip */}
-        <div className="mt-8 border border-border bg-card p-4 grid grid-cols-12 gap-4">
+        <div className="mt-8 grid grid-cols-12 gap-4">
           <ProgressCell label="Chapter" value={`${chapters.findIndex((c) => c.id === activeId) + 1} / ${chapters.length}`} />
           <ProgressCell label="Words translated" value={`${translatedWordCount.toLocaleString()} / ${totalWordCount.toLocaleString()}`} />
           <ProgressCell
@@ -580,7 +580,7 @@ export default function BookReader() {
                 busy={busy}
               />
             ) : (
-              <div className="border border-border bg-card p-12 text-center">
+              <div className="p-12 text-center">
                 <BookOpen className="w-10 h-10 mx-auto text-muted-foreground" strokeWidth={1.2} />
                 <div className="mt-4 font-display text-2xl">Pick a chapter</div>
                 <p className="text-muted-foreground mt-2 max-w-[40ch] mx-auto">
@@ -773,10 +773,10 @@ function ChapterReader({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.22, delay: Math.min(idx, 6) * 0.02 }}
               >
-                <p className="reader-prose-text text-foreground/80 border-l border-border pl-4">
+                <p className="reader-prose-text text-foreground/80">
                   {p}
                 </p>
-                <div className="group relative mt-3 border-l border-border pl-4 bg-muted/30">
+                <div className="group relative mt-3">
                   <div className="absolute -top-2 right-0 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                     {t && t.trim() ? (
                       <>
@@ -828,11 +828,11 @@ function ChapterReader({
               )}
             >
               {showOriginal && (
-                <p className="reader-prose-text text-foreground/80 border-l border-border pl-4 py-3">
+                <p className="reader-prose-text text-foreground/80 py-3">
                   {p}
                 </p>
               )}
-              <div className="group relative border-l border-border pl-4 bg-muted/30">
+              <div className="group relative">
                 <div className="absolute -top-2 right-0 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                   {t && t.trim() ? (
                     <>
@@ -871,6 +871,7 @@ function ChapterReader({
           );
         })}
       </div>
+
     </article>
   );
 }
