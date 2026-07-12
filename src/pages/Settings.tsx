@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Download,
+  FileDown,
   KeyRound,
   Loader2,
   Upload,
@@ -51,15 +52,162 @@ export default function SettingsPage() {
 
 const DEEPSEEK_REPO = "https://github.com/sums001/Deepseek-API";
 
+// Embedded helper files for download
+const APP_PY = `import os
+import uvicorn
+from dotenv import load_dotenv
+
+load_dotenv()
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "server.api:app",
+        host=os.getenv("HOST", "127.0.0.1"),
+        port=int(os.getenv("PORT", "8000")),
+        reload=False,
+    )
+`;
+
+const CORS_SHIM_PY = `#!/usr/bin/env python3
+"""
+cors_shim.py — light CORS-enabled reverse proxy in front of the
+sums001/Deepseek-API proxy.
+
+Why it exists
+=============
+The sums001/Deepseek-API reverse-engineered DeepSeek proxy
+(https://github.com/sums001/Deepseek-API) exposes /v1/chat/completions,
+/v1/models and /healthz but ships WITHOUT FastAPI's CORSMiddleware.
+Browser tabs at a non-localhost origin (e.g. https://freebuff.com) send a
+CORS preflight before POST, the proxy returns 405 with no Allow-Origin
+headers, the browser rejects the preflight, and fetch() throws
+"Failed to fetch" — even though the proxy itself is up and answering 200 OK.
+
+This shim listens on a separate port (default 8001), forwards every request
+through to the real proxy, and adds CORS headers so the preflight passes.
+
+Install & run
+==============
+The sums001 proxy already pulls in fastapi + uvicorn. Add httpx and run:
+
+    pip install httpx
+    python cors_shim.py
+
+Override defaults via env vars:
+
+    UPSTREAM=http://127.0.0.1:8000
+    LISTEN_HOST=127.0.0.1
+    LISTEN_PORT=8001
+    PROXY_TIMEOUT_SECS=180
+    python cors_shim.py
+"""
+
+import os
+
+import httpx
+import uvicorn
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+
+UPSTREAM = os.environ.get("UPSTREAM", "http://127.0.0.1:8000").rstrip("/")
+LISTEN_HOST = os.environ.get("LISTEN_HOST", "127.0.0.1")
+LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "8001"))
+PROXY_TIMEOUT = float(os.environ.get("PROXY_TIMEOUT_SECS", "180"))
+
+_upstream = httpx.AsyncClient(timeout=httpx.Timeout(PROXY_TIMEOUT))
+
+_HOP_BY_HOP_HEADERS = frozenset(
+    h.lower()
+    for h in (
+        "host",
+        "content-length",
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "transfer-encoding",
+        "upgrade",
+    )
+)
+
+app = FastAPI(title="Freebuff CORS shim", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.api_route(
+    "/{full_path:path}",
+    methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+)
+async def proxy(full_path: str, request: Request) -> Response:
+    url = f"{UPSTREAM}/{full_path}"
+    if request.url.query:
+        url = f"{url}?{request.url.query}"
+
+    body = await request.body()
+    forwarded_headers = {
+        k: v for k, v in request.headers.items() if k.lower() not in _HOP_BY_HOP_HEADERS
+    }
+
+    upstream = await _upstream.request(
+        method=request.method,
+        url=url,
+        content=body,
+        headers=forwarded_headers,
+    )
+
+    return Response(
+        content=upstream.content,
+        status_code=upstream.status_code,
+        headers=dict(upstream.headers),
+    )
+
+
+if __name__ == "__main__":
+    print(
+        f"cors_shim listening on http://{LISTEN_HOST}:{LISTEN_PORT}, "
+        f"forwarding to {UPSTREAM} (timeout {PROXY_TIMEOUT}s)"
+    )
+    uvicorn.run(app, host=LISTEN_HOST, port=LISTEN_PORT, log_level="info")
+`;
+
+const RUN_BAT = `@echo off
+title DeepSeek Servers
+
+echo Starting DeepSeek Server and CORS Shim...
+echo.
+
+start "DeepSeek Server" /B python app.py
+timeout /t 2 /nobreak >nul
+start "CORS Shim" /B python cors_shim.py
+
+echo Both servers are running!
+echo DeepSeek: http://localhost:8000
+echo CORS Shim: http://localhost:8001
+echo.
+echo Press Ctrl+C to stop both servers.
+
+pause
+`;
+
 function DeepSeekTutorial() {
   const [copied, setCopied] = useState(false);
 
   const commands = [
     "git clone https://github.com/sums001/Deepseek-API",
     "cd Deepseek-API",
+    "pip install httpx",
     "python -m deepseek.auth",
-    "# Once the browser login completes, set the port:",
-    "uvicorn deepseek.server:app --host 127.0.0.1 --port 8001",
+    "# Then download the 3 helper files below into this folder",
+    "# and double-click run.bat to start both servers",
   ].join("\n");
 
   const onCopy = async () => {
@@ -71,6 +219,17 @@ function DeepSeekTutorial() {
     } catch {
       toast.error("Failed to copy — copy them manually below.");
     }
+  };
+
+  const downloadFile = (filename: string, content: string, label: string) => {
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast.success(`${label} downloaded.`);
   };
 
   return (
@@ -112,34 +271,63 @@ function DeepSeekTutorial() {
             {commands.split("\n").map((line, i) => (
               <div key={i} className="flex gap-3">
                 <span className="select-none text-muted-foreground">$</span>
-                <span>{line}</span>
+                <span className={line.startsWith("#") ? "text-muted-foreground italic" : ""}>{line}</span>
               </div>
             ))}
           </div>
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          {/* Download buttons */}
+          <div className="mt-4">
+            <div className="text-muted-foreground text-xs uppercase tracking-[0.18em] mb-3">
+              Helper files — download these into your Deepseek-API folder
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => downloadFile("cors_shim.py", CORS_SHIM_PY, "cors_shim.py")}
+                className="h-9 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 text-xs"
+              >
+                <FileDown className="w-3.5 h-3.5" strokeWidth={1.4} />
+                <span className="uppercase tracking-[0.18em]">cors_shim.py</span>
+              </button>
+              <button
+                onClick={() => downloadFile("run.bat", RUN_BAT, "run.bat")}
+                className="h-9 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 text-xs"
+              >
+                <FileDown className="w-3.5 h-3.5" strokeWidth={1.4} />
+                <span className="uppercase tracking-[0.18em]">run.bat</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
             <div className="border border-border p-3">
               <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                Port
+                DeepSeek port
               </div>
-              <div className="font-mono text-lg mt-1">
-                8001
-              </div>
+              <div className="font-mono text-lg mt-1">8000</div>
               <div className="text-xs text-muted-foreground mt-1">
-                The port set with <code className="font-mono">--port 8001</code> above. Change
-                it in the endpoint URL field below if you pick a different one.
+                The raw proxy served by <code className="font-mono">app.py</code>.
+              </div>
+            </div>
+            <div className="border border-border p-3">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                CORS shim port
+              </div>
+              <div className="font-mono text-lg mt-1">8001</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                CORS-enabled gateway served by <code className="font-mono">cors_shim.py</code>.
+                Set your endpoint to this port.
               </div>
             </div>
             <div className="border border-border p-3">
               <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                 Endpoint
               </div>
-              <div className="font-mono text-sm mt-1">
-                /v1/chat/completions
+              <div className="font-mono text-xs mt-1 break-all">
+                http://127.0.0.1:8001/v1
               </div>
               <div className="text-xs text-muted-foreground mt-1">
-                OpenAI-compatible — the proxy uses the same shape as the
-                official API.
+                Set this in the endpoint URL field below.
               </div>
             </div>
           </div>
@@ -148,9 +336,8 @@ function DeepSeekTutorial() {
             <HelpCircle className="w-4 h-4 text-foreground mt-0.5 shrink-0" strokeWidth={1.4} />
             <div>
               <span className="font-semibold text-foreground">Note:</span> The
-              proxy serializes requests — it processes one at a time. If
-              translations feel slow, wait for the queue to drain. The 30 RPM
-              rate limit is enforced by the proxy itself. See{" "}
+              proxy serializes requests — it processes one at a time. The
+              30 RPM rate limit is enforced by DeepSeek itself. See{" "}
               <a
                 href={DEEPSEEK_REPO}
                 target="_blank"
