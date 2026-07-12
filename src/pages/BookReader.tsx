@@ -10,12 +10,9 @@ import {
   BookOpen,
   Check,
   Download,
-  Languages,
   Loader2,
   PanelLeftClose,
   PanelLeftOpen,
-  Pause,
-  Play,
   Sparkles,
   Undo2,
 } from "lucide-react";
@@ -305,150 +302,7 @@ export default function BookReader() {
     }
   };
 
-  const batchProgress = useRef({ done: 0, total: 0 });
 
-  const onBatchTranslate = async () => {
-    if (!book) return;
-    if (busy) return;
-    const remaining = chapters.filter((c) => {
-      const tr = translations[c.id];
-      if (!tr) return true;
-      const hasMissing = tr.paragraphs.some((p) => !p || !p.trim());
-      return hasMissing || tr.status === "idle" || tr.status === "error";
-    });
-    if (remaining.length === 0) {
-      toast("Every chapter already has a translation.", { icon: "ℹ️" });
-      return;
-    }
-    stopRef.current = false;
-    batchProgress.current = { done: 0, total: remaining.length };
-    try {
-      setBusy(true);
-      const mgr = makeManager();
-      managerRef.current = mgr;
-      for (const c of remaining) {
-        // Bail if the user paused OR the component has unmounted (we don't
-        // want to keep burning LLM credits or setState on a dead component).
-        if (stopRef.current || !mountedRef.current) break;
-        setActiveId(c.id);
-        const loadingTr: ChapterTranslation = {
-          id: `${book.id}:${c.id}`,
-          bookId: book.id,
-          chapterId: c.id,
-          paragraphs: Array(c.paragraphs.length).fill(null),
-          status: "in_progress",
-          provider: null,
-          progress: 0,
-        };
-        setTranslations((m) => ({ ...m, [c.id]: loadingTr }));
-        try {
-          await saveTranslation(loadingTr);
-        } catch (err) {
-          // In-memory state is already set; if persistence failed we still
-          // proceed. Log so the issue is at least visible.
-          console.error("Failed to persist in-progress marker", err);
-        }
-        try {              const result = await mgr.translateChapter({
-                paragraphs: c.paragraphs,
-                contextHint: `Chapter: ${c.title}. From ${book.title}.`,
-                glossary: glossaryEntries.length ? glossaryEntries : undefined,
-                onProgress: (p) => {
-                  if (!mountedRef.current) return;
-                  setProgress({ done: p.done, total: p.total, provider: p.provider });
-                  setTranslations((m) => ({
-                    ...m,
-                    [c.id]: {
-                      ...(m[c.id] ?? loadingTr),
-                      progress: p.total ? p.done / p.total : 0,
-                      provider: p.provider,
-                      status: "in_progress",
-                    },
-                  }));
-                },
-                onPartialRows: (partialRows) => {
-                  if (!mountedRef.current) return;
-                  const partialTr: ChapterTranslation = {
-                    id: `${book.id}:${c.id}`,
-                    bookId: book.id,
-                    chapterId: c.id,
-                    paragraphs: partialRows.map((r, i) =>
-                      r && r.trim() && r.trim() !== c.paragraphs[i].trim() ? r : null,
-                    ),
-                    status: "in_progress",
-                    provider: null,
-                    progress: partialRows.filter((r) => r !== null).length / Math.max(1, partialRows.length),
-                  };
-                  void saveTranslation(partialTr).catch(() => {});
-                  setTranslations((m) => ({ ...m, [c.id]: partialTr }));
-                },
-              });
-          if (!mountedRef.current) break;
-          const finalTr: ChapterTranslation = {
-            id: `${book.id}:${c.id}`,
-            bookId: book.id,
-            chapterId: c.id,
-            paragraphs: result.rows.map((r, i) =>
-              r && r.trim() && r.trim() !== c.paragraphs[i].trim() ? r : null,
-            ),
-            status: result.failed ? "error" : "completed",
-            completedAt: Date.now(),
-            provider: result.provider,
-            progress: result.failed ? 0.6 : 1,
-            error: result.failed ? "Provider failures during batch translation." : undefined,
-          };
-          await saveTranslation(finalTr);
-          if (!mountedRef.current) break;
-          setTranslations((m) => ({ ...m, [c.id]: finalTr }));
-          batchProgress.current.done += 1;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          if (!mountedRef.current) break;
-          // Persist the failure so the chapter index doesn't lie about state.
-          const failedTr: ChapterTranslation = {
-            id: `${book.id}:${c.id}`,
-            bookId: book.id,
-            chapterId: c.id,
-            paragraphs: Array(c.paragraphs.length).fill(null),
-            status: "error",
-            provider: null,
-            progress: 0,
-            error: msg.slice(0, 200),
-          };
-          try { await saveTranslation(failedTr); } catch { /* swallow */ }
-          if (!mountedRef.current) break;
-          setTranslations((m) => ({ ...m, [c.id]: failedTr }));
-          toast.error(`Failed translating "${c.title}": ${msg.slice(0, 200)}`);
-          if (settings.pauseOnError) break;
-        }
-      }
-      notifyLibraryChanged();
-      if (mountedRef.current) toast.success("Batch translation complete.");
-    } catch (err) {
-      if (mountedRef.current) {
-        const msg = err instanceof Error ? err.message : String(err);
-        toast.error(`Batch interrupted: ${msg.slice(0, 200)}`);
-      }
-    } finally {
-      if (mountedRef.current) {
-        setBusy(false);
-        setProgress(null);
-      }
-    }
-  };
-
-  const onPauseToggle = () => {
-    const mgr = managerRef.current;
-    if (!mgr) return;
-    if (mgr.isPaused()) {
-      mgr.resume();
-      stopRef.current = false;
-      toast("Resumed.", { icon: "▶" });
-    } else {
-      mgr.pause();
-      stopRef.current = true;
-      toast("Translation paused.", { icon: "⏸" });
-    }
-  };
 
   const onExport = async () => {
     if (!book) return;
@@ -526,36 +380,6 @@ export default function BookReader() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <ApiLender settings={settings} />
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onPauseToggle}
-              className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 disabled:opacity-50"
-            >
-              {managerRef.current?.isPaused() ? (
-                <Play className="w-4 h-4" strokeWidth={1.4} />
-              ) : (
-                <Pause className="w-4 h-4" strokeWidth={1.4} />
-              )}
-              <span className="text-xs uppercase tracking-[0.18em]">
-                {managerRef.current?.isPaused() ? "Resume" : "Pause"}
-              </span>
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onBatchTranslate}
-              className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
-            >
-              {busy ? (
-                <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
-              ) : (
-                <Sparkles className="w-4 h-4" strokeWidth={1.4} />
-              )}
-              <span className="text-xs uppercase tracking-[0.18em]">
-                {busy ? "Translating…" : "Translate all"}
-              </span>
-            </button>
             <button
               type="button"
               onClick={onExport}
