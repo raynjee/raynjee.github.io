@@ -38,7 +38,7 @@ const EXTRACTION_PROMPT = [
   '- "translation": English meaning',
   '- "category": strictly "character", "location", "word", or "slang"',
   '- "gender": strictly "F" (female), "M" (male), "N" (neutral/ambiguous), or null (for non-character entries). Base character gender on name patterns (芳→F, 强→M), titles (奶奶→F, 叔叔→M), honorifics, and contextual clues.',
-  '- "notes": brief context (one sentence)',
+  '- "notes": brief context in English (one sentence)',
   "",
   'Example: [{"term":"周娇娇","translation":"Zhou Jiaojiao","category":"character","gender":"F","notes":"Protagonist"},{"term":"老大","translation":"Eldest","category":"character","gender":"N","notes":"Gender ambiguous from context"}]',
 ].join("\n");
@@ -568,7 +568,7 @@ function GlossaryEditForm({
             setDraft((d) => ({ ...d, translation: e.target.value }))
           }
           placeholder="English translation"
-          className="col-span-3 bg-transparent border-b border-border focus:border-foreground outline-none py-1.5 text-sm"
+          className="col-span-2 bg-transparent border-b border-border focus:border-foreground outline-none py-1.5 text-sm"
         />
         <select
           value={draft.category}
@@ -586,7 +586,7 @@ function GlossaryEditForm({
             </option>
           ))}
         </select>
-        <div className="col-span-1 flex items-center gap-0.5">
+        <div className="col-span-2 flex items-center gap-1">
           {GENDERS.map((g) => (
             <button
               key={g}
