@@ -13,6 +13,7 @@ import {
   Loader2,
   PanelLeftClose,
   PanelLeftOpen,
+  Play,
   Sparkles,
   Undo2,
 } from "lucide-react";
@@ -72,6 +73,23 @@ export default function BookReader() {
     setShowShortcuts((v) => {
       const next = !v;
       try { localStorage.setItem("atelier.reader.showShortcuts", String(next)); } catch {}
+      return next;
+    });
+  }, []);
+
+  // Auto-advance toggle — after a chapter finishes translating, jump to the
+  // next untranslated chapter and start translating it automatically.
+  const [autoAdvance, setAutoAdvance] = useState(() => {
+    try {
+      return localStorage.getItem("atelier.reader.autoAdvance") === "true";
+    } catch {
+      return false;
+    }
+  });
+  const toggleAutoAdvance = useCallback(() => {
+    setAutoAdvance((v) => {
+      const next = !v;
+      try { localStorage.setItem("atelier.reader.autoAdvance", String(next)); } catch {}
       return next;
     });
   }, []);
@@ -228,68 +246,96 @@ export default function BookReader() {
   }, [settings, book?.language]);
 
   const onTranslateActive = async () => {
-    if (!book || !activeChapter) return;
+    if (!book) return;
     if (busy) return;
     stopRef.current = false;
     try {
-      setBusy(true);
-      setProgress({ done: 0, total: activeChapter.paragraphs.length, provider: null });
-      const mgr = makeManager();
-      managerRef.current = mgr;
-      const result = await mgr.translateChapter({
-        paragraphs: activeChapter.paragraphs,
-        contextHint: `Chapter: ${activeChapter.title}. From ${book.title}.`,
-        glossary: glossaryEntries.length ? glossaryEntries : undefined,
-        onProgress: (p) => setProgress({ done: p.done, total: p.total, provider: p.provider }),
-        onPartialRows: (partialRows) => {
-          // Stream translated paragraphs immediately — the reader renders
-          // each chunk as it completes while the rest shows "Translating…".
-          const partialTr: ChapterTranslation = {
-            id: `${book.id}:${activeChapter.id}`,
-            bookId: book.id,
-            chapterId: activeChapter.id,
-            paragraphs: partialRows.map((r, i) =>
-              r && r.trim() && r.trim() !== activeChapter.paragraphs[i].trim() ? r : null,
-            ),
-            status: "in_progress",
-            provider: null,
-            progress: partialRows.filter((r) => r !== null).length / Math.max(1, partialRows.length),
-          };
-          void saveTranslation(partialTr).catch(() => {});
-          if (mountedRef.current) {
-            setTranslations((m) => ({ ...m, [activeChapter.id]: partialTr }));
+      // Keep a local map of translations so auto-advance can check chapter
+      // status without waiting for React re-renders.
+      const localTrs = new Map<string, ChapterTranslation>(
+        Object.entries(translations),
+      );
+
+      let current: Chapter | null = activeChapter;
+      while (current) {
+        if (!mountedRef.current || stopRef.current) break;
+        // Safe: we checked `current` is non-null in the while condition.
+        const ch = current;
+        setBusy(true);
+        setProgress({ done: 0, total: ch.paragraphs.length, provider: null });
+
+        const mgr = makeManager();
+        managerRef.current = mgr;
+        const result = await mgr.translateChapter({
+          paragraphs: ch.paragraphs,
+          contextHint: `Chapter: ${ch.title}. From ${book.title}.`,
+          glossary: glossaryEntries.length ? glossaryEntries : undefined,
+          onProgress: (p) => setProgress({ done: p.done, total: p.total, provider: p.provider }),
+          onPartialRows: (partialRows) => {
+            const partialTr: ChapterTranslation = {
+              id: `${book.id}:${ch.id}`,
+              bookId: book.id,
+              chapterId: ch.id,
+              paragraphs: partialRows.map((r, i) =>
+                r && r.trim() && r.trim() !== ch.paragraphs[i].trim() ? r : null,
+              ),
+              status: "in_progress",
+              provider: null,
+              progress: partialRows.filter((r) => r !== null).length / Math.max(1, partialRows.length),
+            };
+            void saveTranslation(partialTr).catch(() => {});
+            if (mountedRef.current) {
+              setTranslations((m) => ({ ...m, [ch.id]: partialTr }));
+            }
+          },
+        });
+
+        const finalTr: ChapterTranslation = {
+          id: `${book.id}:${ch.id}`,
+          bookId: book.id,
+          chapterId: ch.id,
+          paragraphs: result.rows.map((r, i) =>
+            r && r.trim() && r.trim() !== ch.paragraphs[i].trim() ? r : null,
+          ),
+          status: result.failed ? "error" : "completed",
+          startedAt: Date.now(),
+          completedAt: Date.now(),
+          provider: result.provider,
+          progress: result.failed
+            ? Math.min(1, (ch.paragraphs.filter((p) => p).length))
+            : 1,
+          error: result.failed ? "One or more providers failed. Verify API keys in Settings." : undefined,
+        };
+        await saveTranslation(finalTr);
+        localTrs.set(ch.id, finalTr);
+        setTranslations((m) => ({ ...m, [ch.id]: finalTr }));
+        notifyLibraryChanged();
+
+        if (!result.failed) {
+          updateBookPrefs(book.id, { showOriginal: false });
+        }
+
+        // Auto-advance: find the next untranslated chapter.
+        if (!result.failed && autoAdvance) {
+          const currentIdx = chapters.findIndex((c) => c.id === ch.id);
+          const next = chapters.slice(currentIdx + 1).find((c) => {
+            const tr = localTrs.get(c.id);
+            return !tr || tr.status !== "completed" || tr.paragraphs.some((p) => !p || !p.trim());
+          });
+          if (next) {
+            setActiveId(next.id);
+            current = next;
+            continue;
           }
-        },
-      });
-      const tr: ChapterTranslation = {
-        id: `${book.id}:${activeChapter.id}`,
-        bookId: book.id,
-        chapterId: activeChapter.id,
-        paragraphs: result.rows.map((r, i) =>
-          r && r.trim() && r.trim() !== activeChapter.paragraphs[i].trim() ? r : null,
-        ),
-        status: result.failed ? "error" : "completed",
-        startedAt: Date.now(),
-        completedAt: Date.now(),
-        provider: result.provider,
-        progress: result.failed
-          ? Math.min(1, (activeChapter.paragraphs.filter((p) => p).length))
-          : 1,
-        error: result.failed ? "One or more providers failed. Verify API keys in Settings." : undefined,
-      };
-      await saveTranslation(tr);
-      setTranslations((m) => ({ ...m, [activeChapter.id]: tr }));
-      notifyLibraryChanged();
-      if (!result.failed) {
-        // Chapter is fully translated — collapse the side-by-side layout to
-        // a single English column. The Reader menu's "Original column"
-        // switch brings the source back instantly.
-        updateBookPrefs(book.id, { showOriginal: false });
-        toast.success("Chapter translated.");
-      } else {
-        toast.warning(
-          "Some paragraphs could not be translated — check provider status.",
-        );
+          toast("All remaining chapters translated.");
+        } else if (!result.failed) {
+          toast.success("Chapter translated.");
+        } else {
+          toast.warning(
+            "Some paragraphs could not be translated — check provider status.",
+          );
+        }
+        break;
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -574,6 +620,8 @@ export default function BookReader() {
                   setTranslations((m) => ({ ...m, [activeChapter.id]: updated }));
                 }}
                 busy={busy}
+                autoAdvance={autoAdvance}
+                onToggleAutoAdvance={toggleAutoAdvance}
               />
             ) : (
               <div className="p-12 text-center">
@@ -645,6 +693,8 @@ function ChapterReader({
   onTranslateParagraph,
   onResetParagraph,
   busy,
+  autoAdvance,
+  onToggleAutoAdvance,
 }: {
   chapter: Chapter;
   translation: ChapterTranslation | null;
@@ -656,6 +706,8 @@ function ChapterReader({
   onTranslateParagraph: (idx: number) => void | Promise<void>;
   onResetParagraph: (idx: number) => void;
   busy: boolean;
+  autoAdvance: boolean;
+  onToggleAutoAdvance: () => void;
 }) {
   // showOriginal/layout are now driven by per-book ReaderPrefs instead of
   // local component state — so changes persist across sessions and stay in
@@ -728,6 +780,23 @@ function ChapterReader({
               {translation?.status === "completed" ? "Re-translate" : "Translate chapter"}
             </span>
           </button>
+          {/* Auto-advance toggle */}
+          {!busy && (
+            <button
+              type="button"
+              onClick={onToggleAutoAdvance}
+              className={cn(
+                "h-8 px-2.5 inline-flex items-center gap-1.5 border text-[10px] uppercase tracking-[0.18em] transition-colors",
+                autoAdvance
+                  ? "bg-foreground text-background border-foreground"
+                  : "border-border text-muted-foreground hover:border-foreground/40",
+              )}
+              title={autoAdvance ? "Auto-advance is ON — will translate next chapter automatically" : "Auto-advance is OFF — translate one chapter at a time"}
+            >
+              <Play className="w-3 h-3" strokeWidth={1.5} />
+              <span>Auto</span>
+            </button>
+          )}
         </div>
       </header>
 
