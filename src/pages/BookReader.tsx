@@ -107,7 +107,7 @@ export default function BookReader() {
       const list = await listChapters(book.id);
       const inOrder = book.chapterOrder
         .map((id) => list.find((c) => c.id === id))
-        .filter((x): x is Chapter => !!x);
+        .filter((x): x is Chapter => !!x && x.paragraphs && x.paragraphs.length > 0);
       // Load translations for all chapters
       const trs: Record<string, ChapterTranslation> = {};
       await Promise.all(
@@ -287,7 +287,9 @@ export default function BookReader() {
     const ch = targetChapter ?? activeChapter;
     if (!book || !ch) return;
     if (!ch.paragraphs || ch.paragraphs.length === 0) {
-      toast.error("This chapter has no readable content to translate.");
+      toast.error(
+        `Chapter "${ch.title}" has no readable content. Try re-importing the EPUB file.`,
+      );
       return;
     }
     if (busyRef.current) return;
