@@ -286,6 +286,10 @@ export default function BookReader() {
   const onTranslateActive = async (targetChapter?: Chapter) => {
     const ch = targetChapter ?? activeChapter;
     if (!book || !ch) return;
+    if (!ch.paragraphs || ch.paragraphs.length === 0) {
+      toast.error("This chapter has no readable content to translate.");
+      return;
+    }
     if (busyRef.current) return;
     stopRef.current = false;
     setPaused(false);
