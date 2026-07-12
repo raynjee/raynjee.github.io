@@ -233,12 +233,12 @@ export default function BookReader() {
   const onTranslateActive = async () => {
     if (!book || !activeChapter) return;
     if (busy) return;
-    setBusy(true);
-    setProgress({ done: 0, total: activeChapter.paragraphs.length, provider: null });
     stopRef.current = false;
-    const mgr = makeManager();
-    managerRef.current = mgr;
     try {
+      setBusy(true);
+      setProgress({ done: 0, total: activeChapter.paragraphs.length, provider: null });
+      const mgr = makeManager();
+      managerRef.current = mgr;
       const result = await mgr.translateChapter({
         paragraphs: activeChapter.paragraphs,
         contextHint: `Chapter: ${activeChapter.title}. From ${book.title}.`,
@@ -320,12 +320,12 @@ export default function BookReader() {
       toast("Every chapter already has a translation.", { icon: "ℹ️" });
       return;
     }
-    setBusy(true);
     stopRef.current = false;
     batchProgress.current = { done: 0, total: remaining.length };
-    const mgr = makeManager();
-    managerRef.current = mgr;
     try {
+      setBusy(true);
+      const mgr = makeManager();
+      managerRef.current = mgr;
       for (const c of remaining) {
         // Bail if the user paused OR the component has unmounted (we don't
         // want to keep burning LLM credits or setState on a dead component).
