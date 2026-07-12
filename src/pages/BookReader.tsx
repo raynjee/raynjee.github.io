@@ -13,8 +13,10 @@ import {
   Loader2,
   PanelLeftClose,
   PanelLeftOpen,
+  Pause,
   Play,
   Sparkles,
+  Square,
   Undo2,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
@@ -259,28 +261,52 @@ export default function BookReader() {
     setBusy(v);
   }, []);
 
-  const onTranslateActive = async () => {
-    if (!book || !activeChapter) return;
+  // Stop translation chain — sets the stop flag and disables auto-advance
+  // so the current chapter finishes but nothing follows.
+  const onStop = useCallback(() => {
+    stopRef.current = true;
+    setAutoAdvance(false);
+    toast("Translation chain stopped.");
+  }, []);
+
+  // Pause/resume the current translation manager mid-chunk.
+  const [paused, setPaused] = useState(false);
+  const onPauseToggle = useCallback(() => {
+    const mgr = managerRef.current;
+    if (!mgr) return;
+    if (mgr.isPaused()) {
+      mgr.resume();
+      setPaused(false);
+    } else {
+      mgr.pause();
+      setPaused(true);
+    }
+  }, []);
+
+  const onTranslateActive = async (targetChapter?: Chapter) => {
+    const ch = targetChapter ?? activeChapter;
+    if (!book || !ch) return;
     if (busyRef.current) return;
     stopRef.current = false;
+    setPaused(false);
     try {
       setBusyBoth(true);
-      setProgress({ done: 0, total: activeChapter.paragraphs.length, provider: null });
+      setProgress({ done: 0, total: ch.paragraphs.length, provider: null });
 
       const mgr = makeManager();
       managerRef.current = mgr;
       const result = await mgr.translateChapter({
-        paragraphs: activeChapter.paragraphs,
-        contextHint: `Chapter: ${activeChapter.title}. From ${book.title}.`,
+        paragraphs: ch.paragraphs,
+        contextHint: `Chapter: ${ch.title}. From ${book.title}.`,
         glossary: glossaryEntries.length ? glossaryEntries : undefined,
         onProgress: (p) => setProgress({ done: p.done, total: p.total, provider: p.provider }),
         onPartialRows: (partialRows) => {
           const partialTr: ChapterTranslation = {
-            id: `${book.id}:${activeChapter.id}`,
+            id: `${book.id}:${ch.id}`,
             bookId: book.id,
-            chapterId: activeChapter.id,
+            chapterId: ch.id,
             paragraphs: partialRows.map((r, i) =>
-              r && r.trim() && r.trim() !== activeChapter.paragraphs[i].trim() ? r : null,
+              r && r.trim() && r.trim() !== ch.paragraphs[i].trim() ? r : null,
             ),
             status: "in_progress",
             provider: null,
@@ -288,29 +314,29 @@ export default function BookReader() {
           };
           void saveTranslation(partialTr).catch(() => {});
           if (mountedRef.current) {
-            setTranslations((m) => ({ ...m, [activeChapter.id]: partialTr }));
+            setTranslations((m) => ({ ...m, [ch.id]: partialTr }));
           }
         },
       });
 
       const finalTr: ChapterTranslation = {
-        id: `${book.id}:${activeChapter.id}`,
+        id: `${book.id}:${ch.id}`,
         bookId: book.id,
-        chapterId: activeChapter.id,
+        chapterId: ch.id,
         paragraphs: result.rows.map((r, i) =>
-          r && r.trim() && r.trim() !== activeChapter.paragraphs[i].trim() ? r : null,
+          r && r.trim() && r.trim() !== ch.paragraphs[i].trim() ? r : null,
         ),
         status: result.failed ? "error" : "completed",
         startedAt: Date.now(),
         completedAt: Date.now(),
         provider: result.provider,
         progress: result.failed
-          ? Math.min(1, (activeChapter.paragraphs.filter((p) => p).length))
+          ? Math.min(1, (ch.paragraphs.filter((p) => p).length))
           : 1,
         error: result.failed ? "One or more providers failed. Verify API keys in Settings." : undefined,
       };
       await saveTranslation(finalTr);
-      setTranslations((m) => ({ ...m, [activeChapter.id]: finalTr }));
+      setTranslations((m) => ({ ...m, [ch.id]: finalTr }));
       notifyLibraryChanged();
 
       if (!result.failed) {
@@ -330,16 +356,22 @@ export default function BookReader() {
       if (mountedRef.current) {
         setBusyBoth(false);
         setProgress(null);
+        setPaused(false);
       }
     }
   };
+
+  // Store translate function in a ref so the auto-advance effect always
+  // calls the latest version without stale closures.
+  const translateRef = useRef(onTranslateActive);
+  translateRef.current = onTranslateActive;
 
   // Auto-advance: when a chapter completes and auto-advance is on, jump to
   // the next untranslated chapter and translate it.
   const pendingAutoRef = useRef(false);
   useEffect(() => {
     if (!book || !autoAdvance || !activeChapter || busyRef.current) return;
-    if (pendingAutoRef.current) return;
+    if (stopRef.current || pendingAutoRef.current) return;
     const tr = translations[activeChapter.id];
     if (!tr || tr.status !== "completed") return;
     const idx = chapters.findIndex((c) => c.id === activeChapter.id);
@@ -354,10 +386,11 @@ export default function BookReader() {
     }
     pendingAutoRef.current = true;
     setActiveId(next.id);
-    // Let React flush the activeId change, then start the next translation.
+    // Let React flush the activeId change, then translate the next chapter.
+    // Use the ref-stored function so we always call the latest version.
     requestAnimationFrame(() => {
       pendingAutoRef.current = false;
-      onTranslateActive();
+      translateRef.current(next);
     });
   }, [autoAdvance, activeChapter, translations, chapters, book]);
 
@@ -633,8 +666,11 @@ export default function BookReader() {
                   setTranslations((m) => ({ ...m, [activeChapter.id]: updated }));
                 }}
                 busy={busy}
+                paused={paused}
                 autoAdvance={autoAdvance}
                 onToggleAutoAdvance={toggleAutoAdvance}
+                onStop={onStop}
+                onPauseToggle={onPauseToggle}
               />
             ) : (
               <div className="p-12 text-center">
@@ -706,8 +742,11 @@ function ChapterReader({
   onTranslateParagraph,
   onResetParagraph,
   busy,
+  paused,
   autoAdvance,
   onToggleAutoAdvance,
+  onStop,
+  onPauseToggle,
 }: {
   chapter: Chapter;
   translation: ChapterTranslation | null;
@@ -719,8 +758,11 @@ function ChapterReader({
   onTranslateParagraph: (idx: number) => void | Promise<void>;
   onResetParagraph: (idx: number) => void;
   busy: boolean;
+  paused: boolean;
   autoAdvance: boolean;
   onToggleAutoAdvance: () => void;
+  onStop: () => void;
+  onPauseToggle: () => void;
 }) {
   // showOriginal/layout are now driven by per-book ReaderPrefs instead of
   // local component state — so changes persist across sessions and stay in
@@ -778,37 +820,69 @@ function ChapterReader({
             <span className="text-xs uppercase tracking-[0.18em]">Glossary</span>
           </button>
           <ReaderSettingsMenu bookId={bookId} />
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onTranslate}
-            className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
-          >
-            {busy ? (
-              <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
-            ) : (
-              <Sparkles className="w-4 h-4" strokeWidth={1.4} />
-            )}
-            <span className="text-xs uppercase tracking-[0.18em]">
-              {translation?.status === "completed" ? "Re-translate" : "Translate chapter"}
-            </span>
-          </button>
-          {/* Auto-advance toggle */}
-          {!busy && (
-            <button
-              type="button"
-              onClick={onToggleAutoAdvance}
-              className={cn(
-                "h-8 px-2.5 inline-flex items-center gap-1.5 border text-[10px] uppercase tracking-[0.18em] transition-colors",
-                autoAdvance
-                  ? "bg-foreground text-background border-foreground"
-                  : "border-border text-muted-foreground hover:border-foreground/40",
-              )}
-              title={autoAdvance ? "Auto-advance is ON — will translate next chapter automatically" : "Auto-advance is OFF — translate one chapter at a time"}
-            >
-              <Play className="w-3 h-3" strokeWidth={1.5} />
-              <span>Auto</span>
-            </button>
+          {/* Controls when busy */}
+          {busy ? (
+            <>
+              {/* Stop */}
+              <button
+                type="button"
+                onClick={onStop}
+                className="h-10 px-4 inline-flex items-center gap-2 border border-destructive/60 text-destructive hover:bg-destructive/10"
+                title="Stop translation chain"
+              >
+                <Square className="w-3.5 h-3.5" strokeWidth={1.6} />
+                <span className="text-xs uppercase tracking-[0.18em]">Stop</span>
+              </button>
+              {/* Pause / Resume */}
+              <button
+                type="button"
+                onClick={onPauseToggle}
+                className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
+                title={paused ? "Resume translation" : "Pause translation"}
+              >
+                {paused ? (
+                  <Play className="w-3.5 h-3.5" strokeWidth={1.5} />
+                ) : (
+                  <Pause className="w-3.5 h-3.5" strokeWidth={1.5} />
+                )}
+                <span className="text-xs uppercase tracking-[0.18em]">
+                  {paused ? "Resume" : "Pause"}
+                </span>
+              </button>
+              {/* Busy indicator */}
+              <span className="h-10 inline-flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+                Translating…
+              </span>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onTranslate}
+                className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90"
+              >
+                <Sparkles className="w-4 h-4" strokeWidth={1.4} />
+                <span className="text-xs uppercase tracking-[0.18em]">
+                  {translation?.status === "completed" ? "Re-translate" : "Translate chapter"}
+                </span>
+              </button>
+              {/* Auto-advance toggle */}
+              <button
+                type="button"
+                onClick={onToggleAutoAdvance}
+                className={cn(
+                  "h-8 px-2.5 inline-flex items-center gap-1.5 border text-[10px] uppercase tracking-[0.18em] transition-colors",
+                  autoAdvance
+                    ? "bg-foreground text-background border-foreground"
+                    : "border-border text-muted-foreground hover:border-foreground/40",
+                )}
+                title={autoAdvance ? "Auto-advance is ON — will translate next chapter automatically" : "Auto-advance is OFF — translate one chapter at a time"}
+              >
+                <Play className="w-3 h-3" strokeWidth={1.5} />
+                <span>Auto</span>
+              </button>
+            </>
           )}
         </div>
       </header>
