@@ -71,9 +71,17 @@ function extractDocxText(xml: string): string {
 function splitParagraphs(text: string): string[] {
   // Normalize line endings, then split on blank lines (one or more).
   const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = normalized.split(/\n{2,}/);
-  return lines
-    .map((p) => p.replace(/\s+/g, " ").trim())
+  const blocks = normalized.split(/\n{2,}/);
+  return blocks
+    .map((b) => {
+      // Keep single newlines intact (preserve line breaks within paragraphs)
+      // but collapse multiple spaces/tabs — just not newlines.
+      return b
+        .replace(/[^\S\n]+/g, " ")
+        .replace(/ *\n */g, "\n")
+        .replace(/^\n+|\n+$/g, "")
+        .trim();
+    })
     .filter((p) => p.length > 0);
 }
 

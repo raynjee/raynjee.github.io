@@ -277,6 +277,8 @@
     font-family: var(--reader-font-family);
     line-height: var(--reader-leading);
     font-size: var(--reader-font-size);
+    white-space: pre-line;
+    word-wrap: break-word;
   }
   .reader-gap > * + * {
     margin-top: var(--reader-paragraph-gap);
