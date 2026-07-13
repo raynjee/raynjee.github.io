@@ -54,8 +54,9 @@ export default function BookReader() {
   // Track whether the component is still mounted so long-running translates
   // (especially batch mode) don't setState after the user navigates away.
   const mountedRef = useRef(true);
-  useEffect(() => () => {
-    mountedRef.current = false;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
   }, []);
   const { settings, prefsFor, updateBookPrefs } = useSettings();
   // Reader preferences (per-book, falling back to global defaults). Used to
@@ -233,12 +234,12 @@ export default function BookReader() {
   const onTranslateActive = async () => {
     if (!book || !activeChapter) return;
     if (busy) return;
-    setBusy(true);
-    setProgress({ done: 0, total: activeChapter.paragraphs.length, provider: null });
     stopRef.current = false;
-    const mgr = makeManager();
-    managerRef.current = mgr;
     try {
+      setBusy(true);
+      setProgress({ done: 0, total: activeChapter.paragraphs.length, provider: null });
+      const mgr = makeManager();
+      managerRef.current = mgr;
       const result = await mgr.translateChapter({
         paragraphs: activeChapter.paragraphs,
         contextHint: `Chapter: ${activeChapter.title}. From ${book.title}.`,
