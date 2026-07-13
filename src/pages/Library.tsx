@@ -16,6 +16,7 @@ import {
   Save,
   Sparkles,
   Trash2,
+  Undo2,
   Upload,
   X,
 } from "lucide-react";
@@ -660,6 +661,11 @@ export function BookEditor({ bookId }: { bookId: string }) {
   const [translatingAuthor, setTranslatingAuthor] = useState(false);
   const [translatingDesc, setTranslatingDesc] = useState(false);
 
+  // Keep original values to enable per-field revert
+  const origTitleRef = useRef(book?.title ?? "");
+  const origAuthorRef = useRef(book?.author ?? "");
+  const origDescRef = useRef(book?.description ?? "");
+
   const translateField = async (
     text: string,
     kind: string,
@@ -707,6 +713,9 @@ export function BookEditor({ bookId }: { bookId: string }) {
     setAuthor(book?.author ?? "");
     setDescription(book?.description ?? "");
     setCover(book?.coverDataUrl ?? null);
+    origTitleRef.current = book?.title ?? "";
+    origAuthorRef.current = book?.author ?? "";
+    origDescRef.current = book?.description ?? "";
   }, [book?.id]);
 
   if (!book) {
@@ -822,19 +831,31 @@ export function BookEditor({ bookId }: { bookId: string }) {
                 <Field
                   label="Title"
                   action={
-                    <button
-                      type="button"
-                      disabled={translatingTitle || !title.trim()}
-                      onClick={() => translateField(title, "book title", setTitle, setTranslatingTitle)}
-                      className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
-                      title="Translate title"
-                    >
-                      {translatingTitle ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
-                      ) : (
-                        <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
+                    <>
+                      <button
+                        type="button"
+                        disabled={translatingTitle || !title.trim()}
+                        onClick={() => translateField(title, "book title", setTitle, setTranslatingTitle)}
+                        className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
+                        title="Translate title"
+                      >
+                        {translatingTitle ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
+                        )}
+                      </button>
+                      {title !== origTitleRef.current && (
+                        <button
+                          type="button"
+                          onClick={() => setTitle(origTitleRef.current)}
+                          className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors cursor-pointer"
+                          title="Revert to original"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" strokeWidth={1.4} />
+                        </button>
                       )}
-                    </button>
+                    </>
                   }
                 >
                   <input
@@ -846,19 +867,31 @@ export function BookEditor({ bookId }: { bookId: string }) {
                 <Field
                   label="Author"
                   action={
-                    <button
-                      type="button"
-                      disabled={translatingAuthor || !author.trim()}
-                      onClick={() => translateField(author, "author name", setAuthor, setTranslatingAuthor)}
-                      className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
-                      title="Translate author"
-                    >
-                      {translatingAuthor ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
-                      ) : (
-                        <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
+                    <>
+                      <button
+                        type="button"
+                        disabled={translatingAuthor || !author.trim()}
+                        onClick={() => translateField(author, "author name", setAuthor, setTranslatingAuthor)}
+                        className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
+                        title="Translate author"
+                      >
+                        {translatingAuthor ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
+                        )}
+                      </button>
+                      {author !== origAuthorRef.current && (
+                        <button
+                          type="button"
+                          onClick={() => setAuthor(origAuthorRef.current)}
+                          className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors cursor-pointer"
+                          title="Revert to original"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" strokeWidth={1.4} />
+                        </button>
                       )}
-                    </button>
+                    </>
                   }
                 >
                   <input
@@ -870,19 +903,31 @@ export function BookEditor({ bookId }: { bookId: string }) {
                 <Field
                   label="Description"
                   action={
-                    <button
-                      type="button"
-                      disabled={translatingDesc || !description.trim()}
-                      onClick={() => translateField(description, "book description", setDescription, setTranslatingDesc)}
-                      className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
-                      title="Translate description"
-                    >
-                      {translatingDesc ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
-                      ) : (
-                        <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
+                    <>
+                      <button
+                        type="button"
+                        disabled={translatingDesc || !description.trim()}
+                        onClick={() => translateField(description, "book description", setDescription, setTranslatingDesc)}
+                        className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
+                        title="Translate description"
+                      >
+                        {translatingDesc ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+                        ) : (
+                          <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
+                        )}
+                      </button>
+                      {description !== origDescRef.current && (
+                        <button
+                          type="button"
+                          onClick={() => setDescription(origDescRef.current)}
+                          className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors cursor-pointer"
+                          title="Revert to original"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" strokeWidth={1.4} />
+                        </button>
                       )}
-                    </button>
+                    </>
                   }
                 >
                   <textarea
