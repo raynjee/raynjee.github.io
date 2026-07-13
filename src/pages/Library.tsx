@@ -962,11 +962,11 @@ export function BookEditor({ bookId }: { bookId: string }) {
           </h1>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 mt-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-12 mt-8 sm:mt-10">
           <section className="col-span-1 lg:col-span-5">
-            <div className="studio-card p-5">
+            <div className="studio-card p-4 sm:p-5">
               <div className="studio-caps text-muted-foreground">Cover</div>
-              <div className="mt-3 gallery-frame aspect-[3/4] grid place-items-center bg-muted">
+              <div className="mt-3 gallery-frame aspect-[3/4] grid place-items-center bg-muted max-w-[280px] sm:max-w-none mx-auto">
                 {cover ? (
                   <img src={cover} alt="Cover" className="w-full h-full object-cover" />
                 ) : (
@@ -993,8 +993,8 @@ export function BookEditor({ bookId }: { bookId: string }) {
             </div>
           </section>
 
-          <section className="col-span-1 lg:col-span-7">
-            <div className="studio-card p-5">
+          <section className="col-span-1 lg:col-span-7 mt-6 lg:mt-0">
+            <div className="studio-card p-4 sm:p-5">
               <div className="studio-caps text-muted-foreground">
                 Editorial details
               </div>
@@ -1134,7 +1134,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
 
                 {/* Translate book metadata + chapter titles */}
                 <div className="mt-5 pt-4 border-t border-border">
-                  <div className="studio-caps text-muted-foreground mb-2">
+                  <div className="studio-caps text-muted-foreground mb-3">
                     Translate metadata
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -1237,8 +1237,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
             </div>
           </section>
 
-          <section className="col-span-12">
-            <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3">
+          <section className="col-span-12">              <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3 mb-3">
               <div>
                 <div className="studio-caps text-muted-foreground">
                   Table of contents
@@ -1268,22 +1267,38 @@ export function BookEditor({ bookId }: { bookId: string }) {
                 </button>
               </div>
             </div>
-            <ol className="mt-6 border border-border divide-y divide-border bg-card">
+            <ol className="mt-4 sm:mt-6 border border-border divide-y divide-border bg-card">
               {chapters.map((c, idx) => (
                 <li key={c.id}>
-                  <div className="grid grid-cols-12 items-center gap-2 p-3 sm:p-4">
-                    <span className="col-span-1 studio-num text-muted-foreground text-xs sm:text-sm">
+                  <div className="flex flex-col sm:grid sm:grid-cols-12 items-stretch sm:items-center gap-2 p-3 sm:p-4">
+                    {/* Mobile: title row */}
+                    <div className="flex items-center gap-2 sm:hidden">
+                      <span className="studio-num text-muted-foreground text-xs shrink-0 w-6">
+                        {String(idx + 1).padStart(2, "0")}
+                      </span>
+                      <input
+                        value={c.title}
+                        onChange={(e) => onRename(c.id, e.target.value)}
+                        className="flex-1 min-w-0 bg-muted/40 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-2.5 font-display text-sm rounded transition-colors"
+                      />
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {c.wordCount.toLocaleString()}w
+                      </span>
+                    </div>
+                    {/* Desktop row */}
+                    <span className="hidden sm:block col-span-1 studio-num text-muted-foreground text-xs sm:text-sm">
                       {String(idx + 1).padStart(2, "0")}
                     </span>
                     <input
                       value={c.title}
                       onChange={(e) => onRename(c.id, e.target.value)}
-                      className="col-span-7 sm:col-span-7 bg-muted/40 border border-border focus:border-foreground focus:bg-background outline-none px-2 py-2 sm:py-1.5 font-display text-sm sm:text-base rounded transition-colors truncate"
+                      className="hidden sm:block col-span-7 bg-muted/40 border border-border focus:border-foreground focus:bg-background outline-none px-2 py-2 sm:py-1.5 font-display text-sm sm:text-base rounded transition-colors truncate"
                     />
                     <span className="hidden sm:block sm:col-span-1 text-xs text-muted-foreground whitespace-nowrap">
                       {c.wordCount.toLocaleString()} w
                     </span>
-                    <div className="col-span-4 sm:col-span-3 flex items-center justify-end gap-0.5 sm:gap-1">
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-1 sm:col-span-3 sm:justify-end">
                       <button
                         className={cn(
                           "h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border transition-colors cursor-pointer active:scale-[0.95]",
@@ -1299,7 +1314,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
                       </button>
                       {idx < chapters.length - 1 && (
                         <button
-                          className="h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border border-border hover:border-foreground/40 active:scale-[0.95] transition-all cursor-pointer"
+                          className="hidden sm:grid h-9 w-9 sm:w-8 sm:h-8 place-items-center border border-border hover:border-foreground/40 active:scale-[0.95] transition-all cursor-pointer"
                           onClick={() => onMergeNext(idx)}
                           aria-label="Merge with next"
                           title="Merge with next chapter"

@@ -310,7 +310,7 @@ function DeepSeekTutorial() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="border border-border p-3">
               <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
                 DeepSeek port
@@ -680,7 +680,7 @@ function TranslationPreferences({
   return (
     <section>
       <SectionHeader eyebrow="Preferences" title="Translation behavior" />
-      <div className="mt-6 grid gap-6 md:grid-cols-3">
+      <div className="mt-6 grid gap-4 sm:gap-6 md:grid-cols-3">
         <PreferenceCard
           title="Source language"
           help="Pick auto-detection if chapters mix languages."
@@ -776,22 +776,21 @@ function LogsView({ logs }: { logs: ApiCallLog[] }) {
   }
   return (
     <section>
-      <SectionHeader eyebrow="Logs" title="Recent provider activity" />
-      <div className="studio-card divide-y divide-border max-h-[320px] overflow-auto thin-scrollbar">
+      <SectionHeader eyebrow="Logs" title="Recent provider activity" />        <div className="studio-card divide-y divide-border max-h-[320px] overflow-auto thin-scrollbar">
         {logs.map((l) => (
-          <div key={l.id} className="p-4 grid grid-cols-12 items-center gap-3 text-sm">
-            <span className="col-span-3 text-xs text-muted-foreground">
+          <div key={l.id} className="p-3 sm:p-4 flex flex-col sm:grid sm:grid-cols-12 sm:items-center gap-1 sm:gap-3 text-sm">
+            <span className="sm:col-span-3 text-xs text-muted-foreground order-1">
               {formatRelativeTime(l.at)}
             </span>
-            <span className="col-span-2 uppercase tracking-[0.18em] text-xs">
+            <span className="sm:col-span-2 uppercase tracking-[0.18em] text-xs order-2">
               {l.provider}
             </span>
             <span
-              className={`col-span-1 text-xs ${l.ok ? "text-foreground" : "text-destructive"}`}
+              className={`sm:col-span-1 text-xs order-3 ${l.ok ? "text-foreground" : "text-destructive"}`}
             >
               {l.ok ? "OK" : l.status || "ERR"}
             </span>
-            <span className="col-span-6 truncate text-foreground/80">{l.message}</span>
+            <span className="sm:col-span-6 truncate text-foreground/80 order-4">{l.message}</span>
           </div>
         ))}
       </div>

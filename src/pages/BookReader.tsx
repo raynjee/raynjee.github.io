@@ -1025,7 +1025,7 @@ export default function BookReader() {
 
           {/* ── Mobile bottom nav bar ────────────────────────── */}
           <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-sm border-t border-border pb-[env(safe-area-inset-bottom,0)]">
-            <div className="flex items-center px-2 py-2.5 max-w-lg mx-auto gap-1.5">
+            <div className="flex items-center px-3 py-2.5 max-w-lg mx-auto gap-2">
               {/* Prev */}
               <button
                 type="button"
@@ -1035,9 +1035,9 @@ export default function BookReader() {
                 }}
                 disabled={activeIdx <= 0}
                 aria-label="Previous chapter"
-                className="h-11 w-11 shrink-0 grid place-items-center rounded-lg border border-border hover:border-foreground/40 disabled:opacity-25 disabled:cursor-default active:scale-95 transition-all"
+                className="h-11 px-4 inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-foreground/40 disabled:opacity-25 disabled:cursor-default active:scale-95 transition-all text-sm font-medium"
               >
-                <ArrowLeft className="w-4 h-4" strokeWidth={1.6} />
+                Prev
               </button>
 
               {/* Center: TOC + Translate */}
@@ -1046,7 +1046,7 @@ export default function BookReader() {
                   type="button"
                   onClick={toggleTocDrawer}
                   aria-label="Table of contents"
-                  className="h-11 px-4 inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-foreground/40 active:scale-95 transition-all text-xs font-medium"
+                  className="h-11 px-3 sm:px-4 inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-foreground/40 active:scale-95 transition-all text-sm font-medium"
                 >
                   <List className="w-4 h-4" strokeWidth={1.4} />
                   <span className="hidden sm:inline">Chapters</span>
@@ -1058,7 +1058,7 @@ export default function BookReader() {
                     disabled={busy}
                     onClick={() => onTranslateActive()}
                     className={cn(
-                      "h-11 px-4 inline-flex items-center gap-1.5 rounded-lg font-medium text-xs active:scale-95 transition-all",
+                      "h-11 px-3 sm:px-4 inline-flex items-center gap-1.5 rounded-lg font-medium text-sm active:scale-95 transition-all",
                       activeTranslation?.status === "completed"
                         ? "border border-border hover:border-foreground/40"
                         : "bg-foreground text-background hover:bg-foreground/90"
@@ -1085,9 +1085,9 @@ export default function BookReader() {
                 }}
                 disabled={activeIdx >= chapters.length - 1}
                 aria-label="Next chapter"
-                className="h-11 w-11 shrink-0 grid place-items-center rounded-lg border border-border hover:border-foreground/40 disabled:opacity-25 disabled:cursor-default active:scale-95 transition-all"
+                className="h-11 px-4 inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-foreground/40 disabled:opacity-25 disabled:cursor-default active:scale-95 transition-all text-sm font-medium"
               >
-                <ArrowLeft className="w-4 h-4 rotate-180" strokeWidth={1.6} />
+                Next
               </button>
             </div>
           </div>
