@@ -964,6 +964,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
                   <div className="studio-caps text-muted-foreground mb-2">
                     Translate metadata
                   </div>
+                  <div className="flex items-center gap-3">
                   <button
                     type="button"
                     disabled={translatingMeta}
@@ -1041,6 +1042,25 @@ export function BookEditor({ bookId }: { bookId: string }) {
                       {translatingMeta ? "Translating…" : "Translate title & info"}
                     </span>
                   </button>
+                  {(title !== origTitleRef.current || author !== origAuthorRef.current || description !== origDescRef.current) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTitle(origTitleRef.current);
+                        setAuthor(origAuthorRef.current);
+                        setDescription(origDescRef.current);
+                        toast.message("All metadata reverted to original.");
+                      }}
+                      className="h-9 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors cursor-pointer"
+                      title="Revert all metadata to original"
+                    >
+                      <Undo2 className="w-4 h-4" strokeWidth={1.4} />
+                      <span className="text-xs uppercase tracking-[0.18em]">
+                        Revert all
+                      </span>
+                    </button>
+                  )}
+                  </div>
                 </div>
               </div>
             </div>
