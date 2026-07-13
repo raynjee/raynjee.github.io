@@ -1272,65 +1272,67 @@ export function BookEditor({ bookId }: { bookId: string }) {
             <ol className="mt-6 border border-border divide-y divide-border bg-card">
               {chapters.map((c, idx) => (
                 <li key={c.id}>
-                  <div className="grid grid-cols-12 items-center gap-4 p-4">
+                  <div className="grid grid-cols-12 items-center gap-3 p-4">
                     <span className="col-span-1 studio-num text-muted-foreground">
                       {String(idx + 1).padStart(2, "0")}
                     </span>
                     <input
                       value={c.title}
                       onChange={(e) => onRename(c.id, e.target.value)}
-                      className="col-span-5 bg-transparent border-b border-border focus:border-foreground outline-none py-1 font-display text-lg"
+                      className="col-span-7 bg-transparent border-b border-border focus:border-foreground outline-none py-1 font-display text-lg truncate"
                     />
-                    <span className="col-span-2 text-xs text-muted-foreground">
-                      {c.wordCount.toLocaleString()} words
-                    </span>
-                    <div className="col-span-4 flex items-center justify-end gap-1.5">
-                      {/* Split button */}
-                      <button
-                        className={cn(
-                          "w-8 h-8 grid place-items-center border transition-colors cursor-pointer",
-                          splittingChapterId === c.id
-                            ? "border-foreground bg-foreground/10"
-                            : "border-border hover:border-foreground/40",
-                        )}
-                        onClick={() => onToggleSplit(c.id)}
-                        aria-label="Split chapter"
-                        title="Split chapter"
-                      >
-                        <Scissors className="w-3.5 h-3.5" strokeWidth={1.4} />
-                      </button>
-                      {/* Merge with next */}
-                      {idx < chapters.length - 1 && (
+                    <div className="col-span-4 flex items-center justify-between gap-1">
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap min-w-[60px]">
+                        {c.wordCount.toLocaleString()} w
+                      </span>
+                      <div className="flex items-center gap-0.5">
+                        {/* Split button */}
                         <button
-                          className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40 transition-colors cursor-pointer"
-                          onClick={() => onMergeNext(idx)}
-                          aria-label="Merge with next"
-                          title="Merge with next chapter"
+                          className={cn(
+                            "w-7 h-7 grid place-items-center border transition-colors cursor-pointer",
+                            splittingChapterId === c.id
+                              ? "border-foreground bg-foreground/10"
+                              : "border-border hover:border-foreground/40",
+                          )}
+                          onClick={() => onToggleSplit(c.id)}
+                          aria-label="Split chapter"
+                          title="Split chapter"
                         >
-                          <Merge className="w-3.5 h-3.5" strokeWidth={1.4} />
+                          <Scissors className="w-3 h-3" strokeWidth={1.4} />
                         </button>
-                      )}
-                      <button
-                        className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40"
-                        onClick={() => onMove(idx, -1)}
-                        aria-label="Move up"
-                      >
-                        <ArrowUp className="w-4 h-4" strokeWidth={1.4} />
-                      </button>
-                      <button
-                        className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40"
-                        onClick={() => onMove(idx, 1)}
-                        aria-label="Move down"
-                      >
-                        <ArrowDown className="w-4 h-4" strokeWidth={1.4} />
-                      </button>
-                      <button
-                        className="w-8 h-8 grid place-items-center border border-border hover:border-destructive hover:text-destructive"
-                        onClick={() => onDelete(c.id)}
-                        aria-label="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" strokeWidth={1.4} />
-                      </button>
+                        {/* Merge with next */}
+                        {idx < chapters.length - 1 && (
+                          <button
+                            className="w-7 h-7 grid place-items-center border border-border hover:border-foreground/40 transition-colors cursor-pointer"
+                            onClick={() => onMergeNext(idx)}
+                            aria-label="Merge with next"
+                            title="Merge with next chapter"
+                          >
+                            <Merge className="w-3 h-3" strokeWidth={1.4} />
+                          </button>
+                        )}
+                        <button
+                          className="w-7 h-7 grid place-items-center border border-border hover:border-foreground/40"
+                          onClick={() => onMove(idx, -1)}
+                          aria-label="Move up"
+                        >
+                          <ArrowUp className="w-3 h-3" strokeWidth={1.4} />
+                        </button>
+                        <button
+                          className="w-7 h-7 grid place-items-center border border-border hover:border-foreground/40"
+                          onClick={() => onMove(idx, 1)}
+                          aria-label="Move down"
+                        >
+                          <ArrowDown className="w-3 h-3" strokeWidth={1.4} />
+                        </button>
+                        <button
+                          className="w-7 h-7 grid place-items-center border border-border hover:border-destructive hover:text-destructive"
+                          onClick={() => onDelete(c.id)}
+                          aria-label="Delete"
+                        >
+                          <Trash2 className="w-3 h-3" strokeWidth={1.4} />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
