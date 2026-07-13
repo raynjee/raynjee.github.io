@@ -901,7 +901,7 @@ export default function BookReader() {
             </section>
           </div>
 
-          {/* ── Mobile: minimalist reader ─────────────────────── */}
+          {/* ── Mobile reader ────────────────────────────── */}
           <div className="lg:hidden pb-24">
             {activeChapter ? (
               <ChapterReader
@@ -920,7 +920,6 @@ export default function BookReader() {
                 onTranslateParagraph={async () => {}}
                 onResetParagraph={() => {}}
                 busy={busy}
-                mobile
               />
             ) : (
               <div className="p-12 text-center">
