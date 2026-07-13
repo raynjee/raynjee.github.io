@@ -655,7 +655,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
   const navigate = useNavigate();
   const [cover, setCover] = useState<string | null>(book?.coverDataUrl ?? null);
   const { settings } = useSettings();
-  const [translatingTitles, setTranslatingTitles] = useState(false);
+  const [translatingMeta, setTranslatingMeta] = useState(false);
 
   useEffect(() => {
     if (!book) return;
@@ -823,17 +823,17 @@ export function BookEditor({ bookId }: { bookId: string }) {
                   </button>
                 </div>
 
-                {/* Translate chapter titles */}
+                {/* Translate book metadata + chapter titles */}
                 <div className="mt-5 pt-4 border-t border-border">
                   <div className="studio-caps text-muted-foreground mb-2">
-                    Chapter titles
+                    Translate metadata
                   </div>
                   <button
                     type="button"
-                    disabled={translatingTitles}
+                    disabled={translatingMeta}
                     onClick={async () => {
-                      if (!book || chapters.length === 0) return;
-                      setTranslatingTitles(true);
+                      if (!book) return;
+                      setTranslatingMeta(true);
                       try {
                         const mgr = new TranslationManager({
                           providers: settings.providers,
@@ -844,37 +844,65 @@ export function BookEditor({ bookId }: { bookId: string }) {
                           source: book.language,
                           target: "en",
                         });
-                        const titles = chapters.map((c) => c.title);
+                        // Build a list: [title, author, description, ...chapter titles]
+                        const items: { kind: string; text: string }[] = [];
+                        if (title.trim()) items.push({ kind: "Book title", text: title.trim() });
+                        if (author.trim()) items.push({ kind: "Author name", text: author.trim() });
+                        if (description.trim()) items.push({ kind: "Book description", text: description.trim() });
+                        const chapterItems = chapters.map((c) => ({ kind: "Chapter title", text: c.title }));
+                        items.push(...chapterItems);
+
+                        if (items.length === 0) { setTranslatingMeta(false); return; }
+
                         const result = await mgr.translateChapter({
-                          paragraphs: titles,
-                          contextHint: `These are chapter titles from "${book.title}". Translate each to natural English. Return ONLY the translated titles, one per line, in the same order.`,
+                          paragraphs: items.map((i) => i.text),
+                          contextHint: `Translate these book metadata entries from "${book.title}" to natural English. Preserve the item kind context: book title, author name, description, and chapter titles. Return ONLY the translated entries, one per line, in the same order.`,
                         });
-                        for (let i = 0; i < chapters.length; i++) {
-                          const translated = result.rows[i];
-                          if (translated && translated.trim() && translated.trim() !== chapters[i].title) {
-                            await renameChapter(chapters[i].id, translated.trim());
+
+                        let idx = 0;
+                        // Apply title
+                        if (title.trim() && result.rows[idx] && result.rows[idx].trim() !== title.trim()) {
+                          setTitle(result.rows[idx].trim());
+                        }
+                        idx++;
+                        // Apply author
+                        if (author.trim() && result.rows[idx] && result.rows[idx].trim() !== author.trim()) {
+                          setAuthor(result.rows[idx].trim());
+                        }
+                        idx++;
+                        // Apply description
+                        if (description.trim() && result.rows[idx] && result.rows[idx].trim() !== description.trim()) {
+                          setDescription(result.rows[idx].trim());
+                        }
+                        idx++;
+                        // Apply chapter titles
+                        for (const ch of chapters) {
+                          const translated = result.rows[idx];
+                          if (translated && translated.trim() && translated.trim() !== ch.title) {
+                            await renameChapter(ch.id, translated.trim());
                             setChapters((cs) =>
-                              cs.map((c) => (c.id === chapters[i].id ? { ...c, title: translated.trim() } : c)),
+                              cs.map((c) => (c.id === ch.id ? { ...c, title: translated.trim() } : c)),
                             );
                           }
+                          idx++;
                         }
-                        toast.success("Chapter titles translated.");
+                        toast.success("Metadata and chapter titles translated. Save to persist.");
                       } catch (e) {
                         const msg = e instanceof Error ? e.message : String(e);
-                        toast.error(`Title translation failed: ${msg.slice(0, 200)}`);
+                        toast.error(`Translation failed: ${msg.slice(0, 200)}`);
                       } finally {
-                        setTranslatingTitles(false);
+                        setTranslatingMeta(false);
                       }
                     }}
                     className="h-9 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors disabled:opacity-50 cursor-pointer"
                   >
-                    {translatingTitles ? (
+                    {translatingMeta ? (
                       <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
                     ) : (
                       <Languages className="w-4 h-4" strokeWidth={1.4} />
                     )}
                     <span className="text-xs uppercase tracking-[0.18em]">
-                      {translatingTitles ? "Translating…" : "Translate chapter titles"}
+                      {translatingMeta ? "Translating…" : "Translate title & info"}
                     </span>
                   </button>
                 </div>
