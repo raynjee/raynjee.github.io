@@ -134,7 +134,7 @@ export default function Library() {
             <div className="studio-caps text-muted-foreground">
               Edition 01 · The Gallery
             </div>
-            <h1 className="font-display text-[60px] lg:text-[80px] mt-2 tracking-tight leading-[0.95]">
+            <h1 className="font-display text-[40px] sm:text-[60px] lg:text-[80px] mt-2 tracking-tight leading-[0.95]">
               Library.
             </h1>
             <p className="text-muted-foreground mt-4 max-w-[56ch] leading-relaxed">
@@ -957,13 +957,13 @@ export function BookEditor({ bookId }: { bookId: string }) {
         </button>
         <div className="mt-4">
           <div className="studio-caps text-muted-foreground">Editing</div>
-          <h1 className="font-display text-4xl mt-2 tracking-tight">
+          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl mt-2 tracking-tight">
             {title || "Untitled"}
           </h1>
         </div>
 
-        <div className="grid grid-cols-12 gap-8 mt-10">
-          <section className="col-span-12 lg:col-span-5">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 mt-10">
+          <section className="col-span-1 lg:col-span-5">
             <div className="studio-card p-5">
               <div className="studio-caps text-muted-foreground">Cover</div>
               <div className="mt-3 gallery-frame aspect-[3/4] grid place-items-center bg-muted">
@@ -993,7 +993,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
             </div>
           </section>
 
-          <section className="col-span-12 lg:col-span-7">
+          <section className="col-span-1 lg:col-span-7">
             <div className="studio-card p-5">
               <div className="studio-caps text-muted-foreground">
                 Editorial details
@@ -1272,22 +1272,22 @@ export function BookEditor({ bookId }: { bookId: string }) {
             <ol className="mt-6 border border-border divide-y divide-border bg-card">
               {chapters.map((c, idx) => (
                 <li key={c.id}>
-                  <div className="grid grid-cols-12 items-center gap-4 p-4">
-                    <span className="col-span-1 studio-num text-muted-foreground">
+                  <div className="grid grid-cols-12 items-center gap-2 sm:gap-4 p-3 sm:p-4">
+                    <span className="col-span-1 studio-num text-muted-foreground text-xs sm:text-sm">
                       {String(idx + 1).padStart(2, "0")}
                     </span>
                     <input
                       value={c.title}
                       onChange={(e) => onRename(c.id, e.target.value)}
-                      className="col-span-6 bg-transparent border-b border-border focus:border-foreground outline-none py-1 font-display text-lg"
+                      className="col-span-6 sm:col-span-7 bg-transparent border-b border-border focus:border-foreground outline-none py-2 sm:py-1 font-display text-base sm:text-lg truncate"
                     />
-                    <span className="col-span-2 text-xs text-muted-foreground">
-                      {c.wordCount.toLocaleString()} words
+                    <span className="hidden sm:block sm:col-span-1 text-xs text-muted-foreground whitespace-nowrap">
+                      {c.wordCount.toLocaleString()} w
                     </span>
-                    <div className="col-span-3 flex items-center justify-end gap-0.5">
+                    <div className="col-span-5 sm:col-span-3 flex items-center justify-end gap-0.5">
                       <button
                         className={cn(
-                          "w-8 h-8 grid place-items-center border transition-colors cursor-pointer",
+                          "h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border transition-colors cursor-pointer active:scale-[0.95]",
                           splittingChapterId === c.id
                             ? "border-foreground bg-foreground/10"
                             : "border-border hover:border-foreground/40",
@@ -1300,7 +1300,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
                       </button>
                       {idx < chapters.length - 1 && (
                         <button
-                          className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40 transition-colors cursor-pointer"
+                          className="h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border border-border hover:border-foreground/40 active:scale-[0.95] transition-all cursor-pointer"
                           onClick={() => onMergeNext(idx)}
                           aria-label="Merge with next"
                           title="Merge with next chapter"
@@ -1309,21 +1309,21 @@ export function BookEditor({ bookId }: { bookId: string }) {
                         </button>
                       )}
                       <button
-                        className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40 cursor-pointer"
+                        className="h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border border-border hover:border-foreground/40 active:scale-[0.95] transition-all cursor-pointer"
                         onClick={() => onMove(idx, -1)}
                         aria-label="Move up"
                       >
                         <ArrowUp className="w-4 h-4" strokeWidth={1.4} />
                       </button>
                       <button
-                        className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40 cursor-pointer"
+                        className="h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border border-border hover:border-foreground/40 active:scale-[0.95] transition-all cursor-pointer"
                         onClick={() => onMove(idx, 1)}
                         aria-label="Move down"
                       >
                         <ArrowDown className="w-4 h-4" strokeWidth={1.4} />
                       </button>
                       <button
-                        className="w-8 h-8 grid place-items-center border border-border hover:border-destructive hover:text-destructive cursor-pointer"
+                        className="h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border border-border hover:border-destructive hover:text-destructive active:scale-[0.95] transition-all cursor-pointer"
                         onClick={() => onDelete(c.id)}
                         aria-label="Delete"
                       >

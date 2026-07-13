@@ -7,14 +7,16 @@ import {
   BookOpen,
   Coffee,
   Library,
+  Menu,
   Settings as SettingsIcon,
   Sun,
   Moon,
   LaptopMinimal,
+  X,
 } from "lucide-react";
 import { useSettings } from "@/hooks/use-settings";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 interface StudioShellProps {
   children: React.ReactNode;
@@ -24,6 +26,10 @@ interface StudioShellProps {
 export function StudioShell({ children, hideChrome }: StudioShellProps) {
   const { settings, update } = useSettings();
   const location = useLocation();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Close mobile menu on route change
+  useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
 
   useEffect(() => {
     const pref = settings.themePref;
@@ -79,6 +85,19 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
               <StudioTab to="/settings" label="Settings" icon={SettingsIcon} active={location.pathname.startsWith("/settings")} />
             </nav>
 
+            {/* ── Mobile hamburger ──────────────────────────── */}
+            <button
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              aria-label="Toggle menu"
+              className="md:hidden w-9 h-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors"
+            >
+              {mobileMenuOpen ? (
+                <X className="w-4 h-4" strokeWidth={1.4} />
+              ) : (
+                <Menu className="w-4 h-4" strokeWidth={1.4} />
+              )}
+            </button>
+
             <div className="flex items-center gap-2">
               <a
                 href="https://ko-fi.com/raynjee"
@@ -102,6 +121,44 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
             </div>
           </div>
         </header>
+      )}
+
+      {/* ── Mobile slide-down menu ──────────────────────────── */}
+      {!hideChrome && mobileMenuOpen && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          transition={{ duration: 0.2 }}
+          className="md:hidden border-b border-border bg-background/95 backdrop-blur-sm"
+        >
+          <div className="px-6 py-4 flex flex-col gap-2">
+            <Link
+              to="/library"
+              className={cn(
+                "h-11 px-4 inline-flex items-center gap-3 border transition-colors text-sm",
+                location.pathname.startsWith("/library")
+                  ? "bg-foreground text-background border-foreground"
+                  : "border-border hover:border-foreground/40"
+              )}
+            >
+              <Library className="w-4 h-4" strokeWidth={1.4} />
+              Library
+            </Link>
+            <Link
+              to="/settings"
+              className={cn(
+                "h-11 px-4 inline-flex items-center gap-3 border transition-colors text-sm",
+                location.pathname.startsWith("/settings")
+                  ? "bg-foreground text-background border-foreground"
+                  : "border-border hover:border-foreground/40"
+              )}
+            >
+              <SettingsIcon className="w-4 h-4" strokeWidth={1.4} />
+              Settings
+            </Link>
+          </div>
+        </motion.div>
       )}
 
       <motion.main

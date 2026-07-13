@@ -592,7 +592,7 @@ export default function BookReader() {
         style={readerVarStyle}
       >
         {/* ── Title bar ───────────────────────────────────────────── */}
-        <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
+        <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 sm:gap-6">
           <div>
             <button
               className="text-xs uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-2"
@@ -601,16 +601,16 @@ export default function BookReader() {
               ← Back to library
             </button>
             <div className="mt-3 studio-caps text-muted-foreground">The Deskside</div>
-            <h1 className="font-display text-5xl mt-2 tracking-tight leading-tight">{book.title}</h1>
+            <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl mt-2 tracking-tight leading-tight">{book.title}</h1>
             <p className="text-muted-foreground mt-1">{book.author}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <ApiLender settings={settings} />
             <button
               type="button"
               disabled={busy}
               onClick={onBatchTranslate}
-              className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
+              className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 active:scale-[0.97] transition-transform"
             >
               {busy ? (
                 <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
@@ -624,7 +624,7 @@ export default function BookReader() {
             <button
               type="button"
               onClick={onExport}
-              className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
+              className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 active:scale-[0.97] transition-transform"
             >
               <Download className="w-4 h-4" strokeWidth={1.4} />
               <span className="text-xs uppercase tracking-[0.18em]">Export EPUB</span>
@@ -965,10 +965,10 @@ function ChapterReader({
 
   return (
     <article>
-      <header className="flex items-start justify-between gap-6 flex-wrap">
+      <header className="flex flex-col sm:flex-row items-start sm:justify-between gap-4 sm:gap-6 flex-wrap">
         <div>
           <div className="studio-caps text-muted-foreground">Chapter</div>
-          <h2 className="font-display text-3xl mt-1 tracking-tight">{chapter.title}</h2>
+          <h2 className="font-display text-2xl sm:text-3xl mt-1 tracking-tight">{chapter.title}</h2>
           <div className="text-muted-foreground mt-1 text-sm">
             {chapter.wordCount.toLocaleString()} words ·{" "}
               {translation?.status === "completed" ? (
@@ -987,7 +987,8 @@ function ChapterReader({
               </span>
             ) : null}
           </div>
-        </div>          <div className="flex items-center gap-2 flex-wrap">
+        </div>
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           {/* Re-entry affordance when the TOC is collapsed: a single icon
               button that brings the chapter list back. Always rendered so
               the user can toggle without hunting through menus. */}
@@ -997,19 +998,19 @@ function ChapterReader({
               onClick={() => updateBookPrefs(bookId, { showToc: true })}
               aria-label="Show table of contents"
               title="Show table of contents"
-              className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors"
+              className="h-10 sm:h-10 px-2.5 sm:px-3 inline-flex items-center gap-1.5 sm:gap-2 border border-border hover:border-foreground/40 active:scale-[0.97] transition-all"
             >
               <PanelLeftOpen className="w-4 h-4" strokeWidth={1.4} />
-              <span className="text-xs uppercase tracking-[0.18em]">Contents</span>
+              <span className="hidden xs:inline text-xs uppercase tracking-[0.18em]">Contents</span>
             </button>
           )}
           <button
             type="button"
             onClick={() => navigate(`/library/${bookId}/glossary`)}
-            className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors"
+            className="h-10 sm:h-10 px-2.5 sm:px-3 inline-flex items-center gap-1.5 sm:gap-2 border border-border hover:border-foreground/40 active:scale-[0.97] transition-all"
           >
             <BookOpen className="w-4 h-4" strokeWidth={1.4} />
-            <span className="text-xs uppercase tracking-[0.18em]">Glossary</span>
+            <span className="hidden xs:inline text-xs uppercase tracking-[0.18em]">Glossary</span>
           </button>
           <ReaderSettingsMenu bookId={bookId} />
           {busy ? (
@@ -1052,7 +1053,7 @@ function ChapterReader({
                 type="button"
                 disabled={busy}
                 onClick={() => onTranslate()}
-                className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 cursor-pointer"
+                className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 cursor-pointer active:scale-[0.97] transition-transform"
               >
                 <Sparkles className="w-4 h-4" strokeWidth={1.4} />
                 <span className="text-xs uppercase tracking-[0.18em]">

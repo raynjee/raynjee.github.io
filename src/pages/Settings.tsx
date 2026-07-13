@@ -41,7 +41,7 @@ export default function SettingsPage() {
     <StudioShell>
       <div className="mx-auto max-w-[1100px] px-6 lg:px-10 pt-10 pb-20">
         <div className="studio-caps text-muted-foreground">The Back Room</div>
-        <h1 className="font-display text-5xl mt-2 tracking-tight">Settings</h1>
+        <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl mt-2 tracking-tight">Settings</h1>
         <p className="text-muted-foreground mt-3 max-w-[58ch]">
           API keys, proxy configuration, translation preferences, and the
           studio's housekeeping. Everything lives on your machine.
@@ -457,7 +457,7 @@ function ProviderSettings({
                           ),
                         })
                       }
-                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2 font-mono text-sm"
+                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 font-mono text-base"
                     />
                   </Field>
                   <Field label="Model">
@@ -498,7 +498,7 @@ function ProviderSettings({
                           ),
                         })
                       }
-                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2 font-mono text-sm"
+                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 font-mono text-base"
                     />
                   </Field>
 
@@ -525,7 +525,7 @@ function ProviderSettings({
                               ),
                             })
                           }
-                          className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2 font-mono text-sm"
+                          className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 font-mono text-base"
                         />
                         <button
                           type="button"
@@ -588,7 +588,7 @@ function ProviderSettings({
                           ),
                         })
                       }
-                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2"
+                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 text-base"
                     >
                       {GEMINI_MODELS.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -612,7 +612,7 @@ function ProviderSettings({
                 <button
                   disabled={testing[cfg.id]}
                   onClick={() => runTest(cfg.id)}
-                  className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 disabled:opacity-50"
+                  className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 disabled:opacity-50 active:scale-[0.97] transition-transform"
                 >
                   {testing[cfg.id] ? (
                     <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
@@ -641,7 +641,7 @@ function ProviderSettings({
             onChange={(e) =>
               update({ activeProvider: e.target.value as ProviderId })
             }
-            className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2"
+            className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 text-base"
           >
             {settings.providers.filter((p) => p.enabled).map((p) => (
               <option key={p.id} value={p.id}>
@@ -658,7 +658,7 @@ function ProviderSettings({
             max={5}
             value={settings.parallelRequests}
             onChange={(e) => update({ parallelRequests: Number(e.target.value) || 1 })}
-            className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2"
+            className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 text-base"
           />
         </Field>
       </div>
