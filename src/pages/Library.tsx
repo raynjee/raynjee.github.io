@@ -1281,8 +1281,8 @@ export function BookEditor({ bookId }: { bookId: string }) {
                       onChange={(e) => onRename(c.id, e.target.value)}
                       className="col-span-7 bg-transparent border-b border-border focus:border-foreground outline-none py-1 font-display text-lg truncate"
                     />
-                    <div className="col-span-4 flex items-center justify-between gap-1">
-                      <span className="text-[10px] text-muted-foreground whitespace-nowrap min-w-[60px]">
+                    <div className="col-span-4 flex items-center justify-end gap-1">
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap mr-2">
                         {c.wordCount.toLocaleString()} w
                       </span>
                       <div className="flex items-center gap-0.5">
