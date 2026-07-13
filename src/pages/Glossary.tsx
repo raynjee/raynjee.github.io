@@ -77,6 +77,7 @@ export default function Glossary() {
 
   const [entries, setEntries] = useState<GlossaryEntry[]>([]);
   const [extracting, setExtracting] = useState(false);
+  const [extractProgress, setExtractProgress] = useState<{ done: number; total: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -210,29 +211,30 @@ export default function Glossary() {
     resetDraft();
   };
 
-  // ── Extract from EPUB ────────────────────────────────────────────────
+  // ── Extract from EPUB (chunked) ─────────────────────────────────────
+
+  const CHUNK_CHARS = 4000; // small enough for free-tier Gemini, large enough for context
+  const CHUNK_DELAY_MS = 7000; // ~8.5 RPM — safe under free-tier 10 RPM limit
 
   const onExtract = async () => {
     if (!bookId || !book) return;
     setExtracting(true);
+    setExtractProgress(null);
     try {
       // 1. Gather every paragraph from every chapter.
       const chaps = await listChapters(bookId);
-      const allText = chaps
+      const allParagraphs = chaps
         .flatMap((c) => c.paragraphs)
-        .filter((p) => p?.trim())
-        .join("\n\n");
+        .filter((p) => p?.trim());
 
-      if (!allText.trim()) {
+      if (allParagraphs.length === 0) {
         toast.error("This book has no readable paragraph content.");
         return;
       }
 
-      // 2. Build the provider request. Auto-fallback if somehow the selected
-      // provider is no longer enabled (e.g. it was disabled while on the page).
+      // 2. Build the provider config. Auto-fallback if needed.
       let cfg = settings.providers.find((p) => p.id === extractProvider);
       if (!cfg || !cfg.enabled) {
-        // Fall back to the first enabled provider.
         const fallback = settings.providers.find((p) => p.enabled);
         if (!fallback) {
           toast.error("No enabled provider. Enable a provider in Settings first.");
@@ -243,40 +245,104 @@ export default function Glossary() {
         toast.message(`Switched to ${fallback.id === "gemini" ? "Gemini" : "DeepSeek"} for extraction.`);
       }
 
-      const extracted = await callProviderForExtraction(
-        cfg,
-        EXTRACTION_PROMPT,
-        allText,
-        cfg.id,
-      );
-      if (!extracted || extracted.length === 0) {
-        toast.error("The AI returned no glossary entries.");
+      // 3. Split paragraphs into chunks of ~CHUNK_CHARS, never cutting mid-paragraph.
+      const chunks: string[] = [];
+      let buf = "";
+      for (const p of allParagraphs) {
+        const candidate = buf ? `${buf}\n\n${p}` : p;
+        if (candidate.length > CHUNK_CHARS && buf.length > 0) {
+          chunks.push(buf);
+          buf = p;
+        } else {
+          buf = candidate;
+        }
+      }
+      if (buf.trim()) chunks.push(buf);
+
+      const totalChunks = chunks.length;
+      setExtractProgress({ done: 0, total: totalChunks });
+
+      // 4. Process each chunk, deduplicate by term.
+      const seen = new Map<string, { translation: string; category: string; gender: string | null; notes: string }>();
+      let chunkErrors = 0;
+
+      for (let ci = 0; ci < totalChunks; ci++) {
+        // Rate-limit delay between chunks (skip the first).
+        if (ci > 0) {
+          await new Promise((r) => setTimeout(r, CHUNK_DELAY_MS));
+        }
+
+        setExtractProgress({ done: ci, total: totalChunks });
+
+        // Build a contextual prompt: tell the LLM which chunk this is.
+        const chunkPrompt = [
+          `This is portion ${ci + 1} of ${totalChunks} of a novel. Extract glossary entries from ONLY the text below.`,
+          ci < totalChunks - 1
+            ? "Do NOT repeat terms you found in earlier portions unless you discover NEW information about them (e.g., a more accurate translation or clearer gender)."
+            : "This is the final portion. Include any remaining terms you find, but skip terms already covered in earlier portions if you have nothing new to add.",
+          "",
+          chunks[ci],
+        ].join("\n");
+
+        try {
+          const extracted = await callProviderForExtraction(
+            cfg,
+            EXTRACTION_PROMPT,
+            chunkPrompt,
+            cfg.id,
+          );
+          if (extracted && extracted.length > 0) {
+            for (const item of extracted) {
+              const term = (item.term ?? "").trim();
+              const translation = (item.translation ?? "").trim();
+              if (!term || !translation) continue;
+              // Only add if we haven't seen this term, or if the new translation is better.
+              const existing = seen.get(term);
+              if (!existing || translation.length > existing.translation.length) {
+                const category =
+                  item.category != null && (CATEGORIES as string[]).includes(item.category)
+                    ? item.category
+                    : "word";
+                const gender =
+                  item.gender === "F" || item.gender === "M" || item.gender === "N"
+                    ? item.gender
+                    : null;
+                seen.set(term, {
+                  translation,
+                  category: category as string,
+                  gender,
+                  notes: (item.notes ?? "").trim(),
+                });
+              }
+            }
+          }
+        } catch (err) {
+          chunkErrors++;
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`Glossary chunk ${ci + 1}/${totalChunks} failed:`, msg.slice(0, 120));
+          // Continue with remaining chunks — partial results are better than nothing.
+        }
+      }
+
+      setExtractProgress({ done: totalChunks, total: totalChunks });
+
+      // 5. Persist all deduplicated entries.
+      if (seen.size === 0) {
+        toast.error("The AI returned no glossary entries across any chunk.");
         return;
       }
 
-      // 3. Persist each extracted entry.
       const now = Date.now();
       let saved = 0;
-      for (const item of extracted) {
-        const term = (item.term ?? "").trim();
-        const translation = (item.translation ?? "").trim();
-        if (!term || !translation) continue;
-        const category: GlossaryEntry["category"] =
-          item.category != null && (CATEGORIES as string[]).includes(item.category)
-            ? (item.category as GlossaryEntry["category"])
-            : "word";
-        const gender =
-          item.gender === "F" || item.gender === "M" || item.gender === "N"
-            ? item.gender
-            : null;
+      for (const [term, info] of seen) {
         const entry: GlossaryEntry = {
           id: `${bookId}:${uid()}`,
           bookId,
           term,
-          translation,
-          category,
-          gender,
-          notes: (item.notes ?? "").trim(),
+          translation: info.translation,
+          category: info.category as GlossaryEntry["category"],
+          gender: info.gender as GlossaryEntry["gender"],
+          notes: info.notes,
           createdAt: now + saved,
           updatedAt: now + saved,
         };
@@ -284,12 +350,17 @@ export default function Glossary() {
         saved++;
       }
       await reloadEntries();
-      toast.success(`Extracted ${saved} glossary entries.`);
+
+      const warning = chunkErrors > 0
+        ? ` (${chunkErrors} chunk${chunkErrors > 1 ? "s" : ""} failed)`
+        : "";
+      toast.success(`Extracted ${saved} glossary entries from ${totalChunks} chunk${totalChunks > 1 ? "s" : ""}${warning}.`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(`Extraction failed: ${msg.slice(0, 200)}`);
     } finally {
       setExtracting(false);
+      setExtractProgress(null);
     }
   };
 
@@ -354,7 +425,11 @@ export default function Glossary() {
                 <Sparkles className="w-4 h-4" strokeWidth={1.4} />
               )}
               <span className="text-xs uppercase tracking-[0.18em]">
-                {extracting ? "Extracting…" : "Extract"}
+                {extracting && extractProgress
+                  ? `Chunk ${extractProgress.done + 1}/${extractProgress.total}…`
+                  : extracting
+                    ? "Extracting…"
+                    : "Extract"}
               </span>
             </button>
             <button
