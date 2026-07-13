@@ -702,6 +702,13 @@ export function BookEditor({ bookId }: { bookId: string }) {
   const [splittingChapterId, setSplittingChapterId] = useState<string | null>(null);
   const [splitPoints, setSplitPoints] = useState<Set<number>>(new Set());
 
+  // Track unsaved changes
+  const hasChanges =
+    title !== (book?.title ?? "") ||
+    author !== (book?.author ?? "") ||
+    description !== (book?.description ?? "") ||
+    cover !== (book?.coverDataUrl ?? null);
+
   const translateField = async (
     text: string,
     kind: string,
@@ -921,10 +928,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
     )
       return;
 
-    // Flatten all paragraphs from all chapters in order
     const allParagraphs = chapters.flatMap((c) => c.paragraphs);
-
-    // Detect split points
     const reSplitChapters = splitIntoChapters(allParagraphs, book.title || "Untitled");
 
     if (reSplitChapters.length === 0) {
@@ -932,7 +936,6 @@ export function BookEditor({ bookId }: { bookId: string }) {
       return;
     }
 
-    // Create new Chapter objects with new IDs
     const newChapters: Chapter[] = reSplitChapters.map((c, i) => ({
       ...c,
       id: uid("chap"),
@@ -946,41 +949,135 @@ export function BookEditor({ bookId }: { bookId: string }) {
     toast.success(`Re-split into ${newChapters.length} chapters.`);
   };
 
+  const totalWords = chapters.reduce((s, c) => s + c.wordCount, 0);
+
   return (
     <StudioShell>
-      <div className="mx-auto max-w-[1100px] px-6 lg:px-10 pt-10 pb-20">
+      <div className="mx-auto max-w-[1100px] px-4 sm:px-6 lg:px-10 pt-6 sm:pt-10 pb-32">
+        {/* ── Header ─────────────────────────────────────────────── */}
         <button
-          className="text-xs uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-2"
+          className="text-xs uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-2 mb-4"
           onClick={() => navigate(`/library/${book.id}`)}
         >
           ← Back to book
         </button>
-        <div className="mt-4">
-          <div className="studio-caps text-muted-foreground">Editing</div>
-          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl mt-2 tracking-tight">
-            {title || "Untitled"}
-          </h1>
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div>
+            <div className="studio-caps text-muted-foreground">Editorial details</div>
+            <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl mt-1 tracking-tight">
+              {title || "Untitled"}
+            </h1>
+            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+              <span className="uppercase tracking-[0.15em] px-2 py-0.5 border border-border">
+                {book.language === "zh" ? "中文" : book.language === "ja" ? "日本語" : book.language === "ko" ? "한국어" : book.language}
+              </span>
+              <span>{chapters.length} chapter{chapters.length !== 1 ? "s" : ""}</span>
+              <span>{totalWords.toLocaleString()} words</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={translatingMeta}
+              onClick={async () => {
+                if (!book) return;
+                setTranslatingMeta(true);
+                try {
+                  const mgr = new TranslationManager({
+                    providers: settings.providers,
+                    preferred: settings.activeProvider,
+                    parallelRequests: 1,
+                    pauseOnError: false,
+                    quality: settings.quality,
+                    source: book.language,
+                    target: "en",
+                  });
+                  const items: { kind: string; text: string }[] = [];
+                  if (title.trim()) items.push({ kind: "Book title", text: title.trim() });
+                  if (author.trim()) items.push({ kind: "Author name", text: author.trim() });
+                  if (description.trim()) items.push({ kind: "Book description", text: description.trim() });
+                  const chapterItems = chapters.map((c) => ({ kind: "Chapter title", text: c.title }));
+                  items.push(...chapterItems);
+                  if (items.length === 0) { setTranslatingMeta(false); return; }
+                  const result = await mgr.translateChapter({
+                    paragraphs: items.map((i) => i.text),
+                    contextHint: `Translate these book metadata entries from "${book.title}" to natural English. Preserve the item kind context: book title, author name, description, and chapter titles. Return ONLY the translated entries, one per line, in the same order.`,
+                  });
+                  let idx = 0;
+                  if (title.trim() && result.rows[idx] && result.rows[idx].trim() !== title.trim()) setTitle(result.rows[idx].trim());
+                  idx++;
+                  if (author.trim() && result.rows[idx] && result.rows[idx].trim() !== author.trim()) setAuthor(result.rows[idx].trim());
+                  idx++;
+                  if (description.trim() && result.rows[idx] && result.rows[idx].trim() !== description.trim()) setDescription(result.rows[idx].trim());
+                  idx++;
+                  for (const ch of chapters) {
+                    const translated = result.rows[idx];
+                    if (translated && translated.trim() && translated.trim() !== ch.title) {
+                      await renameChapter(ch.id, translated.trim());
+                      setChapters((cs) => cs.map((c) => (c.id === ch.id ? { ...c, title: translated.trim() } : c)));
+                    }
+                    idx++;
+                  }
+                  toast.success("Metadata and chapter titles translated. Save to persist.");
+                } catch (e) {
+                  const msg = e instanceof Error ? e.message : String(e);
+                  toast.error(`Translation failed: ${msg.slice(0, 200)}`);
+                } finally {
+                  setTranslatingMeta(false);
+                }
+              }}
+              className="h-9 sm:h-10 px-3 sm:px-4 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 transition-colors disabled:opacity-50 cursor-pointer text-xs uppercase tracking-[0.18em]"
+            >
+              {translatingMeta ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+              ) : (
+                <Languages className="w-3.5 h-3.5" strokeWidth={1.4} />
+              )}
+              <span className="hidden sm:inline">{translatingMeta ? "Translating…" : "Translate all"}</span>
+              <span className="sm:hidden">{translatingMeta ? "…" : "Translate"}</span>
+            </button>
+            {(title !== origTitleRef.current || author !== origAuthorRef.current || description !== origDescRef.current) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTitle(origTitleRef.current);
+                  setAuthor(origAuthorRef.current);
+                  setDescription(origDescRef.current);
+                  toast.message("All metadata reverted to original.");
+                }}
+                className="h-9 sm:h-10 px-3 sm:px-4 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 transition-colors cursor-pointer text-xs uppercase tracking-[0.18em]"
+              >
+                <Undo2 className="w-3.5 h-3.5" strokeWidth={1.4} />
+                <span className="hidden sm:inline">Revert all</span>
+                <span className="sm:hidden">Revert</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-12 mt-8 sm:mt-10">
-          <section className="col-span-1 lg:col-span-5">
+        {/* ── Cover + Metadata ───────────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 mt-8">
+          {/* Cover card */}
+          <section className="col-span-1 lg:col-span-4">
             <div className="studio-card p-4 sm:p-5">
-              <div className="studio-caps text-muted-foreground">Cover</div>
-              <div className="mt-3 gallery-frame aspect-[3/4] grid place-items-center bg-muted max-w-[280px] sm:max-w-none mx-auto">
-                {cover ? (
-                  <img src={cover} alt="Cover" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="text-muted-foreground text-sm">No cover</div>
-                )}
-              </div>
-              <div className="mt-3 flex flex-col gap-2">
-                <label className="studio-caps text-muted-foreground">
-                  Replace cover
-                </label>
+              <div className="studio-caps text-muted-foreground mb-3">Cover image</div>
+              <label className="block cursor-pointer group">
+                <div className="gallery-frame aspect-[3/4] grid place-items-center bg-muted max-w-[240px] mx-auto transition-shadow group-hover:shadow-lg">
+                  {cover ? (
+                    <img src={cover} alt="Cover" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-center px-4">
+                      <Upload className="w-6 h-6 mx-auto text-muted-foreground mb-2" strokeWidth={1.2} />
+                      <span className="text-xs text-muted-foreground uppercase tracking-[0.15em]">
+                        Click to upload
+                      </span>
+                    </div>
+                  )}
+                </div>
                 <input
                   type="file"
                   accept="image/*"
-                  className="text-sm"
+                  className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
                     if (!f) return;
@@ -989,374 +1086,258 @@ export function BookEditor({ bookId }: { bookId: string }) {
                     reader.readAsDataURL(f);
                   }}
                 />
-              </div>
+              </label>
+              {cover && (
+                <button
+                  type="button"
+                  onClick={() => setCover(null)}
+                  className="mt-3 w-full text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-destructive transition-colors"
+                >
+                  Remove cover
+                </button>
+              )}
             </div>
           </section>
 
-          <section className="col-span-1 lg:col-span-7 mt-6 lg:mt-0">
-            <div className="studio-card p-4 sm:p-5">
-              <div className="studio-caps text-muted-foreground">
-                Editorial details
-              </div>
-              <div className="grid gap-4 mt-3">
-                <Field
-                  label="Title"
-                  action={
-                    <>
-                      <button
-                        type="button"
-                        disabled={translatingTitle || !title.trim()}
-                        onClick={() => translateField(title, "book title", setTitle, setTranslatingTitle)}
-                        className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
-                        title="Translate title"
-                      >
-                        {translatingTitle ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
-                        ) : (
-                          <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
-                        )}
-                      </button>
-                      {title !== origTitleRef.current && (
-                        <button
-                          type="button"
-                          onClick={() => setTitle(origTitleRef.current)}
-                          className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors cursor-pointer"
-                          title="Revert to original"
-                        >
-                          <Undo2 className="w-3.5 h-3.5" strokeWidth={1.4} />
-                        </button>
-                      )}
-                    </>
-                  }
-                >
-                  <input
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Book title"
-                    className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-3 text-lg font-display rounded transition-colors"
-                  />
-                </Field>
-                <Field
-                  label="Author"
-                  action={
-                    <>
-                      <button
-                        type="button"
-                        disabled={translatingAuthor || !author.trim()}
-                        onClick={() => translateField(author, "author name", setAuthor, setTranslatingAuthor)}
-                        className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
-                        title="Translate author"
-                      >
-                        {translatingAuthor ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
-                        ) : (
-                          <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
-                        )}
-                      </button>
-                      {author !== origAuthorRef.current && (
-                        <button
-                          type="button"
-                          onClick={() => setAuthor(origAuthorRef.current)}
-                          className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors cursor-pointer"
-                          title="Revert to original"
-                        >
-                          <Undo2 className="w-3.5 h-3.5" strokeWidth={1.4} />
-                        </button>
-                      )}
-                    </>
-                  }
-                >
-                  <input
-                    value={author}
-                    onChange={(e) => setAuthor(e.target.value)}
-                    placeholder="Author name"
-                    className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-3 rounded transition-colors"
-                  />
-                </Field>
-                <Field
-                  label="Description"
-                  action={
-                    <>
-                      <button
-                        type="button"
-                        disabled={translatingDesc || !description.trim()}
-                        onClick={() => translateField(description, "book description", setDescription, setTranslatingDesc)}
-                        className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
-                        title="Translate description"
-                      >
-                        {translatingDesc ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
-                        ) : (
-                          <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
-                        )}
-                      </button>
-                      {description !== origDescRef.current && (
-                        <button
-                          type="button"
-                          onClick={() => setDescription(origDescRef.current)}
-                          className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors cursor-pointer"
-                          title="Revert to original"
-                        >
-                          <Undo2 className="w-3.5 h-3.5" strokeWidth={1.4} />
-                        </button>
-                      )}
-                    </>
-                  }
-                >
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    rows={5}
-                    className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none p-3 text-sm leading-relaxed resize-none rounded transition-colors"
-                    placeholder="A short note for readers."
-                  />
-                </Field>
-                <div className="flex items-center gap-3 pt-2">
-                  <button
-                    className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 transition-colors"
-                    onClick={onSaveMeta}
-                  >
-                    <Save className="w-4 h-4" strokeWidth={1.4} />
-                    <span className="text-sm uppercase tracking-[0.18em]">
-                      Save
-                    </span>
-                  </button>
-                  <button
-                    className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors"
-                    onClick={() => navigate(`/library/${book.id}`)}
-                  >
-                    <X className="w-4 h-4" strokeWidth={1.4} />
-                    <span className="text-sm uppercase tracking-[0.18em]">
-                      Cancel
-                    </span>
-                  </button>
-                </div>
-
-                {/* Translate book metadata + chapter titles */}
-                <div className="mt-5 pt-4 border-t border-border">
-                  <div className="studio-caps text-muted-foreground mb-3">
-                    Translate metadata
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={translatingMeta}
-                    onClick={async () => {
-                      if (!book) return;
-                      setTranslatingMeta(true);
-                      try {
-                        const mgr = new TranslationManager({
-                          providers: settings.providers,
-                          preferred: settings.activeProvider,
-                          parallelRequests: 1,
-                          pauseOnError: false,
-                          quality: settings.quality,
-                          source: book.language,
-                          target: "en",
-                        });
-                        // Build a list: [title, author, description, ...chapter titles]
-                        const items: { kind: string; text: string }[] = [];
-                        if (title.trim()) items.push({ kind: "Book title", text: title.trim() });
-                        if (author.trim()) items.push({ kind: "Author name", text: author.trim() });
-                        if (description.trim()) items.push({ kind: "Book description", text: description.trim() });
-                        const chapterItems = chapters.map((c) => ({ kind: "Chapter title", text: c.title }));
-                        items.push(...chapterItems);
-
-                        if (items.length === 0) { setTranslatingMeta(false); return; }
-
-                        const result = await mgr.translateChapter({
-                          paragraphs: items.map((i) => i.text),
-                          contextHint: `Translate these book metadata entries from "${book.title}" to natural English. Preserve the item kind context: book title, author name, description, and chapter titles. Return ONLY the translated entries, one per line, in the same order.`,
-                        });
-
-                        let idx = 0;
-                        // Apply title
-                        if (title.trim() && result.rows[idx] && result.rows[idx].trim() !== title.trim()) {
-                          setTitle(result.rows[idx].trim());
-                        }
-                        idx++;
-                        // Apply author
-                        if (author.trim() && result.rows[idx] && result.rows[idx].trim() !== author.trim()) {
-                          setAuthor(result.rows[idx].trim());
-                        }
-                        idx++;
-                        // Apply description
-                        if (description.trim() && result.rows[idx] && result.rows[idx].trim() !== description.trim()) {
-                          setDescription(result.rows[idx].trim());
-                        }
-                        idx++;
-                        // Apply chapter titles
-                        for (const ch of chapters) {
-                          const translated = result.rows[idx];
-                          if (translated && translated.trim() && translated.trim() !== ch.title) {
-                            await renameChapter(ch.id, translated.trim());
-                            setChapters((cs) =>
-                              cs.map((c) => (c.id === ch.id ? { ...c, title: translated.trim() } : c)),
-                            );
-                          }
-                          idx++;
-                        }
-                        toast.success("Metadata and chapter titles translated. Save to persist.");
-                      } catch (e) {
-                        const msg = e instanceof Error ? e.message : String(e);
-                        toast.error(`Translation failed: ${msg.slice(0, 200)}`);
-                      } finally {
-                        setTranslatingMeta(false);
-                      }
-                    }}
-                    className="h-9 px-3 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 transition-colors disabled:opacity-50 cursor-pointer text-xs uppercase tracking-[0.18em]"
-                  >
-                    {translatingMeta ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
-                    ) : (
-                      <Languages className="w-3.5 h-3.5" strokeWidth={1.4} />
-                    )}
-                    <span>
-                      {translatingMeta ? "Translating…" : "Translate title & info"}
-                    </span>
-                  </button>
-                  {(title !== origTitleRef.current || author !== origAuthorRef.current || description !== origDescRef.current) && (
+          {/* Metadata cards */}
+          <section className="col-span-1 lg:col-span-8">
+            <div className="space-y-4">
+              {/* Title */}
+              <div className="studio-card p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="studio-caps text-muted-foreground">Title</span>
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => {
-                        setTitle(origTitleRef.current);
-                        setAuthor(origAuthorRef.current);
-                        setDescription(origDescRef.current);
-                        toast.message("All metadata reverted to original.");
-                      }}
-                      className="h-9 px-3 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 transition-colors cursor-pointer text-xs uppercase tracking-[0.18em]"
-                      title="Revert all metadata to original"
+                      disabled={translatingTitle || !title.trim()}
+                      onClick={() => translateField(title, "book title", setTitle, setTranslatingTitle)}
+                      className="h-7 px-2 inline-flex items-center gap-1 border border-border hover:border-foreground/40 transition-colors disabled:opacity-30 cursor-pointer text-[10px] uppercase tracking-[0.15em]"
                     >
-                      <Undo2 className="w-3.5 h-3.5" strokeWidth={1.4} />
-                      <span>Revert all</span>
+                      {translatingTitle ? (
+                        <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.4} />
+                      ) : (
+                        <Sparkles className="w-3 h-3" strokeWidth={1.4} />
+                      )}
+                      <span>Translate</span>
                     </button>
-                  )}
+                    {title !== origTitleRef.current && (
+                      <button
+                        type="button"
+                        onClick={() => setTitle(origTitleRef.current)}
+                        className="h-7 w-7 grid place-items-center border border-border hover:border-foreground/40 transition-colors cursor-pointer"
+                        title="Revert"
+                      >
+                        <Undo2 className="w-3 h-3" strokeWidth={1.4} />
+                      </button>
+                    )}
                   </div>
                 </div>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Book title"
+                  className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-2.5 sm:py-3 text-lg font-display rounded transition-colors"
+                />
+              </div>
+
+              {/* Author */}
+              <div className="studio-card p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="studio-caps text-muted-foreground">Author</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={translatingAuthor || !author.trim()}
+                      onClick={() => translateField(author, "author name", setAuthor, setTranslatingAuthor)}
+                      className="h-7 px-2 inline-flex items-center gap-1 border border-border hover:border-foreground/40 transition-colors disabled:opacity-30 cursor-pointer text-[10px] uppercase tracking-[0.15em]"
+                    >
+                      {translatingAuthor ? (
+                        <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.4} />
+                      ) : (
+                        <Sparkles className="w-3 h-3" strokeWidth={1.4} />
+                      )}
+                      <span>Translate</span>
+                    </button>
+                    {author !== origAuthorRef.current && (
+                      <button
+                        type="button"
+                        onClick={() => setAuthor(origAuthorRef.current)}
+                        className="h-7 w-7 grid place-items-center border border-border hover:border-foreground/40 transition-colors cursor-pointer"
+                        title="Revert"
+                      >
+                        <Undo2 className="w-3 h-3" strokeWidth={1.4} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <input
+                  value={author}
+                  onChange={(e) => setAuthor(e.target.value)}
+                  placeholder="Author name"
+                  className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-2.5 sm:py-3 rounded transition-colors"
+                />
+              </div>
+
+              {/* Description */}
+              <div className="studio-card p-4 sm:p-5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="studio-caps text-muted-foreground">Description</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      disabled={translatingDesc || !description.trim()}
+                      onClick={() => translateField(description, "book description", setDescription, setTranslatingDesc)}
+                      className="h-7 px-2 inline-flex items-center gap-1 border border-border hover:border-foreground/40 transition-colors disabled:opacity-30 cursor-pointer text-[10px] uppercase tracking-[0.15em]"
+                    >
+                      {translatingDesc ? (
+                        <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.4} />
+                      ) : (
+                        <Sparkles className="w-3 h-3" strokeWidth={1.4} />
+                      )}
+                      <span>Translate</span>
+                    </button>
+                    {description !== origDescRef.current && (
+                      <button
+                        type="button"
+                        onClick={() => setDescription(origDescRef.current)}
+                        className="h-7 w-7 grid place-items-center border border-border hover:border-foreground/40 transition-colors cursor-pointer"
+                        title="Revert"
+                      >
+                        <Undo2 className="w-3 h-3" strokeWidth={1.4} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={4}
+                  className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none p-3 text-sm leading-relaxed resize-none rounded transition-colors"
+                  placeholder="A short note for readers."
+                />
               </div>
             </div>
           </section>
+        </div>
 
-          <section className="col-span-12">              <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3 mb-3">
-              <div>
-                <div className="studio-caps text-muted-foreground">
-                  Table of contents
-                </div>
-                <h2 className="font-display text-2xl mt-2 tracking-tight">
-                  Chapters
-                </h2>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  className="h-10 px-3 sm:px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 cursor-pointer text-xs sm:text-sm uppercase tracking-[0.18em]"
-                  onClick={() => onReSplit()}
-                  disabled={chapters.length === 0}
-                  title="Flatten all chapters and re-detect boundaries using chapter markers"
-                >
-                  <Scissors className="w-4 h-4" strokeWidth={1.4} />
-                  <span className="hidden sm:inline">Re-detect chapters</span>
-                  <span className="sm:hidden">Re-split</span>
-                </button>
-                <button
-                  className="h-10 px-3 sm:px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 cursor-pointer text-xs sm:text-sm uppercase tracking-[0.18em]"
-                  onClick={onAddBlank}
-                >
-                  <Plus className="w-4 h-4" strokeWidth={1.4} />
-                  <span className="hidden sm:inline">Add chapter</span>
-                  <span className="sm:hidden">Add</span>
-                </button>
-              </div>
+        {/* ── Chapters TOC ────────────────────────────────────────── */}
+        <section className="mt-10 sm:mt-14">
+          <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3 mb-4 sm:mb-6">
+            <div>
+              <div className="studio-caps text-muted-foreground">Table of contents</div>
+              <h2 className="font-display text-xl sm:text-2xl mt-1 tracking-tight">
+                Chapters
+              </h2>
             </div>
-            <ol className="mt-4 sm:mt-6 border border-border divide-y divide-border bg-card">
+            <div className="flex items-center gap-2">
+              <button
+                className="h-9 sm:h-10 px-3 sm:px-4 inline-flex items-center gap-1.5 sm:gap-2 border border-border hover:border-foreground/40 cursor-pointer text-xs sm:text-sm uppercase tracking-[0.18em] disabled:opacity-40"
+                onClick={() => onReSplit()}
+                disabled={chapters.length === 0}
+              >
+                <Scissors className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={1.4} />
+                <span className="hidden sm:inline">Re-detect chapters</span>
+                <span className="sm:hidden">Re-split</span>
+              </button>
+              <button
+                className="h-9 sm:h-10 px-3 sm:px-4 inline-flex items-center gap-1.5 sm:gap-2 border border-border hover:border-foreground/40 cursor-pointer text-xs sm:text-sm uppercase tracking-[0.18em]"
+                onClick={onAddBlank}
+              >
+                <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={1.4} />
+                <span className="hidden sm:inline">Add chapter</span>
+                <span className="sm:hidden">Add</span>
+              </button>
+            </div>
+          </div>
+
+          {chapters.length === 0 ? (
+            <div className="border border-border bg-card p-10 sm:p-14 text-center">
+              <BookOpenCheck className="w-8 h-8 mx-auto text-muted-foreground" strokeWidth={1.2} />
+              <p className="mt-3 text-muted-foreground text-sm">
+                No chapters yet. Click &ldquo;Add chapter&rdquo; to create one.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
               {chapters.map((c, idx) => (
-                <li key={c.id}>
-                  <div className="flex flex-col sm:grid sm:grid-cols-12 items-stretch sm:items-center gap-2 p-3 sm:p-4">
-                    {/* Mobile: title row */}
-                    <div className="flex items-center gap-2 sm:hidden">
-                      <span className="studio-num text-muted-foreground text-xs shrink-0 w-6">
-                        {String(idx + 1).padStart(2, "0")}
-                      </span>
+                <div key={c.id} className="studio-card overflow-hidden">
+                  {/* Chapter row */}
+                  <div className="flex items-center gap-2 sm:gap-4 p-2.5 sm:p-3">
+                    {/* Number */}
+                    <span className="studio-num text-muted-foreground/60 text-lg sm:text-xl shrink-0 w-7 sm:w-8 text-center">
+                      {String(idx + 1).padStart(2, "0")}
+                    </span>
+
+                    {/* Title input + word count */}
+                    <div className="flex-1 min-w-0 flex items-center gap-2">
                       <input
                         value={c.title}
                         onChange={(e) => onRename(c.id, e.target.value)}
-                        className="flex-1 min-w-0 bg-muted/40 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-2.5 font-display text-sm rounded transition-colors"
+                        className="flex-1 min-w-0 bg-muted/40 border border-border focus:border-foreground focus:bg-background outline-none px-2.5 py-2 sm:py-2 font-display text-sm rounded transition-colors"
                       />
-                      <span className="text-xs text-muted-foreground shrink-0">
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap hidden sm:inline">
                         {c.wordCount.toLocaleString()}w
                       </span>
                     </div>
-                    {/* Desktop row */}
-                    <span className="hidden sm:block col-span-1 studio-num text-muted-foreground text-xs sm:text-sm">
-                      {String(idx + 1).padStart(2, "0")}
-                    </span>
-                    <input
-                      value={c.title}
-                      onChange={(e) => onRename(c.id, e.target.value)}
-                      className="hidden sm:block col-span-7 bg-muted/40 border border-border focus:border-foreground focus:bg-background outline-none px-2 py-2 sm:py-1.5 font-display text-sm sm:text-base rounded transition-colors truncate"
-                    />
-                    <span className="hidden sm:block sm:col-span-1 text-xs text-muted-foreground whitespace-nowrap">
-                      {c.wordCount.toLocaleString()} w
-                    </span>
-                    {/* Action buttons */}
-                    <div className="flex items-center gap-1 sm:col-span-3 sm:justify-end">
+
+                    {/* Action toolbar */}
+                    <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
                       <button
                         className={cn(
-                          "h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border transition-colors cursor-pointer active:scale-[0.95]",
+                          "h-8 w-8 sm:w-7 sm:h-7 grid place-items-center border transition-colors cursor-pointer active:scale-[0.95]",
                           splittingChapterId === c.id
                             ? "border-foreground bg-foreground/10"
                             : "border-border hover:border-foreground/40",
                         )}
                         onClick={() => onToggleSplit(c.id)}
-                        aria-label="Split chapter"
                         title="Split chapter"
                       >
-                        <Scissors className="w-3.5 h-3.5" strokeWidth={1.4} />
+                        <Scissors className="w-3 h-3" strokeWidth={1.4} />
                       </button>
                       {idx < chapters.length - 1 && (
                         <button
-                          className="hidden sm:grid h-9 w-9 sm:w-8 sm:h-8 place-items-center border border-border hover:border-foreground/40 active:scale-[0.95] transition-all cursor-pointer"
+                          className="hidden sm:grid h-8 w-8 sm:w-7 sm:h-7 place-items-center border border-border hover:border-foreground/40 active:scale-[0.95] transition-all cursor-pointer"
                           onClick={() => onMergeNext(idx)}
-                          aria-label="Merge with next"
-                          title="Merge with next chapter"
+                          title="Merge with next"
                         >
-                          <Merge className="w-3.5 h-3.5" strokeWidth={1.4} />
+                          <Merge className="w-3 h-3" strokeWidth={1.4} />
                         </button>
                       )}
                       <button
-                        className="h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border border-border hover:border-foreground/40 active:scale-[0.95] transition-all cursor-pointer"
+                        className="h-8 w-8 sm:w-7 sm:h-7 grid place-items-center border border-border hover:border-foreground/40 active:scale-[0.95] transition-all cursor-pointer"
                         onClick={() => onMove(idx, -1)}
-                        aria-label="Move up"
+                        disabled={idx === 0}
+                        title="Move up"
                       >
-                        <ArrowUp className="w-4 h-4" strokeWidth={1.4} />
+                        <ArrowUp className="w-3 h-3" strokeWidth={1.4} />
                       </button>
                       <button
-                        className="h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border border-border hover:border-foreground/40 active:scale-[0.95] transition-all cursor-pointer"
+                        className="h-8 w-8 sm:w-7 sm:h-7 grid place-items-center border border-border hover:border-foreground/40 active:scale-[0.95] transition-all cursor-pointer"
                         onClick={() => onMove(idx, 1)}
-                        aria-label="Move down"
+                        disabled={idx === chapters.length - 1}
+                        title="Move down"
                       >
-                        <ArrowDown className="w-4 h-4" strokeWidth={1.4} />
+                        <ArrowDown className="w-3 h-3" strokeWidth={1.4} />
                       </button>
                       <button
-                        className="h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border border-border hover:border-destructive hover:text-destructive active:scale-[0.95] transition-all cursor-pointer"
+                        className="h-8 w-8 sm:w-7 sm:h-7 grid place-items-center border border-border hover:border-destructive hover:text-destructive active:scale-[0.95] transition-all cursor-pointer ml-0.5 sm:ml-1"
                         onClick={() => onDelete(c.id)}
-                        aria-label="Delete"
+                        title="Delete"
                       >
-                        <Trash2 className="w-4 h-4" strokeWidth={1.4} />
+                        <Trash2 className="w-3 h-3" strokeWidth={1.4} />
                       </button>
                     </div>
                   </div>
 
                   {/* Expandable split UI */}
                   {splittingChapterId === c.id && activeSplitChapter && (
-                    <div className="border-t border-border bg-accent/30 px-4 py-3">
+                    <div className="border-t border-border bg-accent/30 px-3 sm:px-4 py-3">
                       <div className="text-xs text-muted-foreground mb-2">
-                        Click between paragraphs to mark split points. Then
-                        click &ldquo;Apply split&rdquo; to create new chapters.
+                        Click between paragraphs to mark split points.
                       </div>
-                      <div className="max-h-64 overflow-y-auto space-y-0.5 text-sm leading-relaxed">
+                      <div className="max-h-56 sm:max-h-64 overflow-y-auto space-y-0.5 text-sm leading-relaxed thin-scrollbar">
                         {activeSplitChapter.paragraphs.map((p, pi) => (
                           <div key={pi}>
-                            {/* Split marker between paragraphs */}
                             {pi > 0 && (
                               <button
                                 type="button"
@@ -1380,13 +1361,10 @@ export function BookEditor({ bookId }: { bookId: string }) {
                                 </span>
                               </button>
                             )}
-                            {/* Paragraph preview */}
                             <p
                               className={cn(
                                 "px-2 py-1 rounded transition-colors",
-                                splitPoints.has(pi)
-                                  ? "bg-orange-50 dark:bg-orange-900/10"
-                                  : "",
+                                splitPoints.has(pi) ? "bg-orange-50 dark:bg-orange-900/10" : "",
                               )}
                             >
                               <span className="text-muted-foreground text-[10px] mr-1.5 font-mono">
@@ -1402,19 +1380,14 @@ export function BookEditor({ bookId }: { bookId: string }) {
                           type="button"
                           disabled={splitPoints.size === 0}
                           onClick={() => onApplySplit(c)}
-                          className="h-8 px-3 inline-flex items-center gap-1.5 bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-30 cursor-pointer"
+                          className="h-8 px-3 inline-flex items-center gap-1.5 bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-30 cursor-pointer text-[11px] uppercase tracking-[0.15em]"
                         >
                           <Scissors className="w-3 h-3" strokeWidth={1.4} />
-                          <span className="text-[11px] uppercase tracking-[0.15em]">
-                            Apply split
-                          </span>
+                          Apply split
                         </button>
                         <button
                           type="button"
-                          onClick={() => {
-                            setSplittingChapterId(null);
-                            setSplitPoints(new Set());
-                          }}
+                          onClick={() => { setSplittingChapterId(null); setSplitPoints(new Set()); }}
                           className="h-8 px-3 border border-border hover:border-foreground/40 text-xs uppercase tracking-[0.15em] cursor-pointer"
                         >
                           Cancel
@@ -1422,37 +1395,37 @@ export function BookEditor({ bookId }: { bookId: string }) {
                       </div>
                     </div>
                   )}
-                </li>
+                </div>
               ))}
-              {chapters.length === 0 && (
-                <li className="p-8 text-center text-muted-foreground text-sm">
-                  No chapters. Use Add chapter to start one.
-                </li>
-              )}
-            </ol>
-          </section>
-        </div>
+            </div>
+          )}
+        </section>
+
+        {/* ── Sticky save bar ─────────────────────────────────────── */}
+        {hasChanges && (
+          <div className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-sm border-t border-border pb-[env(safe-area-inset-bottom,0)]">
+            <div className="mx-auto max-w-[1100px] px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between sm:justify-end gap-3">
+              <span className="text-xs text-muted-foreground sm:hidden">Unsaved changes</span>
+              <div className="flex items-center gap-2">
+                <button
+                  className="h-9 sm:h-10 px-3 sm:px-4 inline-flex items-center gap-1.5 sm:gap-2 border border-border hover:border-foreground/40 transition-colors text-xs uppercase tracking-[0.18em]"
+                  onClick={() => navigate(`/library/${book.id}`)}
+                >
+                  <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={1.4} />
+                  <span className="hidden sm:inline">Cancel</span>
+                </button>
+                <button
+                  className="h-9 sm:h-10 px-4 sm:px-5 inline-flex items-center gap-1.5 sm:gap-2 bg-foreground text-background hover:bg-foreground/90 transition-colors text-xs uppercase tracking-[0.18em]"
+                  onClick={onSaveMeta}
+                >
+                  <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4" strokeWidth={1.4} />
+                  Save changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </StudioShell>
-  );
-}
-
-function Field({
-  label,
-  children,
-  action,
-}: {
-  label: string;
-  children: React.ReactNode;
-  action?: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <span className="studio-caps text-muted-foreground inline-flex items-center gap-2">
-        {label}
-        {action}
-      </span>
-      <div className="mt-1">{children}</div>
-    </label>
   );
 }
