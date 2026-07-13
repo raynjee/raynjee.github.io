@@ -530,11 +530,13 @@ async function testDeepSeek(cfg: ProviderConfig) {
 async function testGemini(cfg: ProviderConfig) {
   if (!cfg.apiKey) return { ok: false, message: "API key missing" };
   try {
-    const model = cfg.model || "gemini-1.5-flash";
+    const model = cfg.model || "gemini-3.5-flash";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
       model,
-    )}?key=${encodeURIComponent(cfg.apiKey)}`;
-    const r = await fetch(url);
+    )}`;
+    const r = await fetch(url, {
+      headers: { "x-goog-api-key": cfg.apiKey },
+    });
     if (!r.ok) {
       return { ok: false, message: `${r.status} ${r.statusText}` };
     }

@@ -28,10 +28,10 @@ export async function callGemini(
     const key = keys[i].trim();
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
       model,
-    )}:generateContent?key=${encodeURIComponent(key)}`;
+    )}:generateContent`;
 
     try {
-      const res = await fetchWithTimeout(url, body);
+      const res = await fetchWithTimeout(url, body, key);
       const data = (await res.json()) as GeminiResponse;
       const text = pickText(data);
       if (!text) throw new Error("Gemini returned an empty completion.");
@@ -86,13 +86,16 @@ function buildRequestBody(req: TranslateRequest) {
   };
 }
 
-async function fetchWithTimeout(url: string, body: unknown): Promise<Response> {
+async function fetchWithTimeout(url: string, body: unknown, apiKey: string): Promise<Response> {
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 90_000);
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });

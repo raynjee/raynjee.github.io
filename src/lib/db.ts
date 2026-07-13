@@ -485,13 +485,21 @@ export async function buildBackup(): Promise<StudioBackup> {
     tx<Chapter[]>(d, "chapters", "readonly", (s) => s.getAll()),
     tx<ChapterTranslation[]>(d, "translations", "readonly", (s) => s.getAll()),
   ]);
+  // Redact API keys from the exported settings so backups never leak
+  // credentials. On restore the user will re-enter their keys.
+  const safe = loadSettings();
+  safe.providers = safe.providers.map((p) => ({
+    ...p,
+    apiKey: p.apiKey ? "[REDACTED]" : "",
+    apiKeys: p.apiKeys ? p.apiKeys.map(() => "[REDACTED]") : undefined,
+  }));
   return {
     version: 1,
     exportedAt: Date.now(),
     books,
     chapters,
     translations,
-    settings: loadSettings(),
+    settings: safe,
     providerStatus: loadProviderStatus(),
   };
 }
