@@ -44,6 +44,7 @@ import { useSettings } from "@/hooks/use-settings";
 import type { Chapter } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { countWords, uid } from "@/lib/util";
+import { splitIntoChapters } from "@/lib/text-import";
 
 type LangFilter = "all" | "zh" | "ja" | "ko" | "other";
 type SortBy = "recent" | "title" | "progress";
@@ -911,6 +912,40 @@ export function BookEditor({ bookId }: { bookId: string }) {
     ? chapters.find((c) => c.id === splittingChapterId)
     : null;
 
+  const onReSplit = async () => {
+    if (chapters.length === 0) return;
+    if (
+      !confirm(
+        "Re-detect chapter boundaries? This will flatten all chapters into paragraphs and re-split them using chapter markers (e.g. 'Chapter 1', '第1章', etc.). Any custom chapter titles will be replaced.",
+      )
+    )
+      return;
+
+    // Flatten all paragraphs from all chapters in order
+    const allParagraphs = chapters.flatMap((c) => c.paragraphs);
+
+    // Detect split points
+    const reSplitChapters = splitIntoChapters(allParagraphs, book.title || "Untitled");
+
+    if (reSplitChapters.length === 0) {
+      toast.error("Could not detect any chapter boundaries.");
+      return;
+    }
+
+    // Create new Chapter objects with new IDs
+    const newChapters: Chapter[] = reSplitChapters.map((c, i) => ({
+      ...c,
+      id: uid("chap"),
+      bookId: book.id,
+      index: i,
+    }));
+
+    setChapters(newChapters);
+    await putChapters(newChapters);
+    await reorderChapters(book.id, newChapters.map((c) => c.id));
+    toast.success(`Re-split into ${newChapters.length} chapters.`);
+  };
+
   return (
     <StudioShell>
       <div className="mx-auto max-w-[1100px] px-6 lg:px-10 pt-10 pb-20">
@@ -1202,8 +1237,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
             </div>
           </section>
 
-          <section className="col-span-12">
-            <div className="flex items-end justify-between">
+          <section className="col-span-12">              <div className="flex items-end justify-between">
               <div>
                 <div className="studio-caps text-muted-foreground">
                   Table of contents
@@ -1212,15 +1246,28 @@ export function BookEditor({ bookId }: { bookId: string }) {
                   Chapters
                 </h2>
               </div>
-              <button
-                className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
-                onClick={onAddBlank}
-              >
-                <Plus className="w-4 h-4" strokeWidth={1.4} />
-                <span className="text-sm uppercase tracking-[0.18em]">
-                  Add chapter
-                </span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 cursor-pointer"
+                  onClick={() => onReSplit()}
+                  disabled={chapters.length === 0}
+                  title="Flatten all chapters and re-detect boundaries using chapter markers"
+                >
+                  <Scissors className="w-4 h-4" strokeWidth={1.4} />
+                  <span className="text-sm uppercase tracking-[0.18em]">
+                    Re-detect chapters
+                  </span>
+                </button>
+                <button
+                  className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
+                  onClick={onAddBlank}
+                >
+                  <Plus className="w-4 h-4" strokeWidth={1.4} />
+                  <span className="text-sm uppercase tracking-[0.18em]">
+                    Add chapter
+                  </span>
+                </button>
+              </div>
             </div>
             <ol className="mt-6 border border-border divide-y divide-border bg-card">
               {chapters.map((c, idx) => (

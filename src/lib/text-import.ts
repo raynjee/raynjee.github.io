@@ -100,7 +100,7 @@ const CHAPTER_MARKER_RE = new RegExp(
   "im",
 );
 
-function splitIntoChapters(
+export function splitIntoChapters(
   paragraphs: string[],
   filename: string,
 ): Array<Omit<Chapter, "id" | "bookId">> {
