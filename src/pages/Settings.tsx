@@ -23,6 +23,17 @@ import { toast } from "sonner";
 import { formatRelativeTime } from "@/lib/util";
 import type { ApiCallLog, ProviderId, StudioSettings, Quality, SourceLanguage } from "@/lib/types";
 
+const GEMINI_MODELS = [
+  "gemini-2.5-flash",
+  "gemini-2.5-flash-lite",
+  "gemini-2.5-pro",
+  "gemini-2.0-flash",
+  "gemini-2.0-flash-lite",
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-8b",
+  "gemini-1.5-pro",
+];
+
 export default function SettingsPage() {
   const { settings, update } = useSettings();
 
@@ -491,10 +502,9 @@ function ProviderSettings({
                     />
                   </Field>
                   <Field label="Model">
-                    <input
+                    <select
                       disabled={!canEdit}
-                      value={cfg.model ?? ""}
-                      placeholder="gemini-1.5-flash-latest"
+                      value={cfg.model ?? "gemini-2.5-flash"}
                       onChange={(e) =>
                         update({
                           providers: settings.providers.map((p) =>
@@ -503,7 +513,11 @@ function ProviderSettings({
                         })
                       }
                       className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2"
-                    />
+                    >
+                      {GEMINI_MODELS.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
                   </Field>
                 </div>
               )}
