@@ -1178,9 +1178,6 @@ function ChapterReader({
   busy: boolean;
   mobile?: boolean;
 }) {
-  // showOriginal/layout are now driven by per-book ReaderPrefs instead of
-  // local component state — so changes persist across sessions and stay in
-  // sync across tabs when paired with the useSettings() snapshot.
   const showOriginal = prefs.showOriginal;
   const showToc = prefs.showToc;
   const layout = prefs.layout;
@@ -1188,6 +1185,32 @@ function ChapterReader({
   const navigate = useNavigate();
   const paragraphs = chapter.paragraphs;
   const translated = translation?.paragraphs ?? Array(paragraphs.length).fill(null);
+
+  // Track freshly-translated paragraphs for a brief highlight animation.
+  // Only triggers when busy (streaming), not on initial load of an already-completed chapter.
+  const [freshIndices, setFreshIndices] = useState<Set<number>>(new Set());
+  const prevTranslatedRef = useRef<(string | null)[]>(translated);
+
+  useEffect(() => {
+    if (!busy) return;
+    const newFresh = new Set<number>();
+    translated.forEach((text, i) => {
+      if (text && !prevTranslatedRef.current[i]) {
+        newFresh.add(i);
+      }
+    });
+    prevTranslatedRef.current = translated;
+    if (newFresh.size === 0) return;
+    setFreshIndices((prev) => new Set([...prev, ...newFresh]));
+    const timer = setTimeout(() => {
+      setFreshIndices((prev) => {
+        const next = new Set(prev);
+        newFresh.forEach((i) => next.delete(i));
+        return next;
+      });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [translated, busy]);
 
   // Stack layout: original on top, English directly below in a single
   // column. The inner divider heading remains so the user can still tell
@@ -1372,11 +1395,14 @@ function ChapterReader({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.22, delay: Math.min(idx, 6) * 0.02 }}
               >
-                <p className="reader-prose-text text-foreground/80">
+                <p className="reader-prose-text text-foreground/80 py-3 px-1 -mx-1 rounded transition-colors duration-1000">
                   {p}
                 </p>
                 <div className="mt-3">
-                  <p className="reader-prose-text text-foreground/85 py-3">
+                  <p className={cn(
+                    "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000",
+                    freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent",
+                  )}>
                     {t && t.trim() ? t : (
                       <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
                     )}
@@ -1403,7 +1429,10 @@ function ChapterReader({
                   {p}
                 </p>
               )}
-              <p className="reader-prose-text text-foreground/85 py-3">
+              <p className={cn(
+                "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000",
+                freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent",
+              )}>
                 {t && t.trim() ? t : (
                   <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
                 )}
