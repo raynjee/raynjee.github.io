@@ -28,6 +28,7 @@ import {
   deleteBook,
   deleteChapter,
   importEpubFile,
+  importTextFile,
   renameChapter,
   reorderChapters,
   updateBook,
@@ -309,22 +310,35 @@ function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
   const [dragDepth, setDragDepth] = useState(0);
   const dragActive = dragDepth > 0;
 
-  // ── URL import state ──────────────────────────────────────────────
+  const isSupported = (f: File) =>
+    /\.epub$/i.test(f.name) ||
+    f.type === "application/epub+zip" ||
+    /\.(txt|docx?)$/i.test(f.name) ||
+    f.type === "text/plain" ||
+    f.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    f.type === "application/msword";
+
+  const importFile = async (file: File) => {
+    if (/\.epub$/i.test(file.name) || file.type === "application/epub+zip") {
+      await importEpubFile(file);
+    } else {
+      await importTextFile(file);
+    }
+  };
+
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const all = Array.from(files);
-    const epubs = all.filter(
-      (f) => /\.epub$/i.test(f.name) || f.type === "application/epub+zip",
-    );
-    const skipped = all.length - epubs.length;
-    if (epubs.length === 0) {
-      toast.error("No .epub files in that drop.");
+    const supported = all.filter(isSupported);
+    const skipped = all.length - supported.length;
+    if (supported.length === 0) {
+      toast.error("No supported files (.epub, .txt, .docx) in that drop.");
       return;
     }
     setBusy(true);
-    for (const file of epubs) {
+    for (const file of supported) {
       try {
-        await importEpubFile(file);
+        await importFile(file);
         toast.success(`"${file.name}" imported.`);
       } catch (e) {
         toast.error(
@@ -337,7 +351,7 @@ function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
     setBusy(false);
     if (skipped > 0) {
       toast.message(
-        `Skipped ${skipped} non-${skipped === 1 ? ".epub file" : ".epub files"}.`,
+        `Skipped ${skipped} unsupported ${skipped === 1 ? "file" : "files"}.`,
       );
     }
     await onUploaded();
@@ -348,13 +362,13 @@ function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
       <input
         ref={inputRef}
         type="file"
-        accept=".epub,application/epub+zip"
+        accept=".epub,.txt,.docx,.doc,application/epub+zip,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
         multiple
         className="hidden"
         onChange={(e) => void onFiles(e.target.files)}
       />
 
-      {/* EPUB drop zone */}
+      {/* Drop zone */}
       <div
         role="button"
         tabIndex={0}
@@ -383,7 +397,7 @@ function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
           setDragDepth(0);
           void onFiles(e.dataTransfer.files);
         }}
-        aria-label="Drag EPUB files here to import, or click to browse"
+        aria-label="Drag files here to import, or click to browse"
         className={cn(
           "block px-6 py-9 border border-dashed text-center cursor-pointer outline-none select-none transition-colors focus-visible:ring-1 focus-visible:ring-foreground/40",
           dragActive
@@ -412,7 +426,7 @@ function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
                 : "Drop or click to add"}
           </div>
           <div className="studio-caps text-muted-foreground">
-            .epub · multiple allowed
+            .epub · .txt · .docx · multiple allowed
           </div>
         </div>
       </div>
@@ -461,8 +475,8 @@ function EmptyWall({ onUploaded }: { onUploaded: () => Promise<void> }) {
         The wall is bare.
       </h2>
       <p className="text-muted-foreground mt-4 leading-relaxed max-w-[48ch] mx-auto">
-        Drop an .epub file below and the studio will unfold its spine, capture
-        the title, author, and cover, and set each chapter on its own shelf.
+        Drop an .epub, .txt, or .docx file below and the studio will unfold
+        its contents, capture the metadata, and set each chapter on its own shelf.
       </p>
       <div className="mt-8 mx-auto max-w-md">
         <EmptyDrop onUploaded={onUploaded} />
@@ -497,7 +511,7 @@ function EmptyWall({ onUploaded }: { onUploaded: () => Promise<void> }) {
       </div>
 
       <div className="mt-8 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
-        Multiple files · .epub
+        Multiple files · .epub · .txt · .docx
       </div>
     </div>
   );
@@ -509,21 +523,35 @@ function EmptyDrop({ onUploaded }: { onUploaded: () => Promise<void> }) {
   const [dragDepth, setDragDepth] = useState(0);
   const dragActive = dragDepth > 0;
 
+  const isSupported = (f: File) =>
+    /\.epub$/i.test(f.name) ||
+    f.type === "application/epub+zip" ||
+    /\.(txt|docx?)$/i.test(f.name) ||
+    f.type === "text/plain" ||
+    f.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+    f.type === "application/msword";
+
+  const importFile = async (file: File) => {
+    if (/\.epub$/i.test(file.name) || file.type === "application/epub+zip") {
+      await importEpubFile(file);
+    } else {
+      await importTextFile(file);
+    }
+  };
+
   const onFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const all = Array.from(files);
-    const epubs = all.filter(
-      (f) => /\.epub$/i.test(f.name) || f.type === "application/epub+zip",
-    );
-    const skipped = all.length - epubs.length;
-    if (epubs.length === 0) {
-      toast.error("No .epub files in that drop.");
+    const supported = all.filter(isSupported);
+    const skipped = all.length - supported.length;
+    if (supported.length === 0) {
+      toast.error("No supported files (.epub, .txt, .docx) in that drop.");
       return;
     }
     setBusy(true);
-    for (const file of epubs) {
+    for (const file of supported) {
       try {
-        await importEpubFile(file);
+        await importFile(file);
         toast.success(`"${file.name}" imported.`);
       } catch (e) {
         toast.error(
@@ -536,7 +564,7 @@ function EmptyDrop({ onUploaded }: { onUploaded: () => Promise<void> }) {
     setBusy(false);
     if (skipped > 0) {
       toast.message(
-        `Skipped ${skipped} non-${skipped === 1 ? ".epub file" : ".epub files"}.`,
+        `Skipped ${skipped} unsupported ${skipped === 1 ? "file" : "files"}.`,
       );
     }
     await onUploaded();
@@ -547,7 +575,7 @@ function EmptyDrop({ onUploaded }: { onUploaded: () => Promise<void> }) {
       <input
         ref={inputRef}
         type="file"
-        accept=".epub,application/epub+zip"
+        accept=".epub,.txt,.docx,.doc,application/epub+zip,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
         multiple
         className="hidden"
         onChange={(e) => void onFiles(e.target.files)}
@@ -580,7 +608,7 @@ function EmptyDrop({ onUploaded }: { onUploaded: () => Promise<void> }) {
           setDragDepth(0);
           void onFiles(e.dataTransfer.files);
         }}
-        aria-label="Drag EPUB files here to import, or click to browse"
+        aria-label="Drag files here to import, or click to browse"
         className={cn(
           "block px-6 py-12 border border-dashed text-center cursor-pointer outline-none select-none transition-colors focus-visible:ring-1 focus-visible:ring-foreground/40",
           dragActive
@@ -600,7 +628,7 @@ function EmptyDrop({ onUploaded }: { onUploaded: () => Promise<void> }) {
             {busy ? "Reading…" : dragActive ? "Release to begin" : "Drop to begin"}
           </div>
           <div className="studio-caps text-muted-foreground">
-            or click to browse
+            .epub · .txt · .docx
           </div>
         </div>
       </div>

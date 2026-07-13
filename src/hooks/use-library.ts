@@ -16,6 +16,7 @@ import {
 import type { Book, Chapter, ChapterTranslation } from "@/lib/types";
 import { countWords, uid } from "@/lib/util";
 import { parseEpubFile } from "@/lib/epub";
+import { parseTextFile, parseDocxFile } from "@/lib/text-import";
 
 type LibraryTick = { t: number };
 
@@ -97,6 +98,44 @@ export async function importEpubFile(file: File): Promise<Book> {
   await putBook(book);
   await putChapters(chapters);
   await putEpubBlob(book.id, parsed.blob);
+  notifyLibraryChanged();
+  return book;
+}
+
+// Import a plain-text or document file (.txt, .docx, .doc) and split it
+// into chapters using heuristic markers.
+export async function importTextFile(file: File): Promise<Book> {
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  const parsed =
+    ext === "docx" || ext === "doc"
+      ? await parseDocxFile(file)
+      : await parseTextFile(file);
+
+  const id = uid("book");
+  const now = Date.now();
+
+  const chapters: Chapter[] = parsed.chapters.map((c, i) => ({
+    ...c,
+    id: uid("chap"),
+    bookId: id,
+    index: i,
+  }));
+
+  const book: Book = {
+    id,
+    title: parsed.title,
+    author: parsed.author,
+    description: parsed.description,
+    language: parsed.language,
+    coverDataUrl: parsed.coverDataUrl,
+    originalEpub: null,
+    createdAt: now,
+    updatedAt: now,
+    chapterOrder: chapters.map((c) => c.id),
+  };
+
+  await putBook(book);
+  await putChapters(chapters);
   notifyLibraryChanged();
   return book;
 }
