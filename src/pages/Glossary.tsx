@@ -262,9 +262,11 @@ export default function Glossary() {
       const totalChunks = chunks.length;
       setExtractProgress({ done: 0, total: totalChunks });
 
-      // 4. Process each chunk, deduplicate by term.
-      const seen = new Map<string, { translation: string; category: string; gender: string | null; notes: string }>();
+      // 4. Process each chunk — persist new entries immediately as they arrive.
+      const seen = new Set<string>();
       let chunkErrors = 0;
+      let totalSaved = 0;
+      const now = Date.now();
 
       for (let ci = 0; ci < totalChunks; ci++) {
         // Rate-limit delay between chunks (skip the first).
@@ -292,69 +294,60 @@ export default function Glossary() {
             cfg.id,
           );
           if (extracted && extracted.length > 0) {
+            const fresh: GlossaryEntry[] = [];
             for (const item of extracted) {
               const term = (item.term ?? "").trim();
               const translation = (item.translation ?? "").trim();
               if (!term || !translation) continue;
-              // Only add if we haven't seen this term, or if the new translation is better.
-              const existing = seen.get(term);
-              if (!existing || translation.length > existing.translation.length) {
-                const category =
-                  item.category != null && (CATEGORIES as string[]).includes(item.category)
-                    ? item.category
-                    : "word";
-                const gender =
-                  item.gender === "F" || item.gender === "M" || item.gender === "N"
-                    ? item.gender
-                    : null;
-                seen.set(term, {
-                  translation,
-                  category: category as string,
-                  gender,
-                  notes: (item.notes ?? "").trim(),
-                });
-              }
+              // Skip terms we've already saved in a previous chunk.
+              if (seen.has(term)) continue;
+              seen.add(term);
+              const category =
+                item.category != null && (CATEGORIES as string[]).includes(item.category)
+                  ? item.category
+                  : "word";
+              const gender =
+                item.gender === "F" || item.gender === "M" || item.gender === "N"
+                  ? item.gender
+                  : null;
+              const entry: GlossaryEntry = {
+                id: `${bookId}:${uid()}`,
+                bookId,
+                term,
+                translation,
+                category: category as GlossaryEntry["category"],
+                gender: gender as GlossaryEntry["gender"],
+                notes: (item.notes ?? "").trim(),
+                createdAt: now + totalSaved,
+                updatedAt: now + totalSaved,
+              };
+              await putGlossaryEntry(entry);
+              fresh.push(entry);
+              totalSaved++;
+            }
+            // Stream new entries into the table immediately.
+            if (fresh.length > 0) {
+              setEntries((prev) => [...prev, ...fresh]);
             }
           }
         } catch (err) {
           chunkErrors++;
           const msg = err instanceof Error ? err.message : String(err);
           console.warn(`Glossary chunk ${ci + 1}/${totalChunks} failed:`, msg.slice(0, 120));
-          // Continue with remaining chunks — partial results are better than nothing.
         }
       }
 
       setExtractProgress({ done: totalChunks, total: totalChunks });
 
-      // 5. Persist all deduplicated entries.
-      if (seen.size === 0) {
+      if (totalSaved === 0) {
         toast.error("The AI returned no glossary entries across any chunk.");
         return;
       }
 
-      const now = Date.now();
-      let saved = 0;
-      for (const [term, info] of seen) {
-        const entry: GlossaryEntry = {
-          id: `${bookId}:${uid()}`,
-          bookId,
-          term,
-          translation: info.translation,
-          category: info.category as GlossaryEntry["category"],
-          gender: info.gender as GlossaryEntry["gender"],
-          notes: info.notes,
-          createdAt: now + saved,
-          updatedAt: now + saved,
-        };
-        await putGlossaryEntry(entry);
-        saved++;
-      }
-      await reloadEntries();
-
       const warning = chunkErrors > 0
         ? ` (${chunkErrors} chunk${chunkErrors > 1 ? "s" : ""} failed)`
         : "";
-      toast.success(`Extracted ${saved} glossary entries from ${totalChunks} chunk${totalChunks > 1 ? "s" : ""}${warning}.`);
+      toast.success(`Extracted ${totalSaved} glossary entries from ${totalChunks} chunk${totalChunks > 1 ? "s" : ""}${warning}.`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(`Extraction failed: ${msg.slice(0, 200)}`);
