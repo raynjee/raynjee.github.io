@@ -72,17 +72,119 @@ function splitParagraphs(text: string): string[] {
   // Normalize line endings, then split on blank lines (one or more).
   const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const blocks = normalized.split(/\n{2,}/);
-  return blocks
-    .map((b) => {
-      // Keep single newlines intact (preserve line breaks within paragraphs)
-      // but collapse multiple spaces/tabs — just not newlines.
-      return b
-        .replace(/[^\S\n]+/g, " ")
-        .replace(/ *\n */g, "\n")
-        .replace(/^\n+|\n+$/g, "")
-        .trim();
-    })
-    .filter((p) => p.length > 0);
+  const result: string[] = [];
+
+  for (const block of blocks) {
+    const cleaned = block.replace(/[^\S\n]+/g, " ").replace(/^\n+|\n+$/g, "").trim();
+    if (!cleaned) continue;
+
+    // Split into individual lines and clean each one
+    const lines = cleaned
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    if (lines.length === 0) continue;
+    if (lines.length === 1) {
+      result.push(lines[0]);
+      continue;
+    }
+
+    // Group lines intelligently: dialogue stays separate, narrative
+    // continuations get joined, headings stay standalone.
+    const groups = groupLines(lines);
+    for (const group of groups) {
+      result.push(group.join("\n"));
+    }
+  }
+
+  return result;
+}
+
+// ── Smart line grouping ───────────────────────────────────────────────────
+
+function isDialogueStart(line: string): boolean {
+  // Starts with any quote character or em/en dash (common in fiction)
+  return /^["\u201C\u2018\u300C\u300E\u2014\u2015\u2013]/.test(line);
+}
+
+function isHeadingLine(line: string): boolean {
+  // ALL CAPS and shorter than 60 chars — likely a section header
+  return line === line.toUpperCase() && line.length >= 4 && line.length < 60;
+}
+
+function endsWithSentenceEnd(line: string): boolean {
+  return /[.!?\u201D\u2019\u300D\u300F]\s*$/.test(line);
+}
+
+function endsWithContinuation(line: string): boolean {
+  // Line ends with comma, semicolon, colon, or no punctuation — continuation
+  return !/[.!?]\s*$/.test(line);
+}
+
+function groupLines(lines: string[]): string[][] {
+  const groups: string[][] = [];
+  let current: string[] = [lines[0]];
+
+  for (let i = 1; i < lines.length; i++) {
+    const prev = lines[i - 1];
+    const curr = lines[i];
+
+    // Dialogue line: always starts a new group
+    if (isDialogueStart(curr)) {
+      if (current.length > 0) groups.push(current);
+      current = [curr];
+      continue;
+    }
+
+    // Previous line was dialogue — break before narrative
+    if (isDialogueStart(prev)) {
+      groups.push(current);
+      current = [curr];
+      continue;
+    }
+
+    // Heading line: always standalone
+    if (isHeadingLine(curr) || isHeadingLine(prev)) {
+      if (current.length > 0) groups.push(current);
+      current = [curr];
+      continue;
+    }
+
+    // Short standalone lines (< 30 chars, surrounded by longer lines)
+    if (
+      curr.length < 30 &&
+      prev.length > 40 &&
+      i + 1 < lines.length &&
+      lines[i + 1].length > 40 &&
+      !isDialogueStart(curr)
+    ) {
+      groups.push(current);
+      current = [curr];
+      continue;
+    }
+
+    // Sentence boundary: prev ends with .!? and curr starts with capital
+    if (endsWithSentenceEnd(prev) && /^[A-Z\u0410-\u042F]/.test(curr)) {
+      groups.push(current);
+      current = [curr];
+      continue;
+    }
+
+    // Continuation: prev doesn't end with terminal punctuation — join
+    // Also join if curr starts with lowercase (mid-sentence continuation)
+    if (endsWithContinuation(prev) || /^[a-z]/.test(curr)) {
+      current.push(curr);
+      continue;
+    }
+
+    // Default: start new group (new paragraph)
+    groups.push(current);
+    current = [curr];
+  }
+
+  if (current.length > 0) groups.push(current);
+  return groups;
 }
 
 // ── Chapter detection ─────────────────────────────────────────────────────
