@@ -1032,7 +1032,8 @@ export function BookEditor({ bookId }: { bookId: string }) {
                   <input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2 text-lg font-display"
+                    placeholder="Book title"
+                    className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-3 text-lg font-display rounded transition-colors"
                   />
                 </Field>
                 <Field
@@ -1068,7 +1069,8 @@ export function BookEditor({ bookId }: { bookId: string }) {
                   <input
                     value={author}
                     onChange={(e) => setAuthor(e.target.value)}
-                    className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2"
+                    placeholder="Author name"
+                    className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-3 rounded transition-colors"
                   />
                 </Field>
                 <Field
@@ -1105,7 +1107,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     rows={5}
-                    className="w-full bg-transparent border border-border focus:border-foreground outline-none p-3 text-sm leading-relaxed resize-none"
+                    className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none p-3 text-sm leading-relaxed resize-none rounded transition-colors"
                     placeholder="A short note for readers."
                   />
                 </Field>
