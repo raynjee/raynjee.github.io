@@ -17,6 +17,8 @@ import {
   Pause,
   Play,
   Sparkles,
+  Square,
+  Trash2,
   Undo2,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
@@ -48,6 +50,7 @@ export default function BookReader() {
   const [glossaryEntries, setGlossaryEntries] = useState<GlossaryEntry[]>([]);
   const [activeId, setActiveId] = useState<string | null>(chapterId ?? null);
   const [busy, setBusy] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number; provider: any } | null>(null);
   const managerRef = useRef<TranslationManager | null>(null);
   const stopRef = useRef(false);
@@ -237,6 +240,7 @@ export default function BookReader() {
     stopRef.current = false;
     try {
       setBusy(true);
+      setPaused(false);
       setProgress({ done: 0, total: activeChapter.paragraphs.length, provider: null });
       const mgr = makeManager();
       managerRef.current = mgr;
@@ -245,6 +249,9 @@ export default function BookReader() {
         contextHint: `Chapter: ${activeChapter.title}. From ${book.title}.`,
         glossary: glossaryEntries.length ? glossaryEntries : undefined,
         onProgress: (p) => setProgress({ done: p.done, total: p.total, provider: p.provider }),
+        checkPause: async () => {
+          if (stopRef.current) throw new Error("STOPPED_BY_USER");
+        },
         onPartialRows: (partialRows) => {
           // Stream translated paragraphs immediately — the reader renders
           // each chunk as it completes while the rest shows "Translating…".
@@ -296,15 +303,60 @@ export default function BookReader() {
         );
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(`Translation failed: ${msg.slice(0, 200)}`);
+      if (err instanceof Error && err.message === "STOPPED_BY_USER") {
+        toast("Translation stopped.");
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Translation failed: ${msg.slice(0, 200)}`);
+      }
     } finally {
       if (mountedRef.current) {
         setBusy(false);
+        setPaused(false);
         setProgress(null);
       }
     }
   };
+
+  const onPause = useCallback(() => {
+    const mgr = managerRef.current;
+    if (!mgr) return;
+    mgr.pause();
+    setPaused(true);
+  }, []);
+
+  const onResume = useCallback(() => {
+    const mgr = managerRef.current;
+    if (!mgr) return;
+    stopRef.current = false;
+    mgr.resume();
+    setPaused(false);
+  }, []);
+
+  const onStop = useCallback(() => {
+    stopRef.current = true;
+    const mgr = managerRef.current;
+    if (mgr) mgr.resume(); // break out of waitForResume so checkPause fires
+    setPaused(false);
+  }, []);
+
+  const onDeleteTranslation = useCallback(async () => {
+    if (!book || !activeChapter) return;
+    if (busy) return;
+    const emptyTr: ChapterTranslation = {
+      id: `${book.id}:${activeChapter.id}`,
+      bookId: book.id,
+      chapterId: activeChapter.id,
+      paragraphs: Array(activeChapter.paragraphs.length).fill(null),
+      status: "idle",
+      provider: null,
+      progress: 0,
+    };
+    await saveTranslation(emptyTr);
+    setTranslations((m) => ({ ...m, [activeChapter.id]: emptyTr }));
+    notifyLibraryChanged();
+    toast.success("Translation deleted.");
+  }, [book, activeChapter, busy]);
 
   const batchProgress = useRef({ done: 0, total: 0 });
 
@@ -437,20 +489,6 @@ export default function BookReader() {
     }
   };
 
-  const onPauseToggle = () => {
-    const mgr = managerRef.current;
-    if (!mgr) return;
-    if (mgr.isPaused()) {
-      mgr.resume();
-      stopRef.current = false;
-      toast("Resumed.", { icon: "▶" });
-    } else {
-      mgr.pause();
-      stopRef.current = true;
-      toast("Translation paused.", { icon: "⏸" });
-    }
-  };
-
   const onExport = async () => {
     if (!book) return;
     if (chapters.length === 0) return;
@@ -527,21 +565,6 @@ export default function BookReader() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <ApiLender settings={settings} />
-            <button
-              type="button"
-              disabled={busy}
-              onClick={onPauseToggle}
-              className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 disabled:opacity-50"
-            >
-              {managerRef.current?.isPaused() ? (
-                <Play className="w-4 h-4" strokeWidth={1.4} />
-              ) : (
-                <Pause className="w-4 h-4" strokeWidth={1.4} />
-              )}
-              <span className="text-xs uppercase tracking-[0.18em]">
-                {managerRef.current?.isPaused() ? "Resume" : "Pause"}
-              </span>
-            </button>
             <button
               type="button"
               disabled={busy}
@@ -717,6 +740,11 @@ export default function BookReader() {
                 prefs={prefs}
                 bookId={book.id}
                 onTranslate={onTranslateActive}
+                onPause={onPause}
+                onResume={onResume}
+                onStop={onStop}
+                onDeleteTranslation={onDeleteTranslation}
+                isPaused={paused}
                 onTranslateParagraph={async (paragraphIdx) => {
                   if (!book || !activeChapter) return;
                   const tr = activeTranslation ?? makeEmptyTranslation(book.id, activeChapter.id, activeChapter.paragraphs.length);
@@ -819,6 +847,11 @@ function ChapterReader({
   prefs,
   bookId,
   onTranslate,
+  onPause,
+  onResume,
+  onStop,
+  onDeleteTranslation,
+  isPaused,
   onTranslateParagraph,
   onResetParagraph,
   busy,
@@ -830,6 +863,11 @@ function ChapterReader({
     : never;
   bookId: string;
   onTranslate: () => void | Promise<void>;
+  onPause: () => void;
+  onResume: () => void;
+  onStop: () => void;
+  onDeleteTranslation: () => void;
+  isPaused: boolean;
   onTranslateParagraph: (idx: number) => void | Promise<void>;
   onResetParagraph: (idx: number) => void;
   busy: boolean;
@@ -890,21 +928,66 @@ function ChapterReader({
             <span className="text-xs uppercase tracking-[0.18em]">Glossary</span>
           </button>
           <ReaderSettingsMenu bookId={bookId} />
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onTranslate}
-            className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
-          >
-            {busy ? (
-              <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
-            ) : (
-              <Sparkles className="w-4 h-4" strokeWidth={1.4} />
-            )}
-            <span className="text-xs uppercase tracking-[0.18em]">
-              {translation?.status === "completed" ? "Re-translate" : "Translate chapter"}
-            </span>
-          </button>
+          {busy ? (
+            <>
+              <button
+                type="button"
+                onClick={onStop}
+                className="h-10 px-3 inline-flex items-center gap-2 border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+              >
+                <Square className="w-3.5 h-3.5" strokeWidth={1.6} />
+                <span className="text-xs uppercase tracking-[0.18em]">Stop</span>
+              </button>
+              {isPaused ? (
+                <button
+                  type="button"
+                  onClick={onResume}
+                  className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors cursor-pointer"
+                >
+                  <Play className="w-4 h-4" strokeWidth={1.4} />
+                  <span className="text-xs uppercase tracking-[0.18em]">Resume</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onPause}
+                  className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors cursor-pointer"
+                >
+                  <Pause className="w-4 h-4" strokeWidth={1.4} />
+                  <span className="text-xs uppercase tracking-[0.18em]">Pause</span>
+                </button>
+              )}
+              <span className="inline-flex items-center gap-2 text-xs text-muted-foreground px-1">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+                Translating…
+              </span>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onTranslate}
+                className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4" strokeWidth={1.4} />
+                <span className="text-xs uppercase tracking-[0.18em]">
+                  {translation?.status === "completed" ? "Re-translate" : "Translate chapter"}
+                </span>
+              </button>
+              {translation && translation.paragraphs.some((p) => p && p.trim()) && (
+                <button
+                  type="button"
+                  onClick={onDeleteTranslation}
+                  className="h-10 px-3 inline-flex items-center gap-2 border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                  title="Delete this chapter's translation"
+                >
+                  <Trash2 className="w-4 h-4" strokeWidth={1.4} />
+                  <span className="text-xs uppercase tracking-[0.18em]">Delete</span>
+                </button>
+              )}
+            </>
+          )}
         </div>
       </header>
 
