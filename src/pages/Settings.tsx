@@ -24,9 +24,6 @@ import { formatRelativeTime } from "@/lib/util";
 import type { ApiCallLog, ProviderId, StudioSettings, Quality, SourceLanguage } from "@/lib/types";
 
 const GEMINI_MODELS = [
-  "gemini-2.5-flash",
-  "gemini-2.5-flash-lite",
-  "gemini-2.5-pro",
   "gemini-2.0-flash",
   "gemini-2.0-flash-lite",
   "gemini-1.5-flash",
@@ -504,7 +501,7 @@ function ProviderSettings({
                   <Field label="Model">
                     <select
                       disabled={!canEdit}
-                      value={cfg.model ?? "gemini-2.5-flash"}
+                      value={cfg.model ?? "gemini-2.0-flash"}
                       onChange={(e) =>
                         update({
                           providers: settings.providers.map((p) =>
