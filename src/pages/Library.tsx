@@ -12,8 +12,10 @@ import {
   Languages,
   Library as LibraryIcon,
   Loader2,
+  Merge,
   Plus,
   Save,
+  Scissors,
   Sparkles,
   Trash2,
   Undo2,
@@ -35,12 +37,13 @@ import {
   useAllBookStats,
   useLibrary,
 } from "@/hooks/use-library";
-import { listChapters } from "@/lib/db";
+import { listChapters, putBook, putChapters } from "@/lib/db";
 import { buildSampleEpub } from "@/lib/seed";
 import { TranslationManager } from "@/lib/translators/types";
 import { useSettings } from "@/hooks/use-settings";
 import type { Chapter } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { countWords, uid } from "@/lib/util";
 
 type LangFilter = "all" | "zh" | "ja" | "ko" | "other";
 type SortBy = "recent" | "title" | "progress";
@@ -694,6 +697,10 @@ export function BookEditor({ bookId }: { bookId: string }) {
   const origAuthorRef = useRef(book?.author ?? "");
   const origDescRef = useRef(book?.description ?? "");
 
+  // Chapter split UI state
+  const [splittingChapterId, setSplittingChapterId] = useState<string | null>(null);
+  const [splitPoints, setSplitPoints] = useState<Set<number>>(new Set());
+
   const translateField = async (
     text: string,
     kind: string,
@@ -802,6 +809,107 @@ export function BookEditor({ bookId }: { bookId: string }) {
     await updateBook(book.id, { title, author, description, coverDataUrl: cover });
     toast.success("Book details saved.");
   };
+
+  // ── Chapter split / merge ─────────────────────────────────────────────
+
+  const onToggleSplit = (chapterId: string) => {
+    if (splittingChapterId === chapterId) {
+      setSplittingChapterId(null);
+      setSplitPoints(new Set());
+    } else {
+      setSplittingChapterId(chapterId);
+      setSplitPoints(new Set());
+    }
+  };
+
+  const onToggleSplitPoint = (paraIdx: number) => {
+    const next = new Set(splitPoints);
+    if (next.has(paraIdx)) {
+      next.delete(paraIdx);
+    } else {
+      next.add(paraIdx);
+    }
+    setSplitPoints(next);
+  };
+
+  const onApplySplit = async (chapter: Chapter) => {
+    if (splitPoints.size === 0) return;
+
+    const sortedPoints = [...splitPoints].sort((a, b) => a - b);
+    const groups: string[][] = [];
+    let start = 0;
+    for (const pt of sortedPoints) {
+      groups.push(chapter.paragraphs.slice(start, pt));
+      start = pt;
+    }
+    groups.push(chapter.paragraphs.slice(start));
+
+    const nonEmpty = groups.filter((g) => g.length > 0);
+    if (nonEmpty.length <= 1) {
+      toast.message("Split would produce only one non-empty chapter.");
+      return;
+    }
+
+    const newChapters: Chapter[] = nonEmpty.map((paras, i) => ({
+      id: uid("chap"),
+      bookId: book.id,
+      index: 0,
+      title: i === 0 ? chapter.title : `${chapter.title} (part ${i + 1})`,
+      html: "",
+      paragraphs: paras,
+      wordCount: paras.reduce((s, p) => s + countWords(p), 0),
+    }));
+
+    const idx = chapters.findIndex((c) => c.id === chapter.id);
+    const nextChapters = [
+      ...chapters.slice(0, idx),
+      ...newChapters,
+      ...chapters.slice(idx + 1),
+    ];
+
+    setChapters(nextChapters);
+    setSplittingChapterId(null);
+    setSplitPoints(new Set());
+
+    await putChapters(newChapters);
+    await reorderChapters(book.id, nextChapters.map((c) => c.id));
+    toast.success(`Chapter split into ${newChapters.length} parts.`);
+  };
+
+  const onMergeNext = async (idx: number) => {
+    if (idx >= chapters.length - 1) return;
+    const current = chapters[idx];
+    const nextChap = chapters[idx + 1];
+
+    if (!confirm(`Merge "${current.title}" with "${nextChap.title}"?`)) return;
+
+    const mergedTitle = current.title;
+    const mergedParas = [...current.paragraphs, ...nextChap.paragraphs];
+    const merged: Chapter = {
+      id: uid("chap"),
+      bookId: book.id,
+      index: idx,
+      title: mergedTitle,
+      html: "",
+      paragraphs: mergedParas,
+      wordCount: mergedParas.reduce((s, p) => s + countWords(p), 0),
+    };
+
+    const nextChapters = [
+      ...chapters.slice(0, idx),
+      merged,
+      ...chapters.slice(idx + 2),
+    ];
+
+    setChapters(nextChapters);
+    await putChapters([merged]);
+    await reorderChapters(book.id, nextChapters.map((c) => c.id));
+    toast.success("Chapters merged.");
+  };
+
+  const activeSplitChapter = splittingChapterId
+    ? chapters.find((c) => c.id === splittingChapterId)
+    : null;
 
   return (
     <StudioShell>
@@ -1116,41 +1224,145 @@ export function BookEditor({ bookId }: { bookId: string }) {
             </div>
             <ol className="mt-6 border border-border divide-y divide-border bg-card">
               {chapters.map((c, idx) => (
-                <li key={c.id} className="grid grid-cols-12 items-center gap-4 p-4">
-                  <span className="col-span-1 studio-num text-muted-foreground">
-                    {String(idx + 1).padStart(2, "0")}
-                  </span>
-                  <input
-                    value={c.title}
-                    onChange={(e) => onRename(c.id, e.target.value)}
-                    className="col-span-6 bg-transparent border-b border-border focus:border-foreground outline-none py-1 font-display text-lg"
-                  />
-                  <span className="col-span-2 text-xs text-muted-foreground">
-                    {c.wordCount.toLocaleString()} words
-                  </span>
-                  <div className="col-span-3 flex items-center justify-end gap-2">
-                    <button
-                      className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40"
-                      onClick={() => onMove(idx, -1)}
-                      aria-label="Move up"
-                    >
-                      <ArrowUp className="w-4 h-4" strokeWidth={1.4} />
-                    </button>
-                    <button
-                      className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40"
-                      onClick={() => onMove(idx, 1)}
-                      aria-label="Move down"
-                    >
-                      <ArrowDown className="w-4 h-4" strokeWidth={1.4} />
-                    </button>
-                    <button
-                      className="w-8 h-8 grid place-items-center border border-border hover:border-destructive hover:text-destructive"
-                      onClick={() => onDelete(c.id)}
-                      aria-label="Delete"
-                    >
-                      <Trash2 className="w-4 h-4" strokeWidth={1.4} />
-                    </button>
+                <li key={c.id}>
+                  <div className="grid grid-cols-12 items-center gap-4 p-4">
+                    <span className="col-span-1 studio-num text-muted-foreground">
+                      {String(idx + 1).padStart(2, "0")}
+                    </span>
+                    <input
+                      value={c.title}
+                      onChange={(e) => onRename(c.id, e.target.value)}
+                      className="col-span-5 bg-transparent border-b border-border focus:border-foreground outline-none py-1 font-display text-lg"
+                    />
+                    <span className="col-span-2 text-xs text-muted-foreground">
+                      {c.wordCount.toLocaleString()} words
+                    </span>
+                    <div className="col-span-4 flex items-center justify-end gap-1.5">
+                      {/* Split button */}
+                      <button
+                        className={cn(
+                          "w-8 h-8 grid place-items-center border transition-colors cursor-pointer",
+                          splittingChapterId === c.id
+                            ? "border-foreground bg-foreground/10"
+                            : "border-border hover:border-foreground/40",
+                        )}
+                        onClick={() => onToggleSplit(c.id)}
+                        aria-label="Split chapter"
+                        title="Split chapter"
+                      >
+                        <Scissors className="w-3.5 h-3.5" strokeWidth={1.4} />
+                      </button>
+                      {/* Merge with next */}
+                      {idx < chapters.length - 1 && (
+                        <button
+                          className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40 transition-colors cursor-pointer"
+                          onClick={() => onMergeNext(idx)}
+                          aria-label="Merge with next"
+                          title="Merge with next chapter"
+                        >
+                          <Merge className="w-3.5 h-3.5" strokeWidth={1.4} />
+                        </button>
+                      )}
+                      <button
+                        className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40"
+                        onClick={() => onMove(idx, -1)}
+                        aria-label="Move up"
+                      >
+                        <ArrowUp className="w-4 h-4" strokeWidth={1.4} />
+                      </button>
+                      <button
+                        className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40"
+                        onClick={() => onMove(idx, 1)}
+                        aria-label="Move down"
+                      >
+                        <ArrowDown className="w-4 h-4" strokeWidth={1.4} />
+                      </button>
+                      <button
+                        className="w-8 h-8 grid place-items-center border border-border hover:border-destructive hover:text-destructive"
+                        onClick={() => onDelete(c.id)}
+                        aria-label="Delete"
+                      >
+                        <Trash2 className="w-4 h-4" strokeWidth={1.4} />
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Expandable split UI */}
+                  {splittingChapterId === c.id && activeSplitChapter && (
+                    <div className="border-t border-border bg-accent/30 px-4 py-3">
+                      <div className="text-xs text-muted-foreground mb-2">
+                        Click between paragraphs to mark split points. Then
+                        click &ldquo;Apply split&rdquo; to create new chapters.
+                      </div>
+                      <div className="max-h-64 overflow-y-auto space-y-0.5 text-sm leading-relaxed">
+                        {activeSplitChapter.paragraphs.map((p, pi) => (
+                          <div key={pi}>
+                            {/* Split marker between paragraphs */}
+                            {pi > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => onToggleSplitPoint(pi)}
+                                className={cn(
+                                  "w-full h-6 flex items-center justify-center gap-2 border border-dashed transition-colors cursor-pointer group",
+                                  splitPoints.has(pi)
+                                    ? "border-orange-400 bg-orange-50 dark:bg-orange-900/20"
+                                    : "border-border hover:border-foreground/30",
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "text-[10px] uppercase tracking-wider",
+                                    splitPoints.has(pi)
+                                      ? "text-orange-600 font-semibold"
+                                      : "text-muted-foreground/50 group-hover:text-muted-foreground",
+                                  )}
+                                >
+                                  {splitPoints.has(pi) ? "— Split here —" : "+ split"}
+                                </span>
+                              </button>
+                            )}
+                            {/* Paragraph preview */}
+                            <p
+                              className={cn(
+                                "px-2 py-1 rounded transition-colors",
+                                splitPoints.has(pi)
+                                  ? "bg-orange-50 dark:bg-orange-900/10"
+                                  : "",
+                              )}
+                            >
+                              <span className="text-muted-foreground text-[10px] mr-1.5 font-mono">
+                                [{pi + 1}]
+                              </span>
+                              {p.length > 120 ? `${p.slice(0, 120)}…` : p}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={splitPoints.size === 0}
+                          onClick={() => onApplySplit(c)}
+                          className="h-8 px-3 inline-flex items-center gap-1.5 bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-30 cursor-pointer"
+                        >
+                          <Scissors className="w-3 h-3" strokeWidth={1.4} />
+                          <span className="text-[11px] uppercase tracking-[0.15em]">
+                            Apply split
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSplittingChapterId(null);
+                            setSplitPoints(new Set());
+                          }}
+                          className="h-8 px-3 border border-border hover:border-foreground/40 text-xs uppercase tracking-[0.15em] cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
               {chapters.length === 0 && (
