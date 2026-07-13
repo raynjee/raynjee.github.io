@@ -64,6 +64,7 @@ const DEFAULT_SETTINGS: StudioSettings = {
   quality: "balanced",
   parallelRequests: 2,
   geminiRpmLimit: 8,
+  glossaryChunkSize: 4000,
   pauseOnError: false,
   themePref: "light",
   defaultReaderPrefs: { ...DEFAULT_READER_PREFS },

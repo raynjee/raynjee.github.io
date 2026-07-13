@@ -723,18 +723,28 @@ function TranslationPreferences({
           </div>
         </PreferenceCard>
         <PreferenceCard
-          title="On errors"
-          help="What happens when a provider fails."
+          title="Glossary chunk size"
+          help={`${(settings.glossaryChunkSize ?? 4000).toLocaleString()} chars per API call. Lower = safer for free tiers, higher = faster for paid plans.`}
         >
-          <label className="flex items-center gap-3 text-sm cursor-pointer">
+          <div className="flex items-center gap-3">
             <input
-              type="checkbox"
               disabled={!canEdit}
-              checked={settings.pauseOnError}
-              onChange={(e) => update({ pauseOnError: e.target.checked })}
+              type="range"
+              min={1000}
+              max={16000}
+              step={500}
+              value={settings.glossaryChunkSize ?? 4000}
+              onChange={(e) => update({ glossaryChunkSize: Number(e.target.value) })}
+              className="flex-1 h-1 accent-foreground"
             />
-            <span>Pause translation queue on first error</span>
-          </label>
+            <span className="font-mono text-sm w-14 text-right tabular-nums">
+              {(settings.glossaryChunkSize ?? 4000).toLocaleString()}
+            </span>
+          </div>
+          <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+            <span>Free tier</span>
+            <span>Paid tier</span>
+          </div>
         </PreferenceCard>
       </div>
     </section>

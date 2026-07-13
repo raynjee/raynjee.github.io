@@ -163,6 +163,7 @@ export interface StudioSettings {
   quality: Quality;
   parallelRequests: number;
   geminiRpmLimit: number; // max Gemini requests per minute (default 8, stay under free tier 10)
+  glossaryChunkSize: number; // chars per chunk for glossary extraction (default 4000, range 1000-16000)
   pauseOnError: boolean;
   themePref: "light" | "dark" | "system";
   defaultReaderPrefs: ReaderPrefs;

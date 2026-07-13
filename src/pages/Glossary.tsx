@@ -213,7 +213,7 @@ export default function Glossary() {
 
   // ── Extract from EPUB (chunked) ─────────────────────────────────────
 
-  const CHUNK_CHARS = 4000; // small enough for free-tier Gemini, large enough for context
+  const CHUNK_CHARS = settings.glossaryChunkSize ?? 4000; // user-configurable chunk size
   const CHUNK_DELAY_MS = 7000; // ~8.5 RPM — safe under free-tier 10 RPM limit
 
   const onExtract = async () => {
