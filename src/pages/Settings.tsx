@@ -47,7 +47,7 @@ export default function SettingsPage() {
           studio's housekeeping. Everything lives on your machine.
         </p>
 
-        <div className="mt-10 space-y-12">
+        <div className="mt-0 space-y-10 sm:space-y-12">
           <DeepSeekTutorial />
           <ProviderSettings settings={settings} update={update} canEdit={true} />
           <TranslationPreferences settings={settings} update={update} canEdit={true} />
@@ -248,10 +248,10 @@ function DeepSeekTutorial() {
       <div className="flex items-start gap-3">
         <Terminal className="w-5 h-5 text-foreground mt-0.5" strokeWidth={1.4} />
         <div className="flex-1">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-4">
             <div>
               <div className="studio-caps text-muted-foreground">Setup Guide</div>
-              <h2 className="font-display text-2xl mt-0.5">Run the DeepSeek proxy</h2>
+              <h2 className="font-display text-xl sm:text-2xl mt-0.5">Run the DeepSeek proxy</h2>
             </div>
             <button
               onClick={onCopy}
@@ -275,7 +275,7 @@ function DeepSeekTutorial() {
             translate button in the studio talks to it automatically.
           </p>
 
-          <div className="mt-4 bg-muted/50 border border-border p-4 font-mono text-xs leading-relaxed text-foreground/85 overflow-x-auto">
+          <div className="mt-4 bg-muted/50 border border-border p-3 sm:p-4 font-mono text-[11px] sm:text-xs leading-relaxed text-foreground/85 overflow-x-auto">
             <div className="text-muted-foreground mb-2 uppercase tracking-[0.18em]">
               Terminal — run these once
             </div>

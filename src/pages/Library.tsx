@@ -134,7 +134,7 @@ export default function Library() {
             <div className="studio-caps text-muted-foreground">
               Edition 01 · The Gallery
             </div>
-            <h1 className="font-display text-[40px] sm:text-[60px] lg:text-[80px] mt-2 tracking-tight leading-[0.95]">
+            <h1 className="font-display text-[36px] sm:text-[48px] md:text-[60px] lg:text-[80px] mt-2 tracking-tight leading-[0.95]">
               Library.
             </h1>
             <p className="text-muted-foreground mt-4 max-w-[56ch] leading-relaxed">
@@ -473,9 +473,9 @@ function EmptyWall({ onUploaded }: { onUploaded: () => Promise<void> }) {
     }
   };
   return (
-    <div className="max-w-2xl mx-auto studio-card p-10 lg:p-14 text-center">
+    <div className="max-w-2xl mx-auto studio-card p-6 sm:p-10 lg:p-14 text-center">
       <div className="studio-caps text-muted-foreground">Plate 0 — Empty Wall</div>
-      <h2 className="font-display text-4xl lg:text-5xl mt-3 tracking-tight leading-tight">
+      <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl mt-3 tracking-tight leading-tight">
         The wall is bare.
       </h2>
       <p className="text-muted-foreground mt-4 leading-relaxed max-w-[48ch] mx-auto">

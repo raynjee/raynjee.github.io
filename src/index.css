@@ -129,15 +129,13 @@
   --sidebar: oklch(0.205 0.012 60);
   --sidebar-foreground: oklch(0.94 0.012 80);
   --sidebar-border: oklch(0.94 0.012 80 / 14%);
-}
-
-@layer base {
+}  @layer base {
   * {
     @apply border-border outline-ring/50;
   }
   html,
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground overflow-x-hidden;
     font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv11", "kern";
     -webkit-font-smoothing: antialiased;
@@ -208,11 +206,17 @@
   .gallery-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 2rem;
+    gap: 1rem;
+  }
+  @media (min-width: 640px) {
+    .gallery-grid {
+      gap: 1.5rem;
+    }
   }
   @media (min-width: 768px) {
     .gallery-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 2rem;
     }
   }
   @media (min-width: 1200px) {

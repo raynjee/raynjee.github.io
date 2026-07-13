@@ -50,7 +50,7 @@ export default function Landing() {
 
           <motion.h1
             variants={FADE}
-            className="col-span-12 lg:col-span-10 font-display text-[60px] lg:text-[104px] leading-[0.92] tracking-tight text-foreground"
+            className="col-span-12 lg:col-span-10 font-display text-[44px] sm:text-[60px] lg:text-[104px] leading-[0.92] tracking-tight text-foreground"
           >
             Bring a foreign EPUB.
             <br />
@@ -99,7 +99,7 @@ export default function Landing() {
           <div className="col-span-12 studio-caps text-muted-foreground">
             § II · At the Desk
           </div>
-          <h2 className="col-span-12 lg:col-span-9 font-display text-5xl lg:text-6xl tracking-tight">
+          <h2 className="col-span-12 lg:col-span-9 font-display text-4xl sm:text-5xl lg:text-6xl tracking-tight">
             One paragraph in. One paragraph out.
           </h2>
           <p className="col-span-12 lg:col-span-5 lg:col-start-8 text-muted-foreground leading-relaxed">
@@ -120,7 +120,7 @@ export default function Landing() {
           <div className="col-span-12 studio-caps text-muted-foreground">
             § III · What lives here
           </div>
-          <h2 className="col-span-12 lg:col-span-9 font-display text-5xl lg:text-6xl tracking-tight">
+          <h2 className="col-span-12 lg:col-span-9 font-display text-4xl sm:text-5xl lg:text-6xl tracking-tight">
             Three rooms, all on one machine.
           </h2>
           <p className="col-span-12 lg:col-span-5 lg:col-start-8 text-muted-foreground leading-relaxed">
@@ -174,7 +174,7 @@ export default function Landing() {
           transition={{ duration: 0.5 }}
         >
           <div className="studio-caps text-muted-foreground">§ IV · Curfew</div>
-          <h2 className="font-display text-6xl lg:text-8xl mt-5 tracking-tight leading-[0.95] max-w-[18ch] mx-auto">
+          <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl mt-5 tracking-tight leading-[0.95] max-w-[18ch] mx-auto">
             Bring a book.
             <br />
             Read it in English.
@@ -250,7 +250,7 @@ function Plate({
       }`}
     >
       <div className="col-span-12 lg:col-span-2 flex items-start gap-3">
-        <span className="font-display text-6xl lg:text-7xl leading-none text-foreground">
+        <span className="font-display text-4xl sm:text-5xl lg:text-6xl leading-none text-foreground">
           {numeral}
         </span>
       </div>
@@ -259,7 +259,7 @@ function Plate({
           <Icon className="w-4 h-4" strokeWidth={1.4} />
           <span>{eyebrow}</span>
         </div>
-        <h3 className="mt-4 font-display text-3xl lg:text-4xl tracking-tight leading-tight">
+        <h3 className="mt-4 font-display text-2xl sm:text-3xl lg:text-4xl tracking-tight leading-tight">
           {title}
         </h3>
         <p className="mt-4 max-w-[64ch] text-[15px] leading-relaxed text-foreground/80">
@@ -307,17 +307,17 @@ function DeskPreview() {
       className="studio-card overflow-hidden"
     >
       {/* Header bar — exactly like BookReader */}
-      <header className="px-6 lg:px-10 py-5 border-b border-border grid grid-cols-12 items-center gap-4">
-        <div className="col-span-12 lg:col-span-7">
+      <header className="px-4 sm:px-6 lg:px-10 py-4 sm:py-5 border-b border-border flex flex-col sm:grid sm:grid-cols-12 sm:items-center gap-3 sm:gap-4">
+        <div className="sm:col-span-12 lg:col-span-7">
           <div className="studio-caps text-muted-foreground">Chapter</div>
-          <h3 className="font-display text-2xl mt-1 leading-tight">
+          <h3 className="font-display text-lg sm:text-2xl mt-1 leading-tight">
             {PREVIEW_SAMPLE.title}
           </h3>
           <div className="text-sm text-muted-foreground mt-1">
             {PREVIEW_SAMPLE.author}
           </div>
         </div>
-        <div className="col-span-12 lg:col-span-5 grid grid-cols-3 gap-3 lg:text-right">
+        <div className="sm:col-span-12 lg:col-span-5 grid grid-cols-3 gap-2 sm:gap-3">
           <Mini label="Language" value="ZH → EN" />
           <Mini label="Provider" value="DeepSeek" />
           <Mini label="Progress" value={PREVIEW_SAMPLE.progress} />
@@ -331,19 +331,19 @@ function DeskPreview() {
             key={idx}
             className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-border"
           >
-            <div className="px-6 lg:px-10 py-7 lg:py-9 bg-muted/40">
+            <div className="px-4 sm:px-6 lg:px-10 py-5 sm:py-7 lg:py-9 bg-muted/40">
               <div className="studio-caps text-muted-foreground mb-2">
                 {PREVIEW_SAMPLE.sourceLabel} · {String(idx + 1).padStart(2, "0")}
               </div>
-              <p className="font-display text-[19px] leading-[1.65] text-foreground/90">
+              <p className="font-display text-[16px] sm:text-[19px] leading-[1.65] text-foreground/90">
                 {p.zh}
               </p>
             </div>
-            <div className="px-6 lg:px-10 py-7 lg:py-9">
+            <div className="px-4 sm:px-6 lg:px-10 py-5 sm:py-7 lg:py-9">
               <div className="studio-caps text-muted-foreground mb-2">
                 {PREVIEW_SAMPLE.targetLabel} · {String(idx + 1).padStart(2, "0")}
               </div>
-              <p className="font-display text-[19px] leading-[1.65] text-foreground/90">
+              <p className="font-display text-[16px] sm:text-[19px] leading-[1.65] text-foreground/90">
                 {p.en}
               </p>
             </div>
@@ -352,7 +352,7 @@ function DeskPreview() {
       </div>
 
       {/* Footer recap */}
-      <footer className="px-6 lg:px-10 py-4 border-t border-border flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+      <footer className="px-4 sm:px-6 lg:px-10 py-3 sm:py-4 border-t border-border flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between gap-2 sm:gap-3 text-xs text-muted-foreground">
         <div className="studio-caps">
           Translation quality · {PREVIEW_SAMPLE.provider}
         </div>
