@@ -30,6 +30,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { TranslationManager } from "@/lib/translators/types";
 import { ApiStatusPill } from "@/components/studio/ApiStatusPill";
 import { buildTranslatedEpub } from "@/lib/epub";
+import { SCENE_BREAK } from "@/lib/text-import";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/util";
@@ -1116,6 +1117,17 @@ function ChapterReader({
       <div className="reader-gap">
         {paragraphs.map((p, idx) => {
           const t = translated[idx];
+
+          // Scene break separator — render an ornamental divider
+          // instead of a regular paragraph pair.
+          if (p === SCENE_BREAK) {
+            return (
+              <div key={idx} className="scene-break" aria-hidden="true">
+                <span className="scene-break__ornament">* * *</span>
+              </div>
+            );
+          }
+
           if (showOriginal && layout === "stack") {
             // Stacked layout: original line, then English line below it.
             return (

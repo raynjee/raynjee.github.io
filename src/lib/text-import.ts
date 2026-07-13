@@ -6,6 +6,8 @@ import JSZip from "jszip";
 import type { Chapter } from "./types";
 import { countWords } from "./util";
 
+export const SCENE_BREAK = "\x00SCENE_BREAK\x00";
+
 export interface ParsedText {
   title: string;
   author: string;
@@ -68,6 +70,19 @@ function extractDocxText(xml: string): string {
 
 // ── Paragraph splitting ───────────────────────────────────────────────────
 
+const SCENE_BREAK_RE = /^\s*(?:\*[\s*]*\*[\s*]*\*|-[\s-]*-[\s-]*-|~[\s~]*~[\s~]*~|#{3,}|[♦◊※†‡]|(?:(?:\*|–|—)\s?){3,})\s*$/;
+
+function isSceneBreak(line: string): boolean {
+  if (SCENE_BREAK_RE.test(line)) return true;
+  // Also catch: a line that's only 1-2 decorative chars + optional spaces
+  const stripped = line.replace(/\s+/g, "");
+  if (/^[♦◊※†‡]{1,3}$/.test(stripped)) return true;
+  if (/^\*{3,}$/.test(stripped)) return true;
+  if (/^-{3,}$/.test(stripped)) return true;
+  if (/^~{3,}$/.test(stripped)) return true;
+  return false;
+}
+
 function splitParagraphs(text: string): string[] {
   // Normalize line endings, then split on blank lines (one or more).
   const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -77,6 +92,13 @@ function splitParagraphs(text: string): string[] {
   for (const block of blocks) {
     const cleaned = block.replace(/[^\S\n]+/g, " ").replace(/^\n+|\n+$/g, "").trim();
     if (!cleaned) continue;
+
+    // Scene break detection: if the entire block is a scene break marker,
+    // emit the sentinel instead of treating it as a paragraph.
+    if (isSceneBreak(cleaned)) {
+      result.push(SCENE_BREAK);
+      continue;
+    }
 
     // Split into individual lines and clean each one
     const lines = cleaned

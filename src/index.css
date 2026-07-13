@@ -283,6 +283,28 @@
   .reader-gap > * + * {
     margin-top: var(--reader-paragraph-gap);
   }
+
+  /* Scene break separator — ornamental centre-aligned divider.
+     Uses the same muted-foreground colour and a subtle tracked
+     type treatment so it feels editorial, not decorative. */
+  .scene-break {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 0;
+    user-select: none;
+    pointer-events: none;
+  }
+  .scene-break__ornament {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    letter-spacing: 0.6em;
+    color: oklch(0.235 0.012 60 / 25%);
+    padding-left: 0.6em;
+  }
+  .dark .scene-break__ornament {
+    color: oklch(0.94 0.012 80 / 18%);
+  }
 }
 
 /* Custom scrollbar — thin, refined */
