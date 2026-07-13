@@ -1137,7 +1137,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
                   <div className="studio-caps text-muted-foreground mb-2">
                     Translate metadata
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     disabled={translatingMeta}
@@ -1204,14 +1204,14 @@ export function BookEditor({ bookId }: { bookId: string }) {
                         setTranslatingMeta(false);
                       }
                     }}
-                    className="h-9 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors disabled:opacity-50 cursor-pointer"
+                    className="h-9 px-3 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 transition-colors disabled:opacity-50 cursor-pointer text-xs uppercase tracking-[0.18em]"
                   >
                     {translatingMeta ? (
-                      <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
                     ) : (
-                      <Languages className="w-4 h-4" strokeWidth={1.4} />
+                      <Languages className="w-3.5 h-3.5" strokeWidth={1.4} />
                     )}
-                    <span className="text-xs uppercase tracking-[0.18em]">
+                    <span>
                       {translatingMeta ? "Translating…" : "Translate title & info"}
                     </span>
                   </button>
@@ -1224,13 +1224,11 @@ export function BookEditor({ bookId }: { bookId: string }) {
                         setDescription(origDescRef.current);
                         toast.message("All metadata reverted to original.");
                       }}
-                      className="h-9 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors cursor-pointer"
+                      className="h-9 px-3 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 transition-colors cursor-pointer text-xs uppercase tracking-[0.18em]"
                       title="Revert all metadata to original"
                     >
-                      <Undo2 className="w-4 h-4" strokeWidth={1.4} />
-                      <span className="text-xs uppercase tracking-[0.18em]">
-                        Revert all
-                      </span>
+                      <Undo2 className="w-3.5 h-3.5" strokeWidth={1.4} />
+                      <span>Revert all</span>
                     </button>
                   )}
                   </div>
@@ -1239,7 +1237,8 @@ export function BookEditor({ bookId }: { bookId: string }) {
             </div>
           </section>
 
-          <section className="col-span-12">              <div className="flex items-end justify-between">
+          <section className="col-span-12">
+            <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3">
               <div>
                 <div className="studio-caps text-muted-foreground">
                   Table of contents
@@ -1248,45 +1247,43 @@ export function BookEditor({ bookId }: { bookId: string }) {
                   Chapters
                 </h2>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
-                  className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 cursor-pointer"
+                  className="h-10 px-3 sm:px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 cursor-pointer text-xs sm:text-sm uppercase tracking-[0.18em]"
                   onClick={() => onReSplit()}
                   disabled={chapters.length === 0}
                   title="Flatten all chapters and re-detect boundaries using chapter markers"
                 >
                   <Scissors className="w-4 h-4" strokeWidth={1.4} />
-                  <span className="text-sm uppercase tracking-[0.18em]">
-                    Re-detect chapters
-                  </span>
+                  <span className="hidden sm:inline">Re-detect chapters</span>
+                  <span className="sm:hidden">Re-split</span>
                 </button>
                 <button
-                  className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
+                  className="h-10 px-3 sm:px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 cursor-pointer text-xs sm:text-sm uppercase tracking-[0.18em]"
                   onClick={onAddBlank}
                 >
                   <Plus className="w-4 h-4" strokeWidth={1.4} />
-                  <span className="text-sm uppercase tracking-[0.18em]">
-                    Add chapter
-                  </span>
+                  <span className="hidden sm:inline">Add chapter</span>
+                  <span className="sm:hidden">Add</span>
                 </button>
               </div>
             </div>
             <ol className="mt-6 border border-border divide-y divide-border bg-card">
               {chapters.map((c, idx) => (
                 <li key={c.id}>
-                  <div className="grid grid-cols-12 items-center gap-2 sm:gap-4 p-3 sm:p-4">
+                  <div className="grid grid-cols-12 items-center gap-2 p-3 sm:p-4">
                     <span className="col-span-1 studio-num text-muted-foreground text-xs sm:text-sm">
                       {String(idx + 1).padStart(2, "0")}
                     </span>
                     <input
                       value={c.title}
                       onChange={(e) => onRename(c.id, e.target.value)}
-                      className="col-span-6 sm:col-span-7 bg-transparent border-b border-border focus:border-foreground outline-none py-2 sm:py-1 font-display text-base sm:text-lg truncate"
+                      className="col-span-7 sm:col-span-7 bg-muted/40 border border-border focus:border-foreground focus:bg-background outline-none px-2 py-2 sm:py-1.5 font-display text-sm sm:text-base rounded transition-colors truncate"
                     />
                     <span className="hidden sm:block sm:col-span-1 text-xs text-muted-foreground whitespace-nowrap">
                       {c.wordCount.toLocaleString()} w
                     </span>
-                    <div className="col-span-5 sm:col-span-3 flex items-center justify-end gap-0.5">
+                    <div className="col-span-4 sm:col-span-3 flex items-center justify-end gap-0.5 sm:gap-1">
                       <button
                         className={cn(
                           "h-9 w-9 sm:w-8 sm:h-8 grid place-items-center border transition-colors cursor-pointer active:scale-[0.95]",

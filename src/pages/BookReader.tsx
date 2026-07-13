@@ -1025,7 +1025,7 @@ export default function BookReader() {
 
           {/* ── Mobile bottom nav bar ────────────────────────── */}
           <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-sm border-t border-border safe-bottom">
-            <div className="flex items-center justify-between px-4 py-2 max-w-lg mx-auto">
+            <div className="flex items-center justify-between px-3 py-2 max-w-lg mx-auto gap-2">
               {/* Prev chapter */}
               <button
                 type="button"
@@ -1035,9 +1035,10 @@ export default function BookReader() {
                 }}
                 disabled={activeIdx <= 0}
                 aria-label="Previous chapter"
-                className="h-11 w-11 grid place-items-center rounded-full border border-border hover:border-foreground/40 disabled:opacity-30 disabled:cursor-default active:scale-95 transition-all"
+                className="h-10 px-3 inline-flex items-center gap-1 rounded-lg border border-border hover:border-foreground/40 disabled:opacity-30 disabled:cursor-default active:scale-95 transition-all text-xs font-medium"
               >
-                <ArrowLeft className="w-4 h-4" strokeWidth={1.4} />
+                <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.6} />
+                <span>Prev</span>
               </button>
 
               {/* TOC button */}
@@ -1045,12 +1046,9 @@ export default function BookReader() {
                 type="button"
                 onClick={toggleTocDrawer}
                 aria-label="Table of contents"
-                className="h-11 px-4 inline-flex items-center gap-2 rounded-full border border-border hover:border-foreground/40 active:scale-95 transition-all"
+                className="h-10 w-10 grid place-items-center rounded-lg border border-border hover:border-foreground/40 active:scale-95 transition-all"
               >
                 <List className="w-4 h-4" strokeWidth={1.4} />
-                <span className="studio-num text-sm font-medium">
-                  {activeIdx >= 0 ? `${activeIdx + 1}/${chapters.length}` : "—"}
-                </span>
               </button>
 
               {/* Next chapter */}
@@ -1062,9 +1060,10 @@ export default function BookReader() {
                 }}
                 disabled={activeIdx >= chapters.length - 1}
                 aria-label="Next chapter"
-                className="h-11 w-11 grid place-items-center rounded-full border border-border hover:border-foreground/40 disabled:opacity-30 disabled:cursor-default active:scale-95 transition-all"
+                className="h-10 px-3 inline-flex items-center gap-1 rounded-lg border border-border hover:border-foreground/40 disabled:opacity-30 disabled:cursor-default active:scale-95 transition-all text-xs font-medium"
               >
-                <ArrowLeft className="w-4 h-4 rotate-180" strokeWidth={1.4} />
+                <span>Next</span>
+                <ArrowLeft className="w-3.5 h-3.5 rotate-180" strokeWidth={1.6} />
               </button>
 
               {/* Translate button */}
@@ -1074,18 +1073,18 @@ export default function BookReader() {
                   disabled={busy}
                   onClick={() => onTranslateActive()}
                   className={cn(
-                    "h-11 px-5 inline-flex items-center gap-2 rounded-full font-medium text-sm active:scale-95 transition-all",
+                    "h-10 px-4 inline-flex items-center gap-1.5 rounded-lg font-medium text-xs active:scale-95 transition-all",
                     activeTranslation?.status === "completed"
                       ? "border border-border hover:border-foreground/40"
                       : "bg-foreground text-background hover:bg-foreground/90"
                   )}
                 >
                   {busy ? (
-                    <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
                   ) : (
-                    <Sparkles className="w-4 h-4" strokeWidth={1.4} />
+                    <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
                   )}
-                  <span className="hidden sm:inline text-xs">
+                  <span>
                     {busy ? "…" : activeTranslation?.status === "completed" ? "Re-do" : "Translate"}
                   </span>
                 </button>
