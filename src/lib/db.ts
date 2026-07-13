@@ -2,6 +2,7 @@
 // Specifically designed for blob-heavy data: original EPUBs, chapter HTML,
 // translation memory cache, and provider call logs.
 
+import { encryptApiKey, decryptApiKey } from "./crypto";
 import type {
   ApiCallLog,
   Book,
@@ -161,7 +162,7 @@ export function loadSettings(): StudioSettings {
         ...(patch as Partial<ReaderPrefs>),
       });
     }
-    return {
+    const result: StudioSettings = {
       ...DEFAULT_SETTINGS,
       ...parsed,
       providers: DEFAULT_SETTINGS.providers.map((p) => {
@@ -171,6 +172,15 @@ export function loadSettings(): StudioSettings {
       defaultReaderPrefs: hydratedDefaults,
       bookReaderPrefs: hydratedBookPrefs,
     };
+    // Decrypt API keys that were encrypted at rest in localStorage.
+    // Plaintext keys (from before encryption was added) pass through
+    // transparently — decryptApiKey returns them as-is.
+    result.providers = result.providers.map((p) => ({
+      ...p,
+      apiKey: p.apiKey ? decryptApiKey(p.apiKey) : "",
+      apiKeys: p.apiKeys ? p.apiKeys.map((k) => (k ? decryptApiKey(k) : "")) : undefined,
+    }));
+    return result;
   } catch {
     return DEFAULT_SETTINGS;
   }
@@ -178,7 +188,17 @@ export function loadSettings(): StudioSettings {
 
 export function saveSettings(settings: StudioSettings): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  // Encrypt API keys before persisting so localStorage never holds
+  // plaintext credentials — even a casual disk read reveals nothing.
+  const safe = {
+    ...settings,
+    providers: settings.providers.map((p) => ({
+      ...p,
+      apiKey: p.apiKey ? encryptApiKey(p.apiKey) : "",
+      apiKeys: p.apiKeys ? p.apiKeys.map((k) => (k ? encryptApiKey(k) : "")) : undefined,
+    })),
+  };
+  window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(safe));
 }
 
 // ── Books ─────────────────────────────────────────────────────────────────
