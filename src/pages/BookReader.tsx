@@ -4,13 +4,14 @@
 // the active chapter or batch-translate the rest.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
   BookOpen,
   Check,
   Download,
   Languages,
+  List,
   Loader2,
   PanelLeftClose,
   PanelLeftOpen,
@@ -20,6 +21,7 @@ import {
   Square,
   Trash2,
   Undo2,
+  X,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import { StudioShell } from "@/components/StudioShell";
@@ -99,6 +101,16 @@ export default function BookReader() {
       try { localStorage.setItem("atelier.reader.showShortcuts", String(next)); } catch {}
       return next;
     });
+  }, []);
+
+  // ── Mobile TOC drawer ────────────────────────────────────────────
+  const [tocDrawerOpen, setTocDrawerOpen] = useState(false);
+  const toggleTocDrawer = useCallback(() => setTocDrawerOpen((v) => !v), []);
+  const closeTocDrawer = useCallback(() => setTocDrawerOpen(false), []);
+  // Also close when the user picks a chapter on mobile.
+  const onSelectChapter = useCallback((id: string) => {
+    setActiveId(id);
+    setTocDrawerOpen(false);
   }, []);
 
   // Load all chapters + translations when the book opens
@@ -198,7 +210,14 @@ export default function BookReader() {
       // ── Toggles ───────────────────────────────────────────────
       if (key === "t") {
         e.preventDefault();
-        if (book) updateBookPrefs(book.id, { showToc: !prefs.showToc });
+        if (book) {
+          // On desktop, toggle the inline TOC. On mobile, toggle the drawer.
+          if (window.innerWidth >= 1024) {
+            updateBookPrefs(book.id, { showToc: !prefs.showToc });
+          } else {
+            setTocDrawerOpen((v) => !v);
+          }
+        }
         return;
       }
       if (key === "o") {
@@ -730,78 +749,136 @@ export default function BookReader() {
           </button>
         )}
 
-        {/* Main split: TOC + reader (TOC hidden via pref.showToc) */}
-        <div className="mt-8 grid grid-cols-12 gap-8">
-          {/* TOC */}
-          {prefs.showToc && (
-            <aside className="col-span-12 lg:col-span-3 lg:sticky lg:top-24 lg:self-start">
-              <div className="flex items-baseline justify-between">
-                <span className="studio-caps text-muted-foreground">Table of contents</span>
-                <span className="studio-num text-[10px] text-muted-foreground">
-                  {chapters.length.toString().padStart(2, "0")}
-                </span>
-              </div>
-              <ol className="mt-4 divide-y divide-border max-h-[calc(100vh-7rem)] overflow-y-auto thin-scrollbar">
-                {chapters.map((c, idx) => {
-                  const tr = translations[c.id];
-                  const isDone = tr?.status === "completed" && tr.paragraphs.every((p) => p && p.trim());
-                  const isActive = c.id === activeId;
-                  return (
-                    <li key={c.id}>
-                      <button
-                        onClick={() => setActiveId(c.id)}
-                        className={cn(
-                          "w-full text-left px-3 py-2.5 grid grid-cols-12 gap-3 items-center transition-colors hover:bg-muted",
-                          isActive && "bg-foreground text-background hover:bg-foreground",
-                        )}
-                      >
-                        <span className="col-span-1 studio-num text-xs opacity-70">
-                          {String(idx + 1).padStart(2, "0")}
-                        </span>
-                        <span className="col-span-9 text-sm font-display line-clamp-2">
-                          {c.title}
-                        </span>
-                        <span className="col-span-2 flex justify-end">
-                          {isDone || (tr && tr.progress >= 1) ? (
-                            <Check className="w-4 h-4" strokeWidth={1.5} />
-                          ) : tr ? (
-                            <span
-                              className={cn(
-                                "studio-num text-[10px]",
-                                isActive ? "opacity-80" : "text-muted-foreground",
-                              )}
-                            >
-                              {Math.round((tr.progress ?? 0) * 100)}%
+        {/* Main split: TOC + reader */}
+        <div className="mt-8">
+          {/* ── Desktop TOC — sidebar ──────────────────────────── */}
+          <div className="hidden lg:grid grid-cols-12 gap-8">
+            {prefs.showToc && (
+              <aside className="col-span-3 sticky top-24 self-start">
+                <div className="border border-border">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+                    <span className="studio-caps text-muted-foreground text-xs">Contents</span>
+                    <button
+                      onClick={() => updateBookPrefs(book.id, { showToc: false })}
+                      className="w-7 h-7 grid place-items-center border border-border hover:border-foreground/40 rounded"
+                      aria-label="Hide contents"
+                    >
+                      <PanelLeftClose className="w-3.5 h-3.5" strokeWidth={1.4} />
+                    </button>
+                  </div>
+                  <ol className="divide-y divide-border max-h-[60vh] overflow-y-auto thin-scrollbar">
+                    {chapters.map((c, idx) => {
+                      const tr = translations[c.id];
+                      const isDone = tr?.status === "completed" && tr.paragraphs.every((p: string | null) => p && p.trim());
+                      const isActive = c.id === activeId;
+                      return (
+                        <li key={c.id}>
+                          <button
+                            onClick={() => setActiveId(c.id)}
+                            className={cn(
+                              "w-full text-left px-4 py-3 grid grid-cols-12 gap-3 items-center transition-colors hover:bg-muted",
+                              isActive && "bg-foreground text-background hover:bg-foreground",
+                            )}
+                          >
+                            <span className="col-span-1 studio-num text-xs opacity-70">
+                              {String(idx + 1).padStart(2, "0")}
                             </span>
-                          ) : (
-                            <span className="studio-num text-[10px] opacity-50">·</span>
-                          )}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-              {/* Inline hide affordance anchored to the bottom of the TOC. */}
-              <button
-                type="button"
-                onClick={() => updateBookPrefs(book.id, { showToc: false })}
-                aria-label="Hide table of contents"
-                className="mt-5 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <PanelLeftClose className="w-3.5 h-3.5" strokeWidth={1.4} />
-                Hide contents
-              </button>
-            </aside>
-          )}
-
-          {/* Reader — full width when TOC is hidden */}
-          <section
-            className={cn(
-              "col-span-12",
-              prefs.showToc && "lg:col-span-9",
+                            <span className="col-span-9 text-sm font-display line-clamp-2">
+                              {c.title}
+                            </span>
+                            <span className="col-span-2 flex justify-end">
+                              {isDone || (tr && tr.progress >= 1) ? (
+                                <Check className="w-4 h-4" strokeWidth={1.5} />
+                              ) : tr ? (
+                                <span
+                                  className={cn(
+                                    "studio-num text-[10px]",
+                                    isActive ? "opacity-80" : "text-muted-foreground",
+                                  )}
+                                >
+                                  {Math.round((tr.progress ?? 0) * 100)}%
+                                </span>
+                              ) : (
+                                <span className="studio-num text-[10px] opacity-50">·</span>
+                              )}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                    {chapters.length === 0 && (
+                      <li className="p-8 text-center text-muted-foreground text-sm">
+                        No chapters loaded.
+                      </li>
+                    )}
+                  </ol>
+                </div>
+              </aside>
             )}
-          >
+            <section
+              className={cn("pb-20", prefs.showToc ? "col-span-9" : "col-span-12")}
+            >
+              {activeChapter ? (
+                <ChapterReader
+                  chapter={activeChapter}
+                  translation={activeTranslation ?? null}
+                  prefs={prefs}
+                  bookId={book.id}
+                  onTranslate={onTranslateActive}
+                  onPause={onPause}
+                  onResume={onResume}
+                  onStop={onStop}
+                  onDeleteTranslation={onDeleteTranslation}
+                  autoAdvance={autoAdvance}
+                  onToggleAutoAdvance={onToggleAutoAdvance}
+                  isPaused={paused}
+                  onTranslateParagraph={async (paragraphIdx) => {
+                    if (!book || !activeChapter) return;
+                    const tr = activeTranslation ?? makeEmptyTranslation(book.id, activeChapter.id, activeChapter.paragraphs.length);
+                    if (tr.paragraphs[paragraphIdx] && tr.paragraphs[paragraphIdx]?.trim()) return;
+                    const mgr = makeManager();
+                    const res = await mgr.translateChapter({
+                      paragraphs: [activeChapter.paragraphs[paragraphIdx]],
+                      contextHint: `Single paragraph from "${activeChapter.title}".`,
+                      glossary: glossaryEntries.length ? glossaryEntries : undefined,
+                    });
+                    const txt = res.rows[0];
+                    const updated = { ...tr, paragraphs: [...tr.paragraphs], provider: res.provider };
+                    updated.paragraphs[paragraphIdx] = txt && txt.trim() ? txt : activeChapter.paragraphs[paragraphIdx];
+                    updated.status = res.failed ? "error" : "in_progress";
+                    updated.progress = updated.paragraphs.length
+                      ? updated.paragraphs.filter((p) => p && p.trim()).length / updated.paragraphs.length
+                      : 1;
+                    await saveTranslation(updated);
+                    setTranslations((m) => ({ ...m, [activeChapter.id]: updated }));
+                    notifyLibraryChanged();
+                  }}
+                  onResetParagraph={(idx) => {
+                    if (!book || !activeChapter || !activeTranslation) return;
+                    const updated = {
+                      ...activeTranslation,
+                      paragraphs: activeTranslation.paragraphs.map((p, i) => (i === idx ? null : p)),
+                    };
+                    void saveTranslation(updated);
+                    setTranslations((m) => ({ ...m, [activeChapter.id]: updated }));
+                  }}
+                  busy={busy}
+                />
+              ) : (
+                <div className="p-12 text-center">
+                  <BookOpen className="w-10 h-10 mx-auto text-muted-foreground" strokeWidth={1.2} />
+                  <div className="mt-4 font-display text-2xl">Pick a chapter</div>
+                  <p className="text-muted-foreground mt-2 max-w-[40ch] mx-auto">
+                    The reading desk opens whatever you choose from the table of
+                    contents on the left.
+                  </p>
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* ── Mobile: full-width reader ───────────────────────── */}
+          <div className="lg:hidden">
             {activeChapter ? (
               <ChapterReader
                 chapter={activeChapter}
@@ -830,11 +907,8 @@ export default function BookReader() {
                   const updated = { ...tr, paragraphs: [...tr.paragraphs], provider: res.provider };
                   updated.paragraphs[paragraphIdx] = txt && txt.trim() ? txt : activeChapter.paragraphs[paragraphIdx];
                   updated.status = res.failed ? "error" : "in_progress";
-                  // Guard against 0/0 → NaN when a chapter has zero paragraphs
-                  // (rare, but possible on bad publisher EPUBs).
                   updated.progress = updated.paragraphs.length
-                    ? updated.paragraphs.filter((p) => p && p.trim()).length /
-                      updated.paragraphs.length
+                    ? updated.paragraphs.filter((p) => p && p.trim()).length / updated.paragraphs.length
                     : 1;
                   await saveTranslation(updated);
                   setTranslations((m) => ({ ...m, [activeChapter.id]: updated }));
@@ -856,12 +930,115 @@ export default function BookReader() {
                 <BookOpen className="w-10 h-10 mx-auto text-muted-foreground" strokeWidth={1.2} />
                 <div className="mt-4 font-display text-2xl">Pick a chapter</div>
                 <p className="text-muted-foreground mt-2 max-w-[40ch] mx-auto">
-                  The reading desk opens whatever you choose from the table of
-                  contents on the left.
+                  Tap the chapters button below to open the table of contents.
                 </p>
               </div>
             )}
-          </section>
+          </div>
+
+          {/* ── Mobile TOC slide-over drawer ───────────────────── */}
+          <AnimatePresence>
+            {tocDrawerOpen && (
+              <>
+                {/* Backdrop */}
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  onClick={closeTocDrawer}
+                />
+                {/* Drawer panel */}
+                <motion.aside
+                  initial={{ x: "-100%" }}
+                  animate={{ x: 0 }}
+                  exit={{ x: "-100%" }}
+                  transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                  className="lg:hidden fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] bg-background border-r border-border shadow-xl flex flex-col"
+                >
+                  {/* Drawer header */}
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                    <div>
+                      <span className="studio-caps text-muted-foreground text-xs">
+                        Table of contents
+                      </span>
+                      <span className="studio-num text-[10px] text-muted-foreground ml-2">
+                        {chapters.length.toString().padStart(2, "0")}
+                      </span>
+                    </div>
+                    <button
+                      onClick={closeTocDrawer}
+                      className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40 rounded"
+                      aria-label="Close chapters"
+                    >
+                      <X className="w-4 h-4" strokeWidth={1.4} />
+                    </button>
+                  </div>
+                  {/* Chapter list */}
+                  <ol className="flex-1 divide-y divide-border overflow-y-auto thin-scrollbar">
+                    {chapters.map((c, idx) => {
+                      const tr = translations[c.id];
+                      const isDone = tr?.status === "completed" && tr.paragraphs.every((p) => p && p.trim());
+                      const isActive = c.id === activeId;
+                      return (
+                        <li key={c.id}>
+                          <button
+                            onClick={() => onSelectChapter(c.id)}
+                            className={cn(
+                              "w-full text-left px-4 py-3.5 grid grid-cols-12 gap-3 items-center transition-colors hover:bg-muted active:bg-muted",
+                              isActive && "bg-foreground text-background hover:bg-foreground",
+                            )}
+                          >
+                            <span className="col-span-1 studio-num text-xs opacity-70">
+                              {String(idx + 1).padStart(2, "0")}
+                            </span>
+                            <span className="col-span-9 text-sm font-display line-clamp-2">
+                              {c.title}
+                            </span>
+                            <span className="col-span-2 flex justify-end">
+                              {isDone || (tr && tr.progress >= 1) ? (
+                                <Check className="w-4 h-4" strokeWidth={1.5} />
+                              ) : tr ? (
+                                <span
+                                  className={cn(
+                                    "studio-num text-[10px]",
+                                    isActive ? "opacity-80" : "text-muted-foreground",
+                                  )}
+                                >
+                                  {Math.round((tr.progress ?? 0) * 100)}%
+                                </span>
+                              ) : (
+                                <span className="studio-num text-[10px] opacity-50">·</span>
+                              )}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                    {chapters.length === 0 && (
+                      <li className="p-8 text-center text-muted-foreground text-sm">
+                        No chapters loaded.
+                      </li>
+                    )}
+                  </ol>
+                </motion.aside>
+              </>
+            )}
+          </AnimatePresence>
+
+          {/* ── Floating TOC toggle (mobile only) ─────────────── */}
+          <button
+            type="button"
+            onClick={toggleTocDrawer}
+            aria-label="Table of contents"
+            className="lg:hidden fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-foreground text-background shadow-lg hover:shadow-xl active:scale-95 transition-all flex items-center justify-center gap-1.5"
+          >
+            <List className="w-5 h-5" strokeWidth={1.6} />
+            <span className="studio-num text-[11px] font-medium">
+              {activeIdx >= 0 ? `${activeIdx + 1}/${chapters.length}` : ""}
+            </span>
+          </button>
         </div>
       </div>
     </StudioShell>
