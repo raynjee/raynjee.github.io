@@ -1142,13 +1142,14 @@ function ChapterReader({
                   {p}
                 </p>
                 <div className="group relative mt-3">
-                  <div className="absolute -top-2 right-0 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                  <div className="absolute -top-2 right-0 flex items-center gap-2 select-none opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100" aria-hidden="true">
                     {t && t.trim() ? (
                       <>
                         <button
                           onClick={() => onTranslateParagraph(idx)}
                           className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
                           title="Re-translate this paragraph"
+                          tabIndex={-1}
                         >
                           Re-translate
                         </button>
@@ -1156,6 +1157,7 @@ function ChapterReader({
                           onClick={() => onResetParagraph(idx)}
                           className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
                           title="Reset to source"
+                          tabIndex={-1}
                         >
                           <Undo2 className="w-3 h-3 inline" /> Reset
                         </button>
@@ -1165,6 +1167,7 @@ function ChapterReader({
                         onClick={() => onTranslateParagraph(idx)}
                         className="text-[10px] uppercase tracking-[0.2em] text-foreground hover:text-foreground/70"
                         title="Translate this paragraph"
+                        tabIndex={-1}
                       >
                         Translate →
                       </button>
