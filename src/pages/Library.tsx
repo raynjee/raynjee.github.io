@@ -9,10 +9,12 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpenCheck,
+  Languages,
   Library as LibraryIcon,
   Loader2,
   Plus,
   Save,
+  Sparkles,
   Trash2,
   Upload,
   X,
@@ -33,6 +35,8 @@ import {
 } from "@/hooks/use-library";
 import { listChapters } from "@/lib/db";
 import { buildSampleEpub } from "@/lib/seed";
+import { TranslationManager } from "@/lib/translators/types";
+import { useSettings } from "@/hooks/use-settings";
 import type { Chapter } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -650,6 +654,8 @@ export function BookEditor({ bookId }: { bookId: string }) {
   const [description, setDescription] = useState(book?.description ?? "");
   const navigate = useNavigate();
   const [cover, setCover] = useState<string | null>(book?.coverDataUrl ?? null);
+  const { settings } = useSettings();
+  const [translatingTitles, setTranslatingTitles] = useState(false);
 
   useEffect(() => {
     if (!book) return;
@@ -813,6 +819,62 @@ export function BookEditor({ bookId }: { bookId: string }) {
                     <X className="w-4 h-4" strokeWidth={1.4} />
                     <span className="text-sm uppercase tracking-[0.18em]">
                       Cancel
+                    </span>
+                  </button>
+                </div>
+
+                {/* Translate chapter titles */}
+                <div className="mt-5 pt-4 border-t border-border">
+                  <div className="studio-caps text-muted-foreground mb-2">
+                    Chapter titles
+                  </div>
+                  <button
+                    type="button"
+                    disabled={translatingTitles}
+                    onClick={async () => {
+                      if (!book || chapters.length === 0) return;
+                      setTranslatingTitles(true);
+                      try {
+                        const mgr = new TranslationManager({
+                          providers: settings.providers,
+                          preferred: settings.activeProvider,
+                          parallelRequests: 1,
+                          pauseOnError: false,
+                          quality: settings.quality,
+                          source: book.language,
+                          target: "en",
+                        });
+                        const titles = chapters.map((c) => c.title);
+                        const result = await mgr.translateChapter({
+                          paragraphs: titles,
+                          contextHint: `These are chapter titles from "${book.title}". Translate each to natural English. Return ONLY the translated titles, one per line, in the same order.`,
+                        });
+                        for (let i = 0; i < chapters.length; i++) {
+                          const translated = result.rows[i];
+                          if (translated && translated.trim() && translated.trim() !== chapters[i].title) {
+                            await renameChapter(chapters[i].id, translated.trim());
+                            setChapters((cs) =>
+                              cs.map((c) => (c.id === chapters[i].id ? { ...c, title: translated.trim() } : c)),
+                            );
+                          }
+                        }
+                        toast.success("Chapter titles translated.");
+                      } catch (e) {
+                        const msg = e instanceof Error ? e.message : String(e);
+                        toast.error(`Title translation failed: ${msg.slice(0, 200)}`);
+                      } finally {
+                        setTranslatingTitles(false);
+                      }
+                    }}
+                    className="h-9 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {translatingTitles ? (
+                      <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
+                    ) : (
+                      <Languages className="w-4 h-4" strokeWidth={1.4} />
+                    )}
+                    <span className="text-xs uppercase tracking-[0.18em]">
+                      {translatingTitles ? "Translating…" : "Translate chapter titles"}
                     </span>
                   </button>
                 </div>
