@@ -79,10 +79,30 @@ export default function Glossary() {
   const [extracting, setExtracting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  // Provider to use for extraction — defaults to active provider, but can be overridden
-  const [extractProvider, setExtractProvider] = useState<string>(settings.activeProvider);
-  // Sync if active provider changes externally
-  useEffect(() => { setExtractProvider(settings.activeProvider); }, [settings.activeProvider]);
+
+  // Enabled provider IDs — recomputed whenever settings change.
+  const enabledProviderIds = useMemo(
+    () => settings.providers.filter((p) => p.enabled).map((p) => p.id),
+    [settings.providers],
+  );
+
+  // Provider to use for extraction — defaults to active provider, but can be
+  // overridden by the dropdown. Auto-falls back to the first enabled provider
+  // if the current selection becomes disabled.
+  const [extractProvider, setExtractProvider] = useState<string>(
+    () => enabledProviderIds.includes(settings.activeProvider)
+      ? settings.activeProvider
+      : (enabledProviderIds[0] ?? "deepseek"),
+  );
+
+  // Keep extractProvider in sync when settings change: prefer the active
+  // provider if enabled, otherwise fall back to the first enabled one.
+  useEffect(() => {
+    const next = enabledProviderIds.includes(settings.activeProvider)
+      ? settings.activeProvider
+      : (enabledProviderIds[0] ?? "deepseek");
+    setExtractProvider(next);
+  }, [settings.activeProvider, enabledProviderIds]);
 
   // Draft state for new & edited rows.
   const [draft, setDraft] = useState<{
@@ -208,18 +228,26 @@ export default function Glossary() {
         return;
       }
 
-      // 2. Build the provider request.
-      const cfg = settings.providers.find((p) => p.id === extractProvider);
+      // 2. Build the provider request. Auto-fallback if somehow the selected
+      // provider is no longer enabled (e.g. it was disabled while on the page).
+      let cfg = settings.providers.find((p) => p.id === extractProvider);
       if (!cfg || !cfg.enabled) {
-        toast.error(`Provider "${extractProvider}" is not enabled.`);
-        return;
+        // Fall back to the first enabled provider.
+        const fallback = settings.providers.find((p) => p.enabled);
+        if (!fallback) {
+          toast.error("No enabled provider. Enable a provider in Settings first.");
+          return;
+        }
+        cfg = fallback;
+        setExtractProvider(fallback.id);
+        toast.message(`Switched to ${fallback.id === "gemini" ? "Gemini" : "DeepSeek"} for extraction.`);
       }
 
       const extracted = await callProviderForExtraction(
         cfg,
         EXTRACTION_PROMPT,
         allText,
-        extractProvider,
+        cfg.id,
       );
       if (!extracted || extracted.length === 0) {
         toast.error("The AI returned no glossary entries.");
