@@ -1,9 +1,68 @@
 // Gemini adapter using the official Generative Language API.
 // Supports multiple API keys with automatic rotation on 429 rate limits.
+// Includes a preemptive sliding-window RPM rate limiter.
 
 import type { GlossaryEntry, ProviderConfig } from "../types";
 import type { TranslateRequest, TranslateResult } from "./types";
 import { parseNumberedResponse } from "./deepseek";
+
+// ── Sliding-window RPM rate limiter ─────────────────────────────────────
+// Tracks recent call timestamps and delays if the RPM limit would be exceeded.
+// Defaults to 8 RPM (safely under Gemini free tier limit of 10).
+
+const WINDOW_MS = 60_000; // 1-minute sliding window
+let _rpmLimit = 8;
+const _callTimes: number[] = [];
+
+/** Set the RPM limit (e.g. from user settings). Must be >= 1. */
+export function setGeminiRpmLimit(rpm: number) {
+  _rpmLimit = Math.max(1, Math.round(rpm));
+}
+
+/** Get current RPM limit. */
+export function getGeminiRpmLimit(): number {
+  return _rpmLimit;
+}
+
+/** Number of calls made in the current 60-second sliding window. */
+export function geminiRpmUsage(): { used: number; limit: number; nextSlotMs: number } {
+  const now = Date.now();
+  const cutoff = now - WINDOW_MS;
+  while (_callTimes.length > 0 && _callTimes[0] < cutoff) {
+    _callTimes.shift();
+  }
+  const nextSlotMs = _callTimes.length >= _rpmLimit
+    ? Math.max(0, _callTimes[0] + WINDOW_MS - now)
+    : 0;
+  return { used: _callTimes.length, limit: _rpmLimit, nextSlotMs };
+}
+
+async function waitForRpmSlot(): Promise<void> {
+  const now = Date.now();
+  const cutoff = now - WINDOW_MS;
+  // Prune stale entries
+  while (_callTimes.length > 0 && _callTimes[0] < cutoff) {
+    _callTimes.shift();
+  }
+  if (_callTimes.length < _rpmLimit) {
+    _callTimes.push(now);
+    return;
+  }
+  // Need to wait until the oldest call falls out of the window.
+  const oldest = _callTimes[0];
+  const waitMs = oldest + WINDOW_MS - now + 50; // 50ms buffer
+  if (waitMs > 0) {
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+  // Prune again after waiting
+  const newCutoff = Date.now() - WINDOW_MS;
+  while (_callTimes.length > 0 && _callTimes[0] < newCutoff) {
+    _callTimes.shift();
+  }
+  _callTimes.push(Date.now());
+}
+
+// ── Main translation call ───────────────────────────────────────────────
 
 export async function callGemini(
   cfg: ProviderConfig,
@@ -18,6 +77,9 @@ export async function callGemini(
   if (keys.length === 0) {
     throw new Error("Gemini requires an API key (set one in Settings).");
   }
+
+  // Wait for RPM slot before making any API call.
+  await waitForRpmSlot();
 
   const model = cfg.model || "gemini-2.0-flash";
   const body = buildRequestBody(req);

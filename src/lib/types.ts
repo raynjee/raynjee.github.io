@@ -162,6 +162,7 @@ export interface StudioSettings {
   targetLanguage: "en";
   quality: Quality;
   parallelRequests: number;
+  geminiRpmLimit: number; // max Gemini requests per minute (default 8, stay under free tier 10)
   pauseOnError: boolean;
   themePref: "light" | "dark" | "system";
   defaultReaderPrefs: ReaderPrefs;

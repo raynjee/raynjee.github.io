@@ -3,6 +3,7 @@
 // translation memory cache, and provider call logs.
 
 import { encryptApiKey, decryptApiKey } from "./crypto";
+import { setGeminiRpmLimit } from "./translators/gemini";
 import type {
   ApiCallLog,
   Book,
@@ -62,6 +63,7 @@ const DEFAULT_SETTINGS: StudioSettings = {
   targetLanguage: "en",
   quality: "balanced",
   parallelRequests: 2,
+  geminiRpmLimit: 8,
   pauseOnError: false,
   themePref: "light",
   defaultReaderPrefs: { ...DEFAULT_READER_PREFS },
@@ -180,6 +182,8 @@ export function loadSettings(): StudioSettings {
       apiKey: p.apiKey ? decryptApiKey(p.apiKey) : "",
       apiKeys: p.apiKeys ? p.apiKeys.map((k) => (k ? decryptApiKey(k) : "")) : undefined,
     }));
+    // Sync the RPM rate limiter with the loaded setting.
+    setGeminiRpmLimit(result.geminiRpmLimit ?? 8);
     return result;
   } catch {
     return DEFAULT_SETTINGS;

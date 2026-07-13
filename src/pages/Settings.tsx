@@ -2,11 +2,12 @@
 // studio housekeeping (theme, backup, restore). Includes a tutorial for
 // the DeepSeek local proxy.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   Download,
   FileDown,
+  Gauge,
   KeyRound,
   Loader2,
   Plus,
@@ -23,6 +24,7 @@ import { PROVIDERS } from "@/lib/translators/types";
 import { buildBackup, restoreBackup, listLogs, appendLog } from "@/lib/db";
 import { toast } from "sonner";
 import { formatRelativeTime } from "@/lib/util";
+import { setGeminiRpmLimit, geminiRpmUsage } from "@/lib/translators/gemini";
 import type { ApiCallLog, ProviderId, StudioSettings, Quality, SourceLanguage } from "@/lib/types";
 
 const GEMINI_MODELS = [
@@ -593,6 +595,16 @@ function ProviderSettings({
                       ))}
                     </select>
                   </Field>
+
+                  {/* RPM rate limiter — stays safely under Gemini free tier limit of 10 */}
+                  <RpmControl
+                    rpmLimit={settings.geminiRpmLimit ?? 8}
+                    canEdit={canEdit}
+                    onChange={(v) => {
+                      setGeminiRpmLimit(v);
+                      update({ geminiRpmLimit: v });
+                    }}
+                  />
                 </div>
               )}
 
@@ -884,6 +896,85 @@ function PreferenceCard({
       <div className="studio-caps text-muted-foreground">{title}</div>
       <div className="mt-3">{children}</div>
       <p className="text-xs text-muted-foreground mt-3 leading-relaxed">{help}</p>
+    </div>
+  );
+}
+
+// ── RPM rate-limit control (live usage indicator) ───────────────────────
+
+function RpmControl({
+  rpmLimit,
+  canEdit,
+  onChange,
+}: {
+  rpmLimit: number;
+  canEdit: boolean;
+  onChange: (v: number) => void;
+}) {
+  const [usage, setUsage] = useState(() => geminiRpmUsage());
+
+  // Poll every second for live usage.
+  useEffect(() => {
+    const id = setInterval(() => setUsage(geminiRpmUsage()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const pct = rpmLimit > 0 ? Math.min(100, (usage.used / rpmLimit) * 100) : 0;
+  const near = pct >= 75;
+  const atLimit = usage.used >= rpmLimit;
+
+  return (
+    <div className="border border-border p-3 space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Gauge className="w-4 h-4 text-muted-foreground" strokeWidth={1.4} />
+          <span className="studio-caps text-muted-foreground">RPM limit</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className={`font-mono text-sm tabular-nums ${
+              atLimit ? "text-destructive" : near ? "text-amber-500" : "text-muted-foreground"
+            }`}
+          >
+            {usage.used}/{rpmLimit}
+          </span>
+          {usage.nextSlotMs > 0 && (
+            <span className="text-[10px] text-muted-foreground">
+              next in {Math.ceil(usage.nextSlotMs / 1000)}s
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Mini progress bar */}
+      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-700 ${
+            atLimit ? "bg-destructive" : near ? "bg-amber-500" : "bg-foreground/40"
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <input
+          disabled={!canEdit}
+          type="range"
+          min={1}
+          max={10}
+          step={1}
+          value={rpmLimit}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="flex-1 h-1 accent-foreground"
+        />
+        <span className="font-mono text-sm w-6 text-right tabular-nums">{rpmLimit}</span>
+      </div>
+
+      <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+        Caps Gemini API calls to stay safely under the free-tier limit of 10
+        requests per minute. Calls beyond the limit are automatically delayed
+        instead of failing.
+      </p>
     </div>
   );
 }
