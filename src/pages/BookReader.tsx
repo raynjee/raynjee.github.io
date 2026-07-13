@@ -51,6 +51,8 @@ export default function BookReader() {
   const [activeId, setActiveId] = useState<string | null>(chapterId ?? null);
   const [busy, setBusy] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [stoppedBanner, setStoppedBanner] = useState(false);
+  const stoppedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number; provider: any } | null>(null);
   const managerRef = useRef<TranslationManager | null>(null);
   const stopRef = useRef(false);
@@ -256,6 +258,9 @@ export default function BookReader() {
     stopRef.current = false;
     // Switch to this chapter if we were called with an override.
     if (chapterOverride) setActiveId(ch.id);
+    // Clear any previous "stopped" banner when a new translation begins.
+    setStoppedBanner(false);
+    if (stoppedTimerRef.current) { clearTimeout(stoppedTimerRef.current); stoppedTimerRef.current = null; }
     try {
       setBusy(true);
       setPaused(false);
@@ -337,6 +342,9 @@ export default function BookReader() {
       }
     } catch (err) {
       if (err instanceof Error && err.message === "STOPPED_BY_USER") {
+        setStoppedBanner(true);
+        if (stoppedTimerRef.current) clearTimeout(stoppedTimerRef.current);
+        stoppedTimerRef.current = setTimeout(() => setStoppedBanner(false), 8000);
         toast("Translation stopped.");
       } else {
         const msg = err instanceof Error ? err.message : String(err);
@@ -371,6 +379,9 @@ export default function BookReader() {
     const mgr = managerRef.current;
     if (mgr) mgr.resume(); // break out of waitForResume so checkPause fires
     setPaused(false);
+    setStoppedBanner(true);
+    if (stoppedTimerRef.current) clearTimeout(stoppedTimerRef.current);
+    stoppedTimerRef.current = setTimeout(() => setStoppedBanner(false), 8000);
   }, []);
 
   const onDeleteTranslation = useCallback(async () => {
@@ -651,6 +662,34 @@ export default function BookReader() {
               />
             </div>
           </div>
+        )}
+
+        {/* Translation stopped banner */}
+        {stoppedBanner && !busy && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="mt-5 flex items-center justify-between gap-4 border border-orange-500/30 bg-orange-500/5 rounded px-4 py-3"
+          >
+            <div className="flex items-center gap-3">
+              <Square className="w-4 h-4 text-orange-400" strokeWidth={1.6} />
+              <span className="text-sm text-orange-300/90">
+                Translation stopped — chapters may be partially translated.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setStoppedBanner(false);
+                if (stoppedTimerRef.current) { clearTimeout(stoppedTimerRef.current); stoppedTimerRef.current = null; }
+              }}
+              className="shrink-0 text-orange-400/60 hover:text-orange-300 transition-colors cursor-pointer"
+              aria-label="Dismiss"
+            >
+              <span className="text-xs uppercase tracking-[0.2em]">Dismiss</span>
+            </button>
+          </motion.div>
         )}
 
         {/* Keyboard shortcuts hint bar — dismissible for power users */}
