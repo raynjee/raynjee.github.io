@@ -272,9 +272,6 @@ export default function BookReader() {
         contextHint: `Chapter: ${ch.title}. From ${book.title}.`,
         glossary: glossaryEntries.length ? glossaryEntries : undefined,
         onProgress: (p) => setProgress({ done: p.done, total: p.total, provider: p.provider }),
-        checkPause: async () => {
-          if (stopRef.current) throw new Error("STOPPED_BY_USER");
-        },
         onPartialRows: (partialRows) => {
           const partialTr: ChapterTranslation = {
             id: `${book.id}:${ch.id}`,
@@ -341,15 +338,8 @@ export default function BookReader() {
         );
       }
     } catch (err) {
-      if (err instanceof Error && err.message === "STOPPED_BY_USER") {
-        setStoppedBanner(true);
-        if (stoppedTimerRef.current) clearTimeout(stoppedTimerRef.current);
-        stoppedTimerRef.current = setTimeout(() => setStoppedBanner(false), 8000);
-        toast("Translation stopped.");
-      } else {
-        const msg = err instanceof Error ? err.message : String(err);
-        toast.error(`Translation failed: ${msg.slice(0, 200)}`);
-      }
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Translation failed: ${msg.slice(0, 200)}`);
     } finally {
       if (mountedRef.current) {
         setBusy(false);
@@ -376,9 +366,15 @@ export default function BookReader() {
 
   const onStop = useCallback(() => {
     stopRef.current = true;
+    setAutoAdvance(false);
+    // If paused, resume to unblock the waitForResume loop so the
+    // chapter can finish. Otherwise let the current chapter complete
+    // naturally — auto-advance won't fire because stopRef is checked.
     const mgr = managerRef.current;
-    if (mgr) mgr.resume(); // break out of waitForResume so checkPause fires
-    setPaused(false);
+    if (mgr && mgr.isPaused()) {
+      mgr.resume();
+      setPaused(false);
+    }
     setStoppedBanner(true);
     if (stoppedTimerRef.current) clearTimeout(stoppedTimerRef.current);
     stoppedTimerRef.current = setTimeout(() => setStoppedBanner(false), 8000);
@@ -765,7 +761,7 @@ export default function BookReader() {
                           {c.title}
                         </span>
                         <span className="col-span-2 flex justify-end">
-                          {isDone ? (
+                          {isDone || (tr && tr.progress >= 1) ? (
                             <Check className="w-4 h-4" strokeWidth={1.5} />
                           ) : tr ? (
                             <span
@@ -974,7 +970,16 @@ function ChapterReader({
           <h2 className="font-display text-3xl mt-1 tracking-tight">{chapter.title}</h2>
           <div className="text-muted-foreground mt-1 text-sm">
             {chapter.wordCount.toLocaleString()} words ·{" "}
-            {translation ? `${Math.round((translation.progress ?? 0) * 100)}% translated` : "untranslated"}
+              {translation?.status === "completed" ? (
+                <span className="inline-flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" strokeWidth={1.8} />
+                  Translated
+                </span>
+              ) : translation ? (
+                `${Math.round((translation.progress ?? 0) * 100)}% translated`
+              ) : (
+                "untranslated"
+              )}
             {translation?.completedAt ? (
               <span className="ml-2 text-muted-foreground/70">
                 · last updated {formatRelativeTime(translation.completedAt)}
