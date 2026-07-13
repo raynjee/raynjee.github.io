@@ -96,13 +96,14 @@ export function BookGalleryTile({
         <span className="studio-num">{updated}</span>
       </div>
 
-      {/* Hover-revealed actions — framed below the stats */}
+      {/* Actions — hover-revealed on desktop, always visible on mobile */}
       <div
         className={cn(
-          "mt-2 grid grid-cols-2 gap-2",
-          "opacity-0 translate-y-0.5 pointer-events-none",
-          "group-hover:opacity-100 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto",
-          "transition-all duration-200 ease-out",
+          "mt-2 grid grid-cols-2 gap-2 transition-all duration-200 ease-out",
+          // On mobile: always visible
+          // On desktop (md+): hidden until hover/focus
+          "md:opacity-0 md:translate-y-0.5 md:pointer-events-none",
+          "md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:group-hover:translate-y-0 md:group-hover:pointer-events-auto",
         )}
       >
         <button

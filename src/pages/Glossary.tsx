@@ -79,6 +79,10 @@ export default function Glossary() {
   const [extracting, setExtracting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  // Provider to use for extraction — defaults to active provider, but can be overridden
+  const [extractProvider, setExtractProvider] = useState<string>(settings.activeProvider);
+  // Sync if active provider changes externally
+  useEffect(() => { setExtractProvider(settings.activeProvider); }, [settings.activeProvider]);
 
   // Draft state for new & edited rows.
   const [draft, setDraft] = useState<{
@@ -205,10 +209,9 @@ export default function Glossary() {
       }
 
       // 2. Build the provider request.
-      const preferred = settings.activeProvider;
-      const cfg = settings.providers.find((p) => p.id === preferred);
+      const cfg = settings.providers.find((p) => p.id === extractProvider);
       if (!cfg || !cfg.enabled) {
-        toast.error(`Provider "${preferred}" is not enabled.`);
+        toast.error(`Provider "${extractProvider}" is not enabled.`);
         return;
       }
 
@@ -216,7 +219,7 @@ export default function Glossary() {
         cfg,
         EXTRACTION_PROMPT,
         allText,
-        preferred,
+        extractProvider,
       );
       if (!extracted || extracted.length === 0) {
         toast.error("The AI returned no glossary entries.");
@@ -297,6 +300,20 @@ export default function Glossary() {
             <p className="text-muted-foreground mt-1">{book.title}</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
+            {/* Provider selector for extraction */}
+            <select
+              value={extractProvider}
+              onChange={(e) => setExtractProvider(e.target.value)}
+              disabled={extracting}
+              className="h-10 px-3 bg-transparent border border-border text-xs uppercase tracking-[0.18em] outline-none cursor-pointer disabled:opacity-50"
+              aria-label="Provider for glossary extraction"
+            >
+              {settings.providers.filter((p) => p.enabled).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.id === "gemini" ? "Gemini" : "DeepSeek"}
+                </option>
+              ))}
+            </select>
             <button
               type="button"
               onClick={onExtract}

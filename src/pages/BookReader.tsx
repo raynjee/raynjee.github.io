@@ -1037,7 +1037,6 @@ export default function BookReader() {
                 aria-label="Previous chapter"
                 className="h-10 px-3 inline-flex items-center gap-1 rounded-lg border border-border hover:border-foreground/40 disabled:opacity-30 disabled:cursor-default active:scale-95 transition-all text-xs font-medium"
               >
-                <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.6} />
                 <span>Prev</span>
               </button>
 
@@ -1063,7 +1062,6 @@ export default function BookReader() {
                 className="h-10 px-3 inline-flex items-center gap-1 rounded-lg border border-border hover:border-foreground/40 disabled:opacity-30 disabled:cursor-default active:scale-95 transition-all text-xs font-medium"
               >
                 <span>Next</span>
-                <ArrowLeft className="w-3.5 h-3.5 rotate-180" strokeWidth={1.6} />
               </button>
 
               {/* Translate button */}
