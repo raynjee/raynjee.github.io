@@ -80,7 +80,7 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
               </div>
             </Link>
 
-            <nav className="hidden lg:flex items-center gap-2">
+            <nav className="hidden md:flex items-center gap-2">
               <StudioTab to="/library" label="Library" icon={Library} active={location.pathname.startsWith("/library")} />
               <StudioTab to="/settings" label="Settings" icon={SettingsIcon} active={location.pathname.startsWith("/settings")} />
             </nav>
@@ -89,7 +89,7 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
             <button
               onClick={() => setMobileMenuOpen((v) => !v)}
               aria-label="Toggle menu"
-              className="lg:hidden w-9 h-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors"
+              className="md:hidden w-9 h-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors"
             >
               {mobileMenuOpen ? (
                 <X className="w-4 h-4" strokeWidth={1.4} />
@@ -130,7 +130,7 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0 }}
           transition={{ duration: 0.2 }}
-          className="lg:hidden border-b border-border bg-background/95 backdrop-blur-sm"
+          className="md:hidden border-b border-border bg-background/95 backdrop-blur-sm"
         >
           <div className="px-6 py-4 flex flex-col gap-2">
             <Link

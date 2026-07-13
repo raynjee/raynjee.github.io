@@ -610,8 +610,8 @@ export default function BookReader() {
         className="mx-auto max-w-[1400px] px-6 lg:px-10 pt-10 pb-20 reader-root"
         style={readerVarStyle}
       >
-        {/* ── Title bar ───────────────────────────────────────────── */}
-        <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 sm:gap-6">
+        {/* ── Title bar — desktop only ──────────────────────── */}
+        <header className="hidden lg:flex flex-col lg:flex-row lg:items-end justify-between gap-4 sm:gap-6">
           <div>
             <button
               className="text-xs uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-2"
@@ -651,8 +651,29 @@ export default function BookReader() {
           </div>
         </header>
 
-        {/* Progress strip */}
-        <div className="mt-8 grid grid-cols-12 gap-4">
+        {/* ── Mobile top bar — compact, just book title ──────── */}
+        <div className="md:hidden flex items-center gap-3 mb-6">
+          <button
+            onClick={() => navigate("/library")}
+            className="shrink-0 w-9 h-9 grid place-items-center border border-border hover:border-foreground/40 rounded"
+            aria-label="Back to library"
+          >
+            <ArrowLeft className="w-4 h-4" strokeWidth={1.4} />
+          </button>
+          <div className="min-w-0">
+            <h1 className="font-display text-lg leading-tight truncate">{book.title}</h1>
+            <p className="text-xs text-muted-foreground truncate">{book.author}</p>
+          </div>
+          {busy && (
+            <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+              Translating…
+            </span>
+          )}
+        </div>
+
+        {/* Progress strip — desktop only */}
+        <div className="hidden lg:grid mt-8 grid-cols-12 gap-4">
           <ProgressCell label="Chapter" value={`${chapters.findIndex((c) => c.id === activeId) + 1} / ${chapters.length}`} />
           <ProgressCell label="Words translated" value={`${translatedWordCount.toLocaleString()} / ${totalWordCount.toLocaleString()}`} />
           <ProgressCell
@@ -708,9 +729,10 @@ export default function BookReader() {
           </motion.div>
         )}
 
-        {/* Keyboard shortcuts hint bar — dismissible for power users */}
+        {/* Keyboard shortcuts hint bar — desktop only */}
         {showShortcuts && (
-          <div className="mt-6 flex items-center gap-5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50 border-b border-border/50 pb-4 overflow-x-auto">
+          <div className="hidden lg:block mt-6">
+          <div className="flex items-center gap-5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50 border-b border-border/50 pb-4 overflow-x-auto">
             <span className="text-muted-foreground/70">Shortcuts</span>
             <span className="inline-flex items-center gap-1"><Kbd>←</Kbd><Kbd>→</Kbd> or <Kbd>J</Kbd><Kbd>K</Kbd> prev/next chapter</span>
             <span className="w-px h-3 bg-border/50" />
@@ -736,17 +758,19 @@ export default function BookReader() {
               Hide
             </button>
           </div>
+          </div>
         )}
-
         {/* Show-shortcuts re-entry when bar is hidden */}
         {!showShortcuts && (
+          <div className="hidden lg:block mt-6">
           <button
             type="button"
             onClick={toggleShortcuts}
-            className="mt-6 text-[10px] uppercase tracking-[0.2em] text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors border-b border-transparent hover:border-border/30 pb-1"
+            className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors border-b border-transparent hover:border-border/30 pb-1"
           >
             Show shortcuts
           </button>
+          </div>
         )}
 
         {/* Main split: TOC + reader */}
@@ -877,8 +901,8 @@ export default function BookReader() {
             </section>
           </div>
 
-          {/* ── Mobile: full-width reader ───────────────────────── */}
-          <div className="lg:hidden">
+          {/* ── Mobile: minimalist reader ─────────────────────── */}
+          <div className="lg:hidden pb-24">
             {activeChapter ? (
               <ChapterReader
                 chapter={activeChapter}
@@ -893,37 +917,10 @@ export default function BookReader() {
                 autoAdvance={autoAdvance}
                 onToggleAutoAdvance={onToggleAutoAdvance}
                 isPaused={paused}
-                onTranslateParagraph={async (paragraphIdx) => {
-                  if (!book || !activeChapter) return;
-                  const tr = activeTranslation ?? makeEmptyTranslation(book.id, activeChapter.id, activeChapter.paragraphs.length);
-                  if (tr.paragraphs[paragraphIdx] && tr.paragraphs[paragraphIdx]?.trim()) return;
-                  const mgr = makeManager();
-                  const res = await mgr.translateChapter({
-                    paragraphs: [activeChapter.paragraphs[paragraphIdx]],
-                    contextHint: `Single paragraph from "${activeChapter.title}".`,
-                    glossary: glossaryEntries.length ? glossaryEntries : undefined,
-                  });
-                  const txt = res.rows[0];
-                  const updated = { ...tr, paragraphs: [...tr.paragraphs], provider: res.provider };
-                  updated.paragraphs[paragraphIdx] = txt && txt.trim() ? txt : activeChapter.paragraphs[paragraphIdx];
-                  updated.status = res.failed ? "error" : "in_progress";
-                  updated.progress = updated.paragraphs.length
-                    ? updated.paragraphs.filter((p) => p && p.trim()).length / updated.paragraphs.length
-                    : 1;
-                  await saveTranslation(updated);
-                  setTranslations((m) => ({ ...m, [activeChapter.id]: updated }));
-                  notifyLibraryChanged();
-                }}
-                onResetParagraph={(idx) => {
-                  if (!book || !activeChapter || !activeTranslation) return;
-                  const updated = {
-                    ...activeTranslation,
-                    paragraphs: activeTranslation.paragraphs.map((p, i) => (i === idx ? null : p)),
-                  };
-                  void saveTranslation(updated);
-                  setTranslations((m) => ({ ...m, [activeChapter.id]: updated }));
-                }}
+                onTranslateParagraph={async () => {}}
+                onResetParagraph={() => {}}
                 busy={busy}
+                mobile
               />
             ) : (
               <div className="p-12 text-center">
@@ -946,7 +943,7 @@ export default function BookReader() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
                   onClick={closeTocDrawer}
                 />
                 {/* Drawer panel */}
@@ -955,7 +952,7 @@ export default function BookReader() {
                   animate={{ x: 0 }}
                   exit={{ x: "-100%" }}
                   transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                  className="lg:hidden fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] bg-background border-r border-border shadow-xl flex flex-col"
+                  className="md:hidden fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] bg-background border-r border-border shadow-xl flex flex-col"
                 >
                   {/* Drawer header */}
                   <div className="flex items-center justify-between px-5 py-4 border-b border-border">
@@ -1027,18 +1024,75 @@ export default function BookReader() {
             )}
           </AnimatePresence>
 
-          {/* ── Floating TOC toggle (mobile only) ─────────────── */}
-          <button
-            type="button"
-            onClick={toggleTocDrawer}
-            aria-label="Table of contents"
-            className="lg:hidden fixed bottom-6 right-6 z-30 w-14 h-14 rounded-full bg-foreground text-background shadow-lg hover:shadow-xl active:scale-95 transition-all flex items-center justify-center gap-1.5"
-          >
-            <List className="w-5 h-5" strokeWidth={1.6} />
-            <span className="studio-num text-[11px] font-medium">
-              {activeIdx >= 0 ? `${activeIdx + 1}/${chapters.length}` : ""}
-            </span>
-          </button>
+          {/* ── Mobile bottom nav bar ────────────────────────── */}
+          <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-sm border-t border-border safe-bottom">
+            <div className="flex items-center justify-between px-4 py-2 max-w-lg mx-auto">
+              {/* Prev chapter */}
+              <button
+                type="button"
+                onClick={() => {
+                  const idx = chapters.findIndex((c) => c.id === activeId);
+                  if (idx > 0) { setActiveId(chapters[idx - 1].id); window.scrollTo({ top: 0, behavior: "smooth" }); }
+                }}
+                disabled={activeIdx <= 0}
+                aria-label="Previous chapter"
+                className="h-11 w-11 grid place-items-center rounded-full border border-border hover:border-foreground/40 disabled:opacity-30 disabled:cursor-default active:scale-95 transition-all"
+              >
+                <ArrowLeft className="w-4 h-4" strokeWidth={1.4} />
+              </button>
+
+              {/* TOC button */}
+              <button
+                type="button"
+                onClick={toggleTocDrawer}
+                aria-label="Table of contents"
+                className="h-11 px-4 inline-flex items-center gap-2 rounded-full border border-border hover:border-foreground/40 active:scale-95 transition-all"
+              >
+                <List className="w-4 h-4" strokeWidth={1.4} />
+                <span className="studio-num text-sm font-medium">
+                  {activeIdx >= 0 ? `${activeIdx + 1}/${chapters.length}` : "—"}
+                </span>
+              </button>
+
+              {/* Next chapter */}
+              <button
+                type="button"
+                onClick={() => {
+                  const idx = chapters.findIndex((c) => c.id === activeId);
+                  if (idx < chapters.length - 1) { setActiveId(chapters[idx + 1].id); window.scrollTo({ top: 0, behavior: "smooth" }); }
+                }}
+                disabled={activeIdx >= chapters.length - 1}
+                aria-label="Next chapter"
+                className="h-11 w-11 grid place-items-center rounded-full border border-border hover:border-foreground/40 disabled:opacity-30 disabled:cursor-default active:scale-95 transition-all"
+              >
+                <ArrowLeft className="w-4 h-4 rotate-180" strokeWidth={1.4} />
+              </button>
+
+              {/* Translate button */}
+              {activeChapter && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onTranslateActive()}
+                  className={cn(
+                    "h-11 px-5 inline-flex items-center gap-2 rounded-full font-medium text-sm active:scale-95 transition-all",
+                    activeTranslation?.status === "completed"
+                      ? "border border-border hover:border-foreground/40"
+                      : "bg-foreground text-background hover:bg-foreground/90"
+                  )}
+                >
+                  {busy ? (
+                    <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
+                  ) : (
+                    <Sparkles className="w-4 h-4" strokeWidth={1.4} />
+                  )}
+                  <span className="hidden sm:inline text-xs">
+                    {busy ? "…" : activeTranslation?.status === "completed" ? "Re-do" : "Translate"}
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </StudioShell>
@@ -1105,6 +1159,7 @@ function ChapterReader({
   onTranslateParagraph,
   onResetParagraph,
   busy,
+  mobile,
 }: {
   chapter: Chapter;
   translation: ChapterTranslation | null;
@@ -1123,6 +1178,7 @@ function ChapterReader({
   onTranslateParagraph: (idx: number) => void | Promise<void>;
   onResetParagraph: (idx: number) => void;
   busy: boolean;
+  mobile?: boolean;
 }) {
   // showOriginal/layout are now driven by per-book ReaderPrefs instead of
   // local component state — so changes persist across sessions and stay in
@@ -1142,10 +1198,10 @@ function ChapterReader({
 
   return (
     <article>
-      <header className="flex flex-col sm:flex-row items-start sm:justify-between gap-4 sm:gap-6 flex-wrap">
+      <header className={cn("flex flex-col sm:flex-row items-start sm:justify-between gap-4 sm:gap-6 flex-wrap", mobile && "gap-2")}>
         <div>
-          <div className="studio-caps text-muted-foreground">Chapter</div>
-          <h2 className="font-display text-2xl sm:text-3xl mt-1 tracking-tight">{chapter.title}</h2>
+          {!mobile && <div className="studio-caps text-muted-foreground">Chapter</div>}
+          <h2 className={cn("font-display mt-1 tracking-tight", mobile ? "text-xl" : "text-2xl sm:text-3xl")}>{chapter.title}</h2>
           <div className="text-muted-foreground mt-1 text-sm">
             {chapter.wordCount.toLocaleString()} words ·{" "}
               {translation?.status === "completed" ? (
@@ -1165,6 +1221,7 @@ function ChapterReader({
             ) : null}
           </div>
         </div>
+        {!mobile && (
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           {/* Re-entry affordance when the TOC is collapsed: a single icon
               button that brings the chapter list back. Always rendered so
@@ -1265,6 +1322,7 @@ function ChapterReader({
             </>
           )}
         </div>
+        )}
       </header>
 
       {/* Column headings — once per chapter, not per paragraph. */}
