@@ -19,7 +19,8 @@ export type ProviderId = "deepseek" | "gemini";
 export interface ProviderConfig {
   id: ProviderId;
   enabled: boolean;
-  apiKey?: string; // still used by Gemini
+  apiKey?: string; // primary API key (still used by Gemini)
+  apiKeys?: string[]; // additional rotation keys for Gemini — tried in order on 429
   model?: string;
   baseUrl?: string; // DeepSeek proxy endpoint (default http://127.0.0.1:8001/v1)
 }

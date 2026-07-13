@@ -9,11 +9,13 @@ import {
   FileDown,
   KeyRound,
   Loader2,
+  Plus,
   Upload,
   HelpCircle,
   Terminal,
   Check,
   Copy,
+  X,
 } from "lucide-react";
 import { StudioShell } from "@/components/StudioShell";
 import { useSettings } from "@/hooks/use-settings";
@@ -479,9 +481,9 @@ function ProviderSettings({
                   </div>
                 </div>
               ) : (
-                /* Gemini: needs an API key */
+                /* Gemini: needs API keys — primary + rotation keys */
                 <div className="mt-5 grid gap-3">
-                  <Field label="API key">
+                  <Field label="Primary API key">
                     <input
                       disabled={!canEdit}
                       type="password"
@@ -497,6 +499,82 @@ function ProviderSettings({
                       className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2 font-mono text-sm"
                     />
                   </Field>
+
+                  {/* Rotation keys */}
+                  {(cfg.apiKeys ?? []).map((key, ki) => (
+                    <Field key={ki} label={`Rotation key ${ki + 1}`}>
+                      <div className="flex items-center gap-2">
+                        <input
+                          disabled={!canEdit}
+                          type="password"
+                          placeholder="AIza…"
+                          value={key}
+                          onChange={(e) =>
+                            update({
+                              providers: settings.providers.map((p) =>
+                                p.id === cfg.id
+                                  ? {
+                                      ...p,
+                                      apiKeys: (p.apiKeys ?? []).map((k, j) =>
+                                        j === ki ? e.target.value : k,
+                                      ),
+                                    }
+                                  : p,
+                              ),
+                            })
+                          }
+                          className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2 font-mono text-sm"
+                        />
+                        <button
+                          type="button"
+                          disabled={!canEdit}
+                          onClick={() =>
+                            update({
+                              providers: settings.providers.map((p) =>
+                                p.id === cfg.id
+                                  ? {
+                                      ...p,
+                                      apiKeys: (p.apiKeys ?? []).filter((_, j) => j !== ki),
+                                    }
+                                  : p,
+                              ),
+                            })
+                          }
+                          className="shrink-0 p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Remove this key"
+                        >
+                          <X className="w-4 h-4" strokeWidth={1.4} />
+                        </button>
+                      </div>
+                    </Field>
+                  ))}
+
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() =>
+                      update({
+                        providers: settings.providers.map((p) =>
+                          p.id === cfg.id
+                            ? { ...p, apiKeys: [...(p.apiKeys ?? []), ""] }
+                            : p,
+                        ),
+                      })
+                    }
+                    className="h-8 px-3 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" strokeWidth={1.4} />
+                    <span className="uppercase tracking-[0.18em]">Add rotation key</span>
+                  </button>
+
+                  {((cfg.apiKeys ?? []).length > 0) && (
+                    <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                      When the primary key hits a rate limit (429), the studio
+                      automatically rotates to the next key. Working keys are
+                      promoted to primary for the next request.
+                    </p>
+                  )}
+
                   <Field label="Model">
                     <select
                       disabled={!canEdit}

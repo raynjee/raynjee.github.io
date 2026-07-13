@@ -1,4 +1,5 @@
 // Gemini adapter using the official Generative Language API.
+// Supports multiple API keys with automatic rotation on 429 rate limits.
 
 import type { GlossaryEntry, ProviderConfig } from "../types";
 import type { TranslateRequest, TranslateResult } from "./types";
@@ -8,18 +9,67 @@ export async function callGemini(
   cfg: ProviderConfig,
   req: TranslateRequest,
 ): Promise<Omit<TranslateResult, "provider">> {
-  if (!cfg.apiKey) {
+  // Collect all keys: primary + rotation keys, deduped, non-empty.
+  const keys = [
+    cfg.apiKey,
+    ...(cfg.apiKeys ?? []),
+  ].filter((k): k is string => !!k && k.trim().length > 0);
+
+  if (keys.length === 0) {
     throw new Error("Gemini requires an API key (set one in Settings).");
   }
-  const model = cfg.model || "gemini-1.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
-    model,
-  )}:generateContent?key=${encodeURIComponent(cfg.apiKey)}`;
 
+  const model = cfg.model || "gemini-2.0-flash";
+  const body = buildRequestBody(req);
+
+  let lastError: Error | null = null;
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i].trim();
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      model,
+    )}:generateContent?key=${encodeURIComponent(key)}`;
+
+    try {
+      const res = await fetchWithTimeout(url, body);
+      const data = (await res.json()) as GeminiResponse;
+      const text = pickText(data);
+      if (!text) throw new Error("Gemini returned an empty completion.");
+
+      // Promote the working key to the front: swap with position 0
+      // so the next call tries it first (live rotation).
+      if (i > 0 && cfg.apiKey !== key) {
+        // Move this key to primary position for future calls.
+        const remaining = keys.filter((_, j) => j !== i);
+        cfg.apiKey = key;
+        cfg.apiKeys = remaining.filter((k) => k !== cfg.apiKey);
+      }
+
+      return { paragraphs: parseNumberedResponse(text, req.paragraphs), cachedCount: 0 };
+    } catch (err) {
+      const status = (err as Error & { status?: number }).status ?? 0;
+      // Only rotate on rate-limit (429) or quota (429). Auth errors (401/403)
+      // and not-found (404) should fail fast — don't burn other keys.
+      if (status === 429) {
+        lastError = err as Error;
+        // Brief pause before trying the next key so we don't hammer the API.
+        if (i + 1 < keys.length) {
+          await new Promise((r) => setTimeout(r, 600));
+        }
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  // All keys exhausted.
+  throw lastError ?? new Error("All Gemini API keys exhausted or rate-limited.");
+}
+
+function buildRequestBody(req: TranslateRequest) {
   const systemPrompt = buildSystemPrompt(req);
   const userText = buildUserPrompt(req);
-
-  const body = {
+  return {
     systemInstruction: {
       role: "system",
       parts: [{ text: systemPrompt }],
@@ -34,7 +84,9 @@ export async function callGemini(
       temperature: req.quality === "high" ? 0.35 : req.quality === "balanced" ? 0.5 : 0.7,
     },
   };
+}
 
+async function fetchWithTimeout(url: string, body: unknown): Promise<Response> {
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 90_000);
   try {
@@ -52,10 +104,7 @@ export async function callGemini(
       (err as Error & { status?: number }).status = res.status;
       throw err;
     }
-    const data = (await res.json()) as GeminiResponse;
-    const text = pickText(data);
-    if (!text) throw new Error("Gemini returned an empty completion.");
-    return { paragraphs: parseNumberedResponse(text, req.paragraphs), cachedCount: 0 };
+    return res;
   } catch (err) {
     if ((err as Error).name === "AbortError") {
       const e = new Error("Gemini request timed out after 90s.");
