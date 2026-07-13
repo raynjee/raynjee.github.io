@@ -1141,38 +1141,7 @@ function ChapterReader({
                 <p className="reader-prose-text text-foreground/80">
                   {p}
                 </p>
-                <div className="group relative mt-3">
-                  <div className="absolute -top-2 right-0 flex items-center gap-2 select-none opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100" aria-hidden="true">
-                    {t && t.trim() ? (
-                      <>
-                        <button
-                          onClick={() => onTranslateParagraph(idx)}
-                          className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
-                          title="Re-translate this paragraph"
-                          tabIndex={-1}
-                        >
-                          Re-translate
-                        </button>
-                        <button
-                          onClick={() => onResetParagraph(idx)}
-                          className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
-                          title="Reset to source"
-                          tabIndex={-1}
-                        >
-                          <Undo2 className="w-3 h-3 inline" /> Reset
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => onTranslateParagraph(idx)}
-                        className="text-[10px] uppercase tracking-[0.2em] text-foreground hover:text-foreground/70"
-                        title="Translate this paragraph"
-                        tabIndex={-1}
-                      >
-                        Translate →
-                      </button>
-                    )}
-                  </div>
+                <div className="mt-3">
                   <p className="reader-prose-text text-foreground/85 py-3">
                     {t && t.trim() ? t : (
                       <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
@@ -1200,41 +1169,11 @@ function ChapterReader({
                   {p}
                 </p>
               )}
-              <div className="group relative">
-                <div className="absolute -top-2 right-0 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                  {t && t.trim() ? (
-                    <>
-                      <button
-                        onClick={() => onTranslateParagraph(idx)}
-                        className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
-                        title="Re-translate this paragraph"
-                      >
-                        Re-translate
-                      </button>
-                      <button
-                        onClick={() => onResetParagraph(idx)}
-                        className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground hover:text-foreground"
-                        title="Reset to source"
-                      >
-                        <Undo2 className="w-3 h-3 inline" /> Reset
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      onClick={() => onTranslateParagraph(idx)}
-                      className="text-[10px] uppercase tracking-[0.2em] text-foreground hover:text-foreground/70"
-                      title="Translate this paragraph"
-                    >
-                      Translate →
-                    </button>
-                  )}
-                </div>
-                <p className="reader-prose-text text-foreground/85 py-3">
-                  {t && t.trim() ? t : (
-                    <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
-                  )}
-                </p>
-              </div>
+              <p className="reader-prose-text text-foreground/85 py-3">
+                {t && t.trim() ? t : (
+                  <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
+                )}
+              </p>
             </motion.div>
           );
         })}
