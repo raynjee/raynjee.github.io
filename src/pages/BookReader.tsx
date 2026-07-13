@@ -1024,9 +1024,9 @@ export default function BookReader() {
           </AnimatePresence>
 
           {/* ── Mobile bottom nav bar ────────────────────────── */}
-          <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-sm border-t border-border safe-bottom">
-            <div className="flex items-center justify-between px-3 py-2 max-w-lg mx-auto gap-2">
-              {/* Prev chapter */}
+          <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-sm border-t border-border pb-[env(safe-area-inset-bottom,0)]">
+            <div className="flex items-center px-2 py-2.5 max-w-lg mx-auto gap-1.5">
+              {/* Prev */}
               <button
                 type="button"
                 onClick={() => {
@@ -1035,22 +1035,48 @@ export default function BookReader() {
                 }}
                 disabled={activeIdx <= 0}
                 aria-label="Previous chapter"
-                className="h-10 px-3 inline-flex items-center gap-1 rounded-lg border border-border hover:border-foreground/40 disabled:opacity-30 disabled:cursor-default active:scale-95 transition-all text-xs font-medium"
+                className="h-11 w-11 shrink-0 grid place-items-center rounded-lg border border-border hover:border-foreground/40 disabled:opacity-25 disabled:cursor-default active:scale-95 transition-all"
               >
-                <span>Prev</span>
+                <ArrowLeft className="w-4 h-4" strokeWidth={1.6} />
               </button>
 
-              {/* TOC button */}
-              <button
-                type="button"
-                onClick={toggleTocDrawer}
-                aria-label="Table of contents"
-                className="h-10 w-10 grid place-items-center rounded-lg border border-border hover:border-foreground/40 active:scale-95 transition-all"
-              >
-                <List className="w-4 h-4" strokeWidth={1.4} />
-              </button>
+              {/* Center: TOC + Translate */}
+              <div className="flex-1 flex items-center justify-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={toggleTocDrawer}
+                  aria-label="Table of contents"
+                  className="h-11 px-4 inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-foreground/40 active:scale-95 transition-all text-xs font-medium"
+                >
+                  <List className="w-4 h-4" strokeWidth={1.4} />
+                  <span className="hidden sm:inline">Chapters</span>
+                </button>
 
-              {/* Next chapter */}
+                {activeChapter && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onTranslateActive()}
+                    className={cn(
+                      "h-11 px-4 inline-flex items-center gap-1.5 rounded-lg font-medium text-xs active:scale-95 transition-all",
+                      activeTranslation?.status === "completed"
+                        ? "border border-border hover:border-foreground/40"
+                        : "bg-foreground text-background hover:bg-foreground/90"
+                    )}
+                  >
+                    {busy ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+                    ) : (
+                      <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
+                    )}
+                    <span className="hidden sm:inline">
+                      {busy ? "…" : activeTranslation?.status === "completed" ? "Re-do" : "Translate"}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* Next */}
               <button
                 type="button"
                 onClick={() => {
@@ -1059,34 +1085,10 @@ export default function BookReader() {
                 }}
                 disabled={activeIdx >= chapters.length - 1}
                 aria-label="Next chapter"
-                className="h-10 px-3 inline-flex items-center gap-1 rounded-lg border border-border hover:border-foreground/40 disabled:opacity-30 disabled:cursor-default active:scale-95 transition-all text-xs font-medium"
+                className="h-11 w-11 shrink-0 grid place-items-center rounded-lg border border-border hover:border-foreground/40 disabled:opacity-25 disabled:cursor-default active:scale-95 transition-all"
               >
-                <span>Next</span>
+                <ArrowLeft className="w-4 h-4 rotate-180" strokeWidth={1.6} />
               </button>
-
-              {/* Translate button */}
-              {activeChapter && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => onTranslateActive()}
-                  className={cn(
-                    "h-10 px-4 inline-flex items-center gap-1.5 rounded-lg font-medium text-xs active:scale-95 transition-all",
-                    activeTranslation?.status === "completed"
-                      ? "border border-border hover:border-foreground/40"
-                      : "bg-foreground text-background hover:bg-foreground/90"
-                  )}
-                >
-                  {busy ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
-                  ) : (
-                    <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
-                  )}
-                  <span>
-                    {busy ? "…" : activeTranslation?.status === "completed" ? "Re-do" : "Translate"}
-                  </span>
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -1194,7 +1196,7 @@ function ChapterReader({
 
   return (
     <article>
-      <header className={cn("flex flex-col sm:flex-row items-start sm:justify-between gap-4 sm:gap-6 flex-wrap", mobile && "gap-2")}>
+      <header className={cn("flex flex-col sm:flex-row items-start sm:justify-between gap-3 sm:gap-6 flex-wrap", mobile && "gap-3")}>
         <div>
           {!mobile && <div className="studio-caps text-muted-foreground">Chapter</div>}
           <h2 className={cn("font-display mt-1 tracking-tight", mobile ? "text-xl" : "text-2xl sm:text-3xl")}>{chapter.title}</h2>
@@ -1206,7 +1208,7 @@ function ChapterReader({
                   Translated
                 </span>
               ) : translation ? (
-                `${Math.round((translation.progress ?? 0) * 100)}% translated`
+                `${Math.round((translation.progress ?? 0) * 100)}%`
               ) : (
                 "untranslated"
               )}

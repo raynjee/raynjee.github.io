@@ -294,12 +294,12 @@ export default function Glossary() {
               ← Back to reader
             </button>
             <div className="studio-caps text-muted-foreground">Reference</div>
-            <h1 className="font-display text-5xl mt-2 tracking-tight">
-              Glossary
-            </h1>
+          <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl mt-2 tracking-tight">
+            Glossary
+          </h1>
             <p className="text-muted-foreground mt-1">{book.title}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Provider selector for extraction */}
             <select
               value={extractProvider}
@@ -326,7 +326,7 @@ export default function Glossary() {
                 <Sparkles className="w-4 h-4" strokeWidth={1.4} />
               )}
               <span className="text-xs uppercase tracking-[0.18em]">
-                {extracting ? "Extracting…" : "Extract from EPUB"}
+                {extracting ? "Extracting…" : "Extract"}
               </span>
             </button>
             <button
@@ -335,12 +335,11 @@ export default function Glossary() {
                 setShowAddForm(true);
                 resetDraft();
               }}
-              className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
+              className="h-10 px-3 sm:px-4 inline-flex items-center gap-1.5 sm:gap-2 border border-border hover:border-foreground/40"
             >
               <Plus className="w-4 h-4" strokeWidth={1.4} />
-              <span className="text-xs uppercase tracking-[0.18em]">
-                Add entry
-              </span>
+              <span className="text-xs uppercase tracking-[0.18em] hidden sm:inline">Add entry</span>
+              <span className="text-xs uppercase tracking-[0.18em] sm:hidden">Add</span>
             </button>
           </div>
         </div>
@@ -370,45 +369,73 @@ export default function Glossary() {
 
         {/* ── Table ─────────────────────────────────────────────────── */}
         {entries.length === 0 && !extracting ? (
-          <div className="mt-12 border border-border bg-card p-12 text-center">
+          <div className="mt-8 sm:mt-12 border border-border bg-card p-8 sm:p-12 text-center">
             <BookOpen
-              className="w-10 h-10 mx-auto text-muted-foreground"
+              className="w-8 h-8 sm:w-10 sm:h-10 mx-auto text-muted-foreground"
               strokeWidth={1.2}
             />
-            <div className="mt-4 font-display text-2xl">
+            <div className="mt-4 font-display text-xl sm:text-2xl">
               No glossary yet
             </div>
-            <p className="text-muted-foreground mt-2 max-w-[44ch] mx-auto">
+            <p className="text-muted-foreground mt-2 max-w-[44ch] mx-auto text-sm leading-relaxed">
               Click <strong>Extract from EPUB</strong> to have the AI scan the
               entire novel for characters, locations, slang, and difficult
               words — or add entries by hand.
             </p>
           </div>
         ) : (
-          <div className="mt-8 border border-border">
-            {/* Table header */}
-            <div className="grid grid-cols-12 gap-3 px-4 py-3 border-b border-border bg-card text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-              <span className="col-span-3">Term</span>
-              <span className="col-span-3">Translation</span>
-              <span className="col-span-1">Category</span>
-              <span className="col-span-1">Gender</span>
-              <span className="col-span-3">Notes</span>
-              <span className="col-span-1 text-right">Actions</span>
+          <>
+            {/* Desktop table (md+) */}
+            <div className="hidden md:block mt-8 border border-border">
+              {/* Table header */}
+              <div className="grid grid-cols-12 gap-3 px-4 py-3 border-b border-border bg-card text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                <span className="col-span-3">Term</span>
+                <span className="col-span-3">Translation</span>
+                <span className="col-span-1">Category</span>
+                <span className="col-span-1">Gender</span>
+                <span className="col-span-3">Notes</span>
+                <span className="col-span-1 text-right">Actions</span>
+              </div>
+
+              {/* Table body */}
+              <div className="divide-y divide-border max-h-[calc(100vh-16rem)] overflow-y-auto thin-scrollbar">
+                {entries.map((entry) =>
+                  editingId === entry.id ? (
+                    <GlossaryEditRow
+                      key={entry.id}
+                      draft={draft}
+                      setDraft={setDraft}
+                      onSave={() => saveEdit(entry.id)}
+                      onCancel={cancelEdit}
+                    />
+                  ) : (
+                    <GlossaryViewRow
+                      key={entry.id}
+                      entry={entry}
+                      onEdit={() => startEdit(entry)}
+                      onDelete={() => deleteEntry(entry.id)}
+                    />
+                  ),
+                )}
+              </div>
             </div>
 
-            {/* Table body */}
-            <div className="divide-y divide-border max-h-[calc(100vh-16rem)] overflow-y-auto thin-scrollbar">
+            {/* Mobile card list (< md) */}
+            <div className="md:hidden mt-6 space-y-3">
               {entries.map((entry) =>
                 editingId === entry.id ? (
-                  <GlossaryEditRow
-                    key={entry.id}
-                    draft={draft}
-                    setDraft={setDraft}
-                    onSave={() => saveEdit(entry.id)}
-                    onCancel={cancelEdit}
-                  />
+                  <div key={entry.id} className="border border-border bg-card p-4">
+                    <GlossaryEditForm
+                      draft={draft}
+                      setDraft={setDraft}
+                      onSave={() => saveEdit(entry.id)}
+                      onCancel={cancelEdit}
+                      saveLabel="Save"
+                      mobile
+                    />
+                  </div>
                 ) : (
-                  <GlossaryViewRow
+                  <GlossaryMobileCard
                     key={entry.id}
                     entry={entry}
                     onEdit={() => startEdit(entry)}
@@ -417,14 +444,68 @@ export default function Glossary() {
                 ),
               )}
             </div>
-          </div>
+          </>
         )}
       </div>
     </StudioShell>
   );
 }
 
-// ── View row ──────────────────────────────────────────────────────────
+// ── Mobile card ───────────────────────────────────────────────────────
+
+function GlossaryMobileCard({
+  entry,
+  onEdit,
+  onDelete,
+}: {
+  entry: GlossaryEntry;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="border border-border bg-card p-4 space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-base font-medium leading-tight">{entry.term}</p>
+          <p className="text-sm text-foreground/80 mt-0.5">{entry.translation}</p>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="p-2 text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+            aria-label="Edit entry"
+          >
+            <Pencil className="w-4 h-4" strokeWidth={1.4} />
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="p-2 text-muted-foreground hover:text-destructive active:scale-95 transition-all"
+            aria-label="Delete entry"
+          >
+            <Trash2 className="w-4 h-4" strokeWidth={1.4} />
+          </button>
+        </div>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="inline-block text-[10px] uppercase tracking-[0.16em] px-2 py-0.5 border border-border text-muted-foreground">
+          {CATEGORY_LABELS[entry.category]}
+        </span>
+        {entry.gender && (
+          <span className="inline-block text-[10px] uppercase tracking-[0.16em] px-2 py-0.5 border border-border text-muted-foreground">
+            {GENDER_LABEL[entry.gender] ?? entry.gender}
+          </span>
+        )}
+      </div>
+      {entry.notes && (
+        <p className="text-xs text-muted-foreground leading-relaxed">{entry.notes}</p>
+      )}
+    </div>
+  );
+}
+
+// ── View row (desktop) ───────────────────────────────────────────────────
 
 function GlossaryViewRow({
   entry,
@@ -539,6 +620,7 @@ function GlossaryEditForm({
   onSave,
   onCancel,
   saveLabel,
+  mobile,
 }: {
   draft: {
     term: string;
@@ -559,6 +641,7 @@ function GlossaryEditForm({
   onSave: () => void;
   onCancel: () => void;
   saveLabel: string;
+  mobile?: boolean;
 }) {
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -567,6 +650,98 @@ function GlossaryEditForm({
     }
   };
 
+  // Mobile: stacked layout
+  if (mobile) {
+    return (
+      <div onKeyDown={handleKey} className="space-y-3">
+        <input
+          type="text"
+          value={draft.term}
+          onChange={(e) => setDraft((d) => ({ ...d, term: e.target.value }))}
+          placeholder="Chinese term"
+          className="w-full bg-muted/50 border border-border rounded focus:border-foreground outline-none px-3 py-2.5 text-base"
+          autoFocus
+        />
+        <input
+          type="text"
+          value={draft.translation}
+          onChange={(e) =>
+            setDraft((d) => ({ ...d, translation: e.target.value }))
+          }
+          placeholder="English translation"
+          className="w-full bg-muted/50 border border-border rounded focus:border-foreground outline-none px-3 py-2.5 text-base"
+        />
+        <div className="flex items-center gap-2">
+          <select
+            value={draft.category}
+            onChange={(e) =>
+              setDraft((d) => ({
+                ...d,
+                category: e.target.value as GlossaryEntry["category"],
+              }))
+            }
+            className="flex-1 bg-muted/50 border border-border rounded focus:border-foreground outline-none px-3 py-2.5 text-base"
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {CATEGORY_LABELS[c]}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center gap-1">
+            {GENDERS.map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() =>
+                  setDraft((d) => ({ ...d, gender: d.gender === g ? null : g }))
+                }
+                className={cn(
+                  "h-10 px-3 text-xs uppercase tracking-[0.16em] border rounded transition-colors",
+                  draft.gender === g
+                    ? "bg-foreground text-background border-foreground"
+                    : "border-border text-muted-foreground hover:border-foreground/40",
+                )}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+        </div>
+        <input
+          type="text"
+          value={draft.notes}
+          onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
+          placeholder="Context note (optional)"
+          className="w-full bg-muted/50 border border-border rounded focus:border-foreground outline-none px-3 py-2.5 text-base"
+        />
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onSave}
+            className="flex-1 h-10 inline-flex items-center justify-center gap-1.5 bg-foreground text-background hover:bg-foreground/90 rounded"
+          >
+            <Check className="w-4 h-4" strokeWidth={1.4} />
+            <span className="text-xs uppercase tracking-[0.18em]">
+              {saveLabel}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 h-10 inline-flex items-center justify-center gap-1.5 border border-border hover:border-foreground/40 rounded"
+          >
+            <X className="w-4 h-4" strokeWidth={1.4} />
+            <span className="text-xs uppercase tracking-[0.18em]">
+              Cancel
+            </span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop: grid layout
   return (
     <div onKeyDown={handleKey}>
       <div className="grid grid-cols-12 gap-3 items-end">

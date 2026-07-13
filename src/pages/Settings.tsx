@@ -41,7 +41,7 @@ export default function SettingsPage() {
     <StudioShell>
       <div className="mx-auto max-w-[1100px] px-6 lg:px-10 pt-10 pb-20">
         <div className="studio-caps text-muted-foreground">The Back Room</div>
-        <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl mt-2 tracking-tight">Settings</h1>
+        <h1 className="font-display text-2xl sm:text-3xl lg:text-5xl mt-2 tracking-tight">Settings</h1>
         <p className="text-muted-foreground mt-3 max-w-[58ch]">
           API keys, proxy configuration, translation preferences, and the
           studio's housekeeping. Everything lives on your machine.
@@ -244,7 +244,7 @@ function DeepSeekTutorial() {
   };
 
   return (
-    <section className="studio-card p-6">
+    <section className="studio-card p-4 sm:p-6">
       <div className="flex items-start gap-3">
         <Terminal className="w-5 h-5 text-foreground mt-0.5" strokeWidth={1.4} />
         <div className="flex-1">
@@ -412,12 +412,12 @@ function ProviderSettings({
         when a provider is rate limited or unreachable. DeepSeek uses the local
         proxy — Gemini needs an API key.
       </p>
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="mt-6 grid gap-4 sm:gap-6 lg:grid-cols-2">
         {settings.providers.map((cfg) => {
           const result = results[cfg.id];
           const isDS = cfg.id === "deepseek";
           return (
-            <div key={cfg.id} className="studio-card p-5">
+            <div key={cfg.id} className="studio-card p-4 sm:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="studio-caps text-muted-foreground">{cfg.id}</div>
