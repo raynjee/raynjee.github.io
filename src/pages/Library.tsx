@@ -656,6 +656,46 @@ export function BookEditor({ bookId }: { bookId: string }) {
   const [cover, setCover] = useState<string | null>(book?.coverDataUrl ?? null);
   const { settings } = useSettings();
   const [translatingMeta, setTranslatingMeta] = useState(false);
+  const [translatingTitle, setTranslatingTitle] = useState(false);
+  const [translatingAuthor, setTranslatingAuthor] = useState(false);
+  const [translatingDesc, setTranslatingDesc] = useState(false);
+
+  const translateField = async (
+    text: string,
+    kind: string,
+    setter: (v: string) => void,
+    busySetter: (v: boolean) => void,
+  ) => {
+    if (!text.trim() || !book) return;
+    busySetter(true);
+    try {
+      const mgr = new TranslationManager({
+        providers: settings.providers,
+        preferred: settings.activeProvider,
+        parallelRequests: 1,
+        pauseOnError: false,
+        quality: settings.quality,
+        source: book.language,
+        target: "en",
+      });
+      const result = await mgr.translateChapter({
+        paragraphs: [text.trim()],
+        contextHint: `Translate this ${kind} from "${book.title}" to natural English. Return ONLY the translated text, nothing else.`,
+      });
+      const translated = result.rows[0]?.trim();
+      if (translated && translated !== text.trim()) {
+        setter(translated);
+        toast.success(`${kind} translated.`);
+      } else {
+        toast.message(`${kind} is already in English or unchanged.`);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`Translation failed: ${msg.slice(0, 200)}`);
+    } finally {
+      busySetter(false);
+    }
+  };
 
   useEffect(() => {
     if (!book) return;
@@ -779,21 +819,72 @@ export function BookEditor({ bookId }: { bookId: string }) {
                 Editorial details
               </div>
               <div className="grid gap-4 mt-3">
-                <Field label="Title">
+                <Field
+                  label="Title"
+                  action={
+                    <button
+                      type="button"
+                      disabled={translatingTitle || !title.trim()}
+                      onClick={() => translateField(title, "book title", setTitle, setTranslatingTitle)}
+                      className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
+                      title="Translate title"
+                    >
+                      {translatingTitle ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
+                      )}
+                    </button>
+                  }
+                >
                   <input
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2 text-lg font-display"
                   />
                 </Field>
-                <Field label="Author">
+                <Field
+                  label="Author"
+                  action={
+                    <button
+                      type="button"
+                      disabled={translatingAuthor || !author.trim()}
+                      onClick={() => translateField(author, "author name", setAuthor, setTranslatingAuthor)}
+                      className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
+                      title="Translate author"
+                    >
+                      {translatingAuthor ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
+                      )}
+                    </button>
+                  }
+                >
                   <input
                     value={author}
                     onChange={(e) => setAuthor(e.target.value)}
                     className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2"
                   />
                 </Field>
-                <Field label="Description">
+                <Field
+                  label="Description"
+                  action={
+                    <button
+                      type="button"
+                      disabled={translatingDesc || !description.trim()}
+                      onClick={() => translateField(description, "book description", setDescription, setTranslatingDesc)}
+                      className="h-6 w-6 grid place-items-center rounded hover:bg-accent transition-colors disabled:opacity-30 cursor-pointer"
+                      title="Translate description"
+                    >
+                      {translatingDesc ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+                      ) : (
+                        <Sparkles className="w-3.5 h-3.5" strokeWidth={1.4} />
+                      )}
+                    </button>
+                  }
+                >
                   <textarea
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
@@ -985,13 +1076,18 @@ export function BookEditor({ bookId }: { bookId: string }) {
 function Field({
   label,
   children,
+  action,
 }: {
   label: string;
   children: React.ReactNode;
+  action?: React.ReactNode;
 }) {
   return (
     <label className="block">
-      <span className="studio-caps text-muted-foreground">{label}</span>
+      <span className="studio-caps text-muted-foreground inline-flex items-center gap-2">
+        {label}
+        {action}
+      </span>
       <div className="mt-1">{children}</div>
     </label>
   );
