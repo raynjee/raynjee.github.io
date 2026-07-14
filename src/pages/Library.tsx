@@ -182,7 +182,7 @@ export default function Library() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Title or author"
-              className="flex-1 min-w-0 max-w-[280px] bg-transparent border-b border-border focus:border-foreground outline-none py-1 text-sm caret-ink placeholder:text-muted-foreground/60"
+              className="flex-1 min-w-0 max-w-[280px] bg-transparent border-b border-border focus:border-foreground outline-none py-1 text-sm caret-ink placeholder:text-muted-foreground"
             />
           </div>
 
@@ -271,8 +271,7 @@ function Stat({
     <div>
       <div className="studio-caps text-muted-foreground">{label}</div>
       <div className="font-display text-3xl mt-1 studio-num">{value}</div>
-      {sub && (
-        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mt-1">
+      {sub && (          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">
           {sub}
         </div>
       )}
@@ -508,13 +507,13 @@ function EmptyWall({ onUploaded }: { onUploaded: () => Promise<void> }) {
             {seeding ? "Seeding sample…" : "Try with the sample volume"}
           </span>
         </button>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70 mt-3 max-w-[40ch] mx-auto leading-relaxed">
+        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mt-3 max-w-[40ch] mx-auto leading-relaxed">
           A multilingual travel essay — Japanese, Korean, Chinese & others — so
           you can test the workflow before uploading your own.
         </p>
       </div>
 
-      <div className="mt-8 text-[10px] uppercase tracking-[0.22em] text-muted-foreground/70">
+      <div className="mt-8 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
         Multiple files · .epub · .txt · .docx
       </div>
     </div>
@@ -1264,7 +1263,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
                   {/* Chapter row */}
                   <div className="flex items-center gap-2 sm:gap-4 p-2.5 sm:p-3">
                     {/* Number */}
-                    <span className="studio-num text-muted-foreground/60 text-lg sm:text-xl shrink-0 w-7 sm:w-8 text-center">
+                    <span className="studio-num text-muted-foreground text-lg sm:text-xl shrink-0 w-7 sm:w-8 text-center">
                       {String(idx + 1).padStart(2, "0")}
                     </span>
 
@@ -1354,7 +1353,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
                                     "text-[10px] uppercase tracking-wider",
                                     splitPoints.has(pi)
                                       ? "text-orange-600 font-semibold"
-                                      : "text-muted-foreground/50 group-hover:text-muted-foreground",
+                                      : "text-muted-foreground group-hover:text-muted-foreground",
                                   )}
                                 >
                                   {splitPoints.has(pi) ? "— Split here —" : "+ split"}
