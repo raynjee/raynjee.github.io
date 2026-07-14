@@ -35,7 +35,7 @@ export function BookGalleryTile({
   const pct = Math.round(progress * 100);
   const language = formatLanguage(book.language);
   const languageDisplay = language === "Unknown"
-    ? `${translatedWords.toLocaleString()} translated`
+    ? `${pct}% translated`
     : language;
   const updated = formatRelativeTime(book.updatedAt);
 
@@ -65,19 +65,6 @@ export function BookGalleryTile({
               <BookOpen className="w-8 h-8" strokeWidth={1.2} />
             </div>
           )}
-
-          {/* Progress pill, top-right */}
-          <div
-            className={cn(
-              "absolute top-2 right-2 inline-flex items-center px-2 py-0.5",
-              "bg-background/90 border border-border",
-            )}
-            aria-hidden="true"
-          >
-            <span className="studio-num text-[10px] text-foreground">
-              {pct}%
-            </span>
-          </div>
 
           {/* Select checkbox — top-left, always visible when selected, hover-only otherwise */}
           {onToggleSelect && (
