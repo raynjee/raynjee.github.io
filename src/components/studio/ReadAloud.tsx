@@ -85,16 +85,28 @@ export function ReadAloud({
 }: ReadAloudProps) {
   // ── Voices ────────────────────────────────────────────────────────────
   // Voice lists arrive asynchronously on most browsers; speechSynthesis
-  // fires `voiceschanged` when they're ready. We wait for it before
-  // letting the user start playback, otherwise the very first utterance
-  // would fall back to the system's default voice.
+  // fires `voiceschanged` when they're ready. We bail out entirely if
+  // the API isn't available (very old browsers, locked-down sandboxes)
+  // and never throw — leaving voices empty simply disables TTS.
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   useEffect(() => {
-    const load = () => setVoices(window.speechSynthesis.getVoices() ?? []);
-    load();
-    window.speechSynthesis.addEventListener?.("voiceschanged", load);
-    return () =>
-      window.speechSynthesis.removeEventListener?.("voiceschanged", load);
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      return;
+    }
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    const load = () => {
+      try {
+        setVoices(synth.getVoices?.() ?? []);
+      } catch {
+        setVoices([]);
+      }
+    };
+    try { load(); } catch { /* noop */ }
+    try { synth.addEventListener?.("voiceschanged", load); } catch { /* noop */ }
+    return () => {
+      try { synth.removeEventListener?.("voiceschanged", load); } catch { /* noop */ }
+    };
   }, []);
 
   const englishVoices = useMemo(
@@ -159,7 +171,7 @@ export function ReadAloud({
   const ctxRef = useRef({
     readable: [] as string[],
     voices: [] as SpeechSynthesisVoice[],
-    prefs: loadPrefs(),
+    prefs: DEFAULT_PREFS,
     advance: () => {},
     hasNext: false,
   });
@@ -174,7 +186,11 @@ export function ReadAloud({
   // without including it in their dep arrays — preventing loops.
   const speakImplRef = useRef<(idx: number) => void>(() => {});
   speakImplRef.current = (idx: number) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      return;
+    }
     const win = window.speechSynthesis;
+    if (!win) return;
     const ctx = ctxRef.current;
     if (idx >= ctx.readable.length) {
       setPlaying(false);
@@ -190,32 +206,39 @@ export function ReadAloud({
       return;
     }
     const text = ctx.readable[idx];
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voice =
-      ctx.voices.find((v) => v.name === ctx.prefs.voiceName) ?? null;
-    if (voice) utterance.voice = voice;
-    utterance.rate = ctx.prefs.rate;
-    utterance.pitch = ctx.prefs.pitch;
-    utterance.lang = voice?.lang ?? "en-US";
-    utterance.onstart = () => {
-      if (!isMountedRef.current) return;
-      setCurrentIdx(idx);
-    };
-    utterance.onend = () => {
-      if (!isMountedRef.current) return;
-      speakImplRef.current(idx + 1);
-    };
-    utterance.onerror = (ev) => {
-      // `interrupted` and `canceled` are normal lifecycle events. Only
-      // surface real failures with a toast.
-      const err = (ev as SpeechSynthesisErrorEvent).error;
-      if (err && err !== "interrupted" && err !== "canceled") {
-        toast.error(`Read aloud failed: ${err}`);
-        setPlaying(false);
-        setPaused(false);
-      }
-    };
-    win.speak(utterance);
+    try {
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voice =
+        ctx.voices.find((v) => v.name === ctx.prefs.voiceName) ?? null;
+      if (voice) utterance.voice = voice;
+      utterance.rate = ctx.prefs.rate;
+      utterance.pitch = ctx.prefs.pitch;
+      utterance.lang = voice?.lang ?? "en-US";
+      utterance.onstart = () => {
+        if (!isMountedRef.current) return;
+        setCurrentIdx(idx);
+      };
+      utterance.onend = () => {
+        if (!isMountedRef.current) return;
+        speakImplRef.current(idx + 1);
+      };
+      utterance.onerror = (ev) => {
+        // `interrupted` and `canceled` are normal lifecycle events. Only
+        // surface real failures with a toast.
+        const err = (ev as SpeechSynthesisErrorEvent).error;
+        if (err && err !== "interrupted" && err !== "canceled") {
+          toast.error(`Read aloud failed: ${err}`);
+          setPlaying(false);
+          setPaused(false);
+        }
+      };
+      win.speak(utterance);
+    } catch {
+      // Speech engine rejected the utterance (often: document isn't
+      // focused). Bail silently — the user can hit Play again.
+      setPlaying(false);
+      setPaused(false);
+    }
   };
 
   // When the parent signals a chapter change, decide what to do:
@@ -251,14 +274,19 @@ export function ReadAloud({
   }, []);
 
   const onTogglePlay = useCallback(() => {
-    const win = window.speechSynthesis;
+    const win = typeof window !== "undefined" ? window.speechSynthesis : null;
+    if (!win) return;
     if (playing) {
-      if (paused) {
-        win.resume();
+      try {
+        if (paused) {
+          win.resume?.();
+          setPaused(false);
+        } else {
+          win.pause?.();
+          setPaused(true);
+        }
+      } catch {
         setPaused(false);
-      } else {
-        win.pause();
-        setPaused(true);
       }
       return;
     }
