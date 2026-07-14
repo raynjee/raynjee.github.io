@@ -107,6 +107,16 @@ export function ReadAloud({
       }
     };
     try { load(); } catch { /* noop */ }
+    // Chromium/Edge lazily load remote (online/natural) voices and won't
+    // surface them in getVoices() until the speech engine is warmed up.
+    // A silent zero-length utterance forces the browser to initialise
+    // its remote voice list so Edge's "Sonia (Natural)" etc. appear.
+    try {
+      const warmup = new SpeechSynthesisUtterance("");
+      warmup.volume = 0;
+      warmup.rate = 2;
+      synth.speak(warmup);
+    } catch { /* noop */ }
     try { synth.addEventListener?.("voiceschanged", load); } catch { /* noop */ }
     return () => {
       try { synth.removeEventListener?.("voiceschanged", load); } catch { /* noop */ }
@@ -170,12 +180,14 @@ export function ReadAloud({
   const ctxRef = useRef({
     readable: [] as string[],
     voices: [] as SpeechSynthesisVoice[],
+    selectedVoice: null as SpeechSynthesisVoice | null,
     prefs: DEFAULT_PREFS,
     advance: () => {},
     hasNext: false,
   });
   ctxRef.current.readable = readable;
   ctxRef.current.voices = voices;
+  ctxRef.current.selectedVoice = selectedVoice;
   ctxRef.current.prefs = prefs;
   ctxRef.current.advance = onAdvanceNext;
   ctxRef.current.hasNext = hasNext;
@@ -204,8 +216,9 @@ export function ReadAloud({
     const text = ctx.readable[idx];
     try {
       const utterance = new SpeechSynthesisUtterance(text);
-      const voice =
-        ctx.voices.find((v) => v.name === ctx.prefs.voiceName) ?? null;
+      // Use the already-resolved voice (natural-first fallback) instead
+      // of doing our own bare lookup which returns null on first visit.
+      const voice = ctx.selectedVoice;
       if (voice) utterance.voice = voice;
       utterance.rate = ctx.prefs.rate;
       utterance.pitch = ctx.prefs.pitch;
@@ -275,13 +288,20 @@ export function ReadAloud({
 
   // ── UI actions ─────────────────────────────────────────────────────────
   const beginAt = useCallback((idx: number) => {
+    // If voices haven't loaded yet, warn and block — otherwise the
+    // browser falls back to its lowest-quality offline voice and the
+    // user thinks natural voices don't work.
+    if (voices.length === 0) {
+      toast.warning("Voice list is still loading — please wait a moment and try again.");
+      return;
+    }
     try { window.speechSynthesis.cancel(); } catch { /* noop */ }
     setOpen(true);
     setCurrentIdx(idx);
     setPlaying(true);
     setPaused(false);
     speakImplRef.current(idx);
-  }, []);
+  }, [voices.length]);
 
   const onTogglePlay = useCallback(() => {
     const win = typeof window !== "undefined" ? window.speechSynthesis : null;
