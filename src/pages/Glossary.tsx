@@ -30,9 +30,9 @@ import { toast } from "sonner";
 import { uid } from "@/lib/util";
 import { cn } from "@/lib/utils";
 
-// ── Extraction prompt ───────────────────────────────────────────────────
-// Sent to the LLM alongside the full novel text. The LLM must return a raw
-// JSON array — no fences, no commentary. Any deviation fails parsing.
+// ── Extraction prompts ──────────────────────────────────────────────────
+
+// Chunked prompt (used for Gemini).
 const EXTRACTION_PROMPT = [
   "You are a Chinese literary analyst. Extract an exhaustive glossary from the provided novel text. Go paragraph by paragraph, extracting EVERY character name, family title, location, difficult word, and slang term. Do not skip any.",
   "",
@@ -46,6 +46,32 @@ const EXTRACTION_PROMPT = [
   '- "notes": brief context in English (one sentence)',
   "",
   'Example: [{"term":"周娇娇","translation":"Zhou Jiaojiao","category":"character","gender":"F","notes":"Protagonist"},{"term":"老大","translation":"Eldest","category":"character","gender":"N","notes":"Gender ambiguous from context"}]',
+].join("\n");
+
+// Full-text prompt (used for DeepSeek — sends the entire novel in one go,
+// asks the model to think deeply and produce an exhaustive glossary).
+const FULL_TEXT_PROMPT = [
+  "You are a Chinese literary analyst with unlimited attention. You are receiving the COMPLETE text of a novel below. Read it CAREFULLY from beginning to end. Think deeply about every character, location, difficult word, and slang term that appears.",
+  "",
+  "Your task: produce an EXHAUSTIVE glossary. Do not be lazy. Extract EVERY named character (including minor ones), every family title (爸爸, 妈妈, 奶奶, 叔叔, etc.), every location (cities, rooms, buildings, regions), every difficult or culture-specific word, and every slang/colloquial expression.",
+  "",
+  "Think step by step:",
+  "1. Skim the full text to understand the setting and main characters.",
+  "2. Re-read carefully, noting every term as you go.",
+  "3. For each character, determine gender from context (name patterns, titles, pronouns, behavior).",
+  "4. For each term, write a brief one-sentence context note.",
+  "5. Review your list — are there terms you missed? Add them.",
+  "",
+  "Output STRICTLY a raw JSON array of objects, with NO markdown code fences, NO commentary, and NO markdown wrapping.",
+  "",
+  "Each object must have these exact fields:",
+  '- "term": original Chinese text',
+  '- "translation": English meaning',
+  '- "category": strictly "character", "location", "word", or "slang"',
+  '- "gender": strictly "F" (female), "M" (male), "N" (neutral/ambiguous), or null (for non-character entries).',
+  '- "notes": brief context in English (one sentence)',
+  "",
+  'Example: [{"term":"周娇娇","translation":"Zhou Jiaojiao","category":"character","gender":"F","notes":"Protagonist, appears in chapter 1"}]',
 ].join("\n");
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -362,7 +388,13 @@ export default function Glossary() {
         toast.message(`Switched to ${fallback.id === "gemini" ? "Gemini" : "DeepSeek"} for extraction.`);
       }
 
-      // 3. Split paragraphs into chunks of ~CHUNK_CHARS, never cutting mid-paragraph.
+      // 3. DeepSeek: use full-text 3-pass strategy (fewer API calls, deeper thinking).
+      if (cfg.id === "deepseek") {
+        await extractDeepSeekFull(cfg, allParagraphs, bookId);
+        return;
+      }
+
+      // 4. Gemini: split paragraphs into chunks.
       const chunks: string[] = [];
       let buf = "";
       for (const p of allParagraphs) {
@@ -378,7 +410,7 @@ export default function Glossary() {
 
       const totalChunks = chunks.length;
 
-      // 4. Resume or start fresh.
+      // 5. Resume or start fresh.
       const completedSet = new Set(resumeFrom?.completedChunks ?? []);
       const seen = new Set<string>(resumeFrom?.seenTerms ?? []);
       let totalSaved = resumeFrom?.totalSaved ?? 0;
@@ -402,7 +434,7 @@ export default function Glossary() {
         setExtractProgress({ done, total: totalChunks, avgChunkMs: currentAvgMs });
       };
 
-      // 5. Process each not-yet-completed chunk.
+      // 6. Process each not-yet-completed chunk.
       for (let ci = 0; ci < totalChunks; ci++) {
         // Skip already-completed chunks.
         if (completedSet.has(ci)) continue;
@@ -543,7 +575,7 @@ export default function Glossary() {
         }
       }
 
-      // 6. All done — clear checkpoint.
+      // 7. All done — clear checkpoint.
       clearCheckpoint();
       setExtractProgress({ done: totalChunks, total: totalChunks, avgChunkMs: 0 });
 
@@ -1262,6 +1294,136 @@ function GlossaryEditForm({
         </div>
       </div>
     </div>
+  );
+}
+
+// ── DeepSeek full-text 3-pass extraction ────────────────────────────────
+// Sends the ENTIRE novel in 3 parallel requests, asking the model to
+// think deeply. Merges results, deduping by term (best entry kept).
+// Total: 3 API calls regardless of book length.
+
+async function extractDeepSeekFull(
+  cfg: ProviderConfig,
+  allParagraphs: string[],
+  bookId: string,
+) {
+  const fullText = allParagraphs.join("\n\n");
+  const userPrompt = [
+    "Below is the COMPLETE text of a novel. Read it thoroughly and extract an exhaustive glossary.",
+    "",
+    fullText,
+  ].join("\n");
+
+  // We'll update progress via closure — the caller manages setExtractProgress.
+  // Find the setter from the outer scope via a module-level workaround.
+  // Actually, we pass progress via a callback.
+
+  // Fire 3 parallel passes.
+  const passes = [
+    extractSinglePass(cfg, FULL_TEXT_PROMPT, userPrompt, cfg.id, "Pass 1/3"),
+    extractSinglePass(cfg, FULL_TEXT_PROMPT, userPrompt, cfg.id, "Pass 2/3"),
+    extractSinglePass(cfg, FULL_TEXT_PROMPT, userPrompt, cfg.id, "Pass 3/3"),
+  ];
+
+  const results = await Promise.allSettled(passes);
+
+  // Merge results — dedup by term (keep the entry with most detail).
+  const bestByTerm = new Map<string, GlossaryEntry>();
+  let passErrors = 0;
+
+  for (const result of results) {
+    if (result.status === "rejected") {
+      passErrors++;
+      console.warn("DeepSeek full-text pass failed:", result.reason);
+      continue;
+    }
+    for (const entry of result.value) {
+      const key = entry.term.trim().toLowerCase();
+      const existing = bestByTerm.get(key);
+      if (!existing || scoreEntry(entry) > scoreEntry(existing)) {
+        bestByTerm.set(key, entry);
+      }
+    }
+  }
+
+  if (bestByTerm.size === 0) {
+    if (passErrors === 3) {
+      throw new Error("All 3 DeepSeek passes failed.");
+    }
+    toast.error("DeepSeek returned no glossary entries across any pass.");
+    return;
+  }
+
+  // Save all entries.
+  const now = Date.now();
+  const fresh: GlossaryEntry[] = [];
+  for (const [,, entry] of bestByTerm) {
+    // Re-assign IDs so they're unique to this book.
+    const saved: GlossaryEntry = {
+      ...entry,
+      id: `${bookId}:${uid()}`,
+      bookId,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await putGlossaryEntry(saved);
+    fresh.push(saved);
+  }
+
+  if (fresh.length > 0) {
+    // We can't directly set state here since we're outside the component.
+    // The caller (onExtract) will handle state via reloadEntries in finally.
+  }
+
+  const warning = passErrors > 0
+    ? ` (${passErrors} pass${passErrors > 1 ? "es" : ""} failed)`
+    : "";
+  toast.success(`Extracted ${bestByTerm.size} glossary entries via 3-pass full-text analysis${warning}.`);
+}
+
+// Single full-text pass — returns parsed glossary entries.
+async function extractSinglePass(
+  cfg: ProviderConfig,
+  systemPrompt: string,
+  userContent: string,
+  provider: string,
+  _label: string,
+): Promise<GlossaryEntry[]> {
+  const raw = await callProviderForExtraction(cfg, systemPrompt, userContent, provider);
+  const entries: GlossaryEntry[] = [];
+  for (const item of raw) {
+    const term = (item.term ?? "").trim();
+    const translation = (item.translation ?? "").trim();
+    if (!term || !translation) continue;
+    const category =
+      item.category != null && (CATEGORIES as string[]).includes(item.category)
+        ? item.category
+        : "word";
+    const gender =
+      item.gender === "F" || item.gender === "M" || item.gender === "N"
+        ? item.gender
+        : null;
+    entries.push({
+      id: "", // assigned later
+      bookId: "",
+      term,
+      translation,
+      category: category as GlossaryEntry["category"],
+      gender: gender as GlossaryEntry["gender"],
+      notes: (item.notes ?? "").trim(),
+      createdAt: 0,
+      updatedAt: 0,
+    });
+  }
+  return entries;
+}
+
+// Score an entry for dedup — prefer entries with more detail.
+function scoreEntry(e: GlossaryEntry): number {
+  return (
+    (e.notes.trim() ? 3 : 0) +
+    (e.gender ? 2 : 0) +
+    Math.min(e.translation.length, 30)
   );
 }
 
