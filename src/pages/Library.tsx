@@ -300,7 +300,7 @@ function LangChip({
         "h-7 px-2.5 border text-[10px] uppercase tracking-[0.18em] transition-colors",
         active
           ? "bg-foreground text-background border-foreground"
-          : "bg-background text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+          : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
       )}
     >
       {label}

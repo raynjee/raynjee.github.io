@@ -144,6 +144,11 @@ export default function Glossary() {
 
   useEffect(() => {
     reloadEntries();
+    // Reconnect to a running extraction that survived page navigation.
+    const win = window as unknown as { __glossaryExtraction?: boolean };
+    if (win.__glossaryExtraction) {
+      setExtracting(true);
+    }
   }, [reloadEntries]);
 
   // ── Start editing a row ──────────────────────────────────────────────
@@ -321,6 +326,8 @@ export default function Glossary() {
     setExtracting(true);
     setExtractProgress(null);
     setResuming(false);
+    // Persist on window so extraction survives page navigation.
+    (window as unknown as { __glossaryExtraction?: boolean }).__glossaryExtraction = true;
     try {
       // 1. Gather every paragraph from every chapter.
       const chaps = await listChapters(bookId);
@@ -532,6 +539,7 @@ export default function Glossary() {
     } finally {
       setExtracting(false);
       setExtractProgress(null);
+      (window as unknown as { __glossaryExtraction?: boolean }).__glossaryExtraction = false;
     }
   };
 

@@ -1,7 +1,7 @@
 // Book cover tile — gallery-style with framing, title, author, language and
 // word-level progress driven by aggregate BookStats for the whole book.
 
-import { BookOpen, Languages, Pencil, Trash2 } from "lucide-react";
+import { BookOpen, Languages } from "lucide-react";
 import type { Book, ChapterTranslation } from "@/lib/types";
 import type { BookStats } from "@/hooks/use-library";
 import { cn } from "@/lib/utils";
@@ -111,9 +111,8 @@ export function BookGalleryTile({
             e.preventDefault();
             onEdit?.();
           }}
-          className="h-8 inline-flex items-center justify-center gap-1.5 border border-border hover:border-foreground/40 text-[10px] uppercase tracking-[0.18em]"
+          className="h-8 inline-flex items-center justify-center border border-border hover:border-foreground/40 text-[10px] uppercase tracking-[0.18em]"
         >
-          <Pencil className="w-3 h-3" strokeWidth={1.4} />
           Edit
         </button>
         <button
@@ -121,9 +120,8 @@ export function BookGalleryTile({
             e.preventDefault();
             onDelete?.();
           }}
-          className="h-8 inline-flex items-center justify-center gap-1.5 border border-border hover:border-destructive hover:text-destructive text-[10px] uppercase tracking-[0.18em]"
+          className="h-8 inline-flex items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground text-[10px] uppercase tracking-[0.18em] transition-colors"
         >
-          <Trash2 className="w-3 h-3" strokeWidth={1.4} />
           Delete
         </button>
       </div>
