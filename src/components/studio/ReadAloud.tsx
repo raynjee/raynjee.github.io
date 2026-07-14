@@ -107,16 +107,6 @@ export function ReadAloud({
       }
     };
     try { load(); } catch { /* noop */ }
-    // Chromium/Edge lazily load remote (online/natural) voices and won't
-    // surface them in getVoices() until the speech engine is warmed up.
-    // A silent zero-length utterance forces the browser to initialise
-    // its remote voice list so Edge's "Sonia (Natural)" etc. appear.
-    try {
-      const warmup = new SpeechSynthesisUtterance("");
-      warmup.volume = 0;
-      warmup.rate = 2;
-      synth.speak(warmup);
-    } catch { /* noop */ }
     try { synth.addEventListener?.("voiceschanged", load); } catch { /* noop */ }
     return () => {
       try { synth.removeEventListener?.("voiceschanged", load); } catch { /* noop */ }
@@ -192,13 +182,40 @@ export function ReadAloud({
   ctxRef.current.advance = onAdvanceNext;
   ctxRef.current.hasNext = hasNext;
 
+  /** Resolve the best voice from a fresh global-API snapshot, with a
+   * natural-first English fallback.  Never depends on React state so
+   * it works even on mobile where voices load lazily inside the first
+   * user-gesture speak() call. */
+  function resolveVoice(
+    fresh: SpeechSynthesisVoice[],
+    savedName: string | null,
+  ): SpeechSynthesisVoice | null {
+    if (savedName) {
+      const m = fresh.find((v) => v.name === savedName);
+      if (m) return m;
+    }
+    // First natural English, then any English, then anything.
+    return (
+      fresh.find(
+        (v) =>
+          isNaturalVoice(v.name) &&
+          (v.lang.startsWith("en") || /english/i.test(v.name)),
+      ) ??
+      fresh.find(
+        (v) => v.lang.startsWith("en") || /english/i.test(v.name),
+      ) ??
+      fresh[0] ??
+      null
+    );
+  }
+
   const speakImplRef = useRef<(idx: number) => void>(() => {});
   speakImplRef.current = (idx: number) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       return;
     }
-    const win = window.speechSynthesis;
-    if (!win) return;
+    const synth = window.speechSynthesis;
+    if (!synth) return;
     const ctx = ctxRef.current;
     if (idx >= ctx.readable.length) {
       setPlaying(false);
@@ -213,12 +230,47 @@ export function ReadAloud({
       }
       return;
     }
+
+    // ── Voice resolution (works on mobile Edge) ────────────────────
+    // Mobile browsers (Edge Android, Chrome Android) only load remote /
+    // online voices after the first speak() call that happens inside a
+    // user gesture (tap/click).  We warm the engine here — this always
+    // runs in response to a user action — then re-read getVoices() and
+    // pick the best available voice with our own fallback.
+    let freshVoices = synth.getVoices?.() ?? [];
+
+    // If we have zero natural voices, the remote list hasn't loaded yet.
+    // Brief warm-up speak → cancel forces the browser to pull them in.
+    const hasNatural = freshVoices.some(
+      (v) =>
+        isNaturalVoice(v.name) &&
+        (v.lang.startsWith("en") || /english/i.test(v.name)),
+    );
+    if (!hasNatural && freshVoices.length > 0) {
+      try {
+        const wu = new SpeechSynthesisUtterance("");
+        wu.volume = 0;
+        wu.rate = 2;
+        synth.speak(wu);
+        synth.cancel();
+        freshVoices = synth.getVoices?.() ?? freshVoices;
+      } catch {
+        /* keep whatever we had */
+      }
+    }
+
+    // Work entirely from the fresh snapshot — no React-state dependency.
+    const voice = resolveVoice(freshVoices, ctx.prefs.voiceName);
+
+    // Update React state in the background so the voice picker catches
+    // up (especially important on that very first play on mobile).
+    if (freshVoices.length !== voices.length) {
+      setVoices(freshVoices);
+    }
+
     const text = ctx.readable[idx];
     try {
       const utterance = new SpeechSynthesisUtterance(text);
-      // Use the already-resolved voice (natural-first fallback) instead
-      // of doing our own bare lookup which returns null on first visit.
-      const voice = ctx.selectedVoice;
       if (voice) utterance.voice = voice;
       utterance.rate = ctx.prefs.rate;
       utterance.pitch = ctx.prefs.pitch;
@@ -239,7 +291,7 @@ export function ReadAloud({
           setPaused(false);
         }
       };
-      win.speak(utterance);
+      synth.speak(utterance);
     } catch {
       setPlaying(false);
       setPaused(false);
@@ -288,20 +340,17 @@ export function ReadAloud({
 
   // ── UI actions ─────────────────────────────────────────────────────────
   const beginAt = useCallback((idx: number) => {
-    // If voices haven't loaded yet, warn and block — otherwise the
-    // browser falls back to its lowest-quality offline voice and the
-    // user thinks natural voices don't work.
-    if (voices.length === 0) {
-      toast.warning("Voice list is still loading — please wait a moment and try again.");
-      return;
-    }
+    // speakImplRef handles voice warm-up / resolution on its own — no
+    // need to block here.  It reads voices directly from the global
+    // API so it works even when React state hasn't caught up yet
+    // (critical for mobile Edge where remote voices appear lazily).
     try { window.speechSynthesis.cancel(); } catch { /* noop */ }
     setOpen(true);
     setCurrentIdx(idx);
     setPlaying(true);
     setPaused(false);
     speakImplRef.current(idx);
-  }, [voices.length]);
+  }, []);
 
   const onTogglePlay = useCallback(() => {
     const win = typeof window !== "undefined" ? window.speechSynthesis : null;
