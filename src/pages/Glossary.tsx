@@ -15,6 +15,7 @@ import {
   BookOpen,
   Pencil,
   Search,
+  CopyMinus,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import { StudioShell } from "@/components/StudioShell";
@@ -197,6 +198,48 @@ export default function Glossary() {
     await deleteGlossaryEntry(id);
     setEntries((prev) => prev.filter((e) => e.id !== id));
     toast("Entry deleted.");
+  };
+
+  // ── Remove duplicates ──────────────────────────────────────────────
+
+  const removeDuplicates = async () => {
+    if (!bookId) return;
+    // Group by term (case-insensitive, trimmed). For each group with >1
+    // entries, keep the best one and delete the rest.
+    const groups = new Map<string, GlossaryEntry[]>();
+    for (const e of entries) {
+      const key = e.term.trim().toLowerCase();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(e);
+    }
+
+    let removed = 0;
+    const toDelete: string[] = [];
+
+    for (const [, group] of groups) {
+      if (group.length <= 1) continue;
+      // Score each entry: prefer ones with notes, gender, longer translation, newer.
+      const score = (e: GlossaryEntry) =>
+        (e.notes.trim() ? 3 : 0) +
+        (e.gender ? 2 : 0) +
+        Math.min(e.translation.length, 30) +
+        (e.updatedAt / 1e12);
+      group.sort((a, b) => score(b) - score(a));
+      // Keep the first (best), delete the rest.
+      for (let i = 1; i < group.length; i++) {
+        toDelete.push(group[i].id);
+      }
+    }
+
+    if (toDelete.length === 0) {
+      toast.message("No duplicates found.");
+      return;
+    }
+
+    // Delete from IndexedDB and state.
+    await Promise.all(toDelete.map((id) => deleteGlossaryEntry(id)));
+    setEntries((prev) => prev.filter((e) => !toDelete.includes(e.id)));
+    toast.success(`Removed ${toDelete.length} duplicate${toDelete.length > 1 ? "s" : ""}.`);
   };
 
   // ── Add a new row ────────────────────────────────────────────────────
@@ -609,6 +652,17 @@ export default function Glossary() {
               <span className="text-xs uppercase tracking-[0.18em] hidden sm:inline">Add entry</span>
               <span className="text-xs uppercase tracking-[0.18em] sm:hidden">Add</span>
             </button>
+            {entries.length > 0 && (
+              <button
+                type="button"
+                onClick={removeDuplicates}
+                className="h-10 px-3 inline-flex items-center gap-1.5 border border-border hover:border-destructive/40 text-muted-foreground hover:text-destructive transition-colors"
+                title="Remove duplicate entries (keeps the best copy of each term)"
+              >
+                <CopyMinus className="w-4 h-4" strokeWidth={1.4} />
+                <span className="text-xs uppercase tracking-[0.18em] hidden sm:inline">Dedup</span>
+              </button>
+            )}
           </div>
         </div>
 
