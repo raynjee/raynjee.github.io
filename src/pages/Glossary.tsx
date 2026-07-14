@@ -43,6 +43,17 @@ const EXTRACTION_PROMPT = [
   'Example: [{"term":"周娇娇","translation":"Zhou Jiaojiao","category":"character","gender":"F","notes":"Protagonist"},{"term":"老大","translation":"Eldest","category":"character","gender":"N","notes":"Gender ambiguous from context"}]',
 ].join("\n");
 
+// ── Helpers ───────────────────────────────────────────────────────────
+
+function formatEta(remaining: number, delayMs: number): string {
+  if (remaining <= 0) return "done";
+  const totalSec = Math.ceil((remaining * delayMs) / 1000);
+  if (totalSec < 60) return `${totalSec}s`;
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
+
 const CATEGORIES: Array<GlossaryEntry["category"]> = [
   "character",
   "location",
@@ -77,7 +88,7 @@ export default function Glossary() {
 
   const [entries, setEntries] = useState<GlossaryEntry[]>([]);
   const [extracting, setExtracting] = useState(false);
-  const [extractProgress, setExtractProgress] = useState<{ done: number; total: number } | null>(null);
+  const [extractProgress, setExtractProgress] = useState<{ done: number; total: number; delayMs: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -320,7 +331,7 @@ export default function Glossary() {
         totalSaved = Math.max(totalSaved, entries.length);
       }
 
-      setExtractProgress({ done: completedSet.size, total: totalChunks });
+      setExtractProgress({ done: completedSet.size, total: totalChunks, delayMs });
 
       // 5. Process each not-yet-completed chunk.
       for (let ci = 0; ci < totalChunks; ci++) {
@@ -333,7 +344,7 @@ export default function Glossary() {
           await new Promise((r) => setTimeout(r, delayMs));
         }
 
-        setExtractProgress({ done: completedSet.size, total: totalChunks });
+        setExtractProgress({ done: completedSet.size, total: totalChunks, delayMs });
 
         const chunkPrompt = [
           `This is portion ${ci + 1} of ${totalChunks} of a novel. Extract glossary entries from ONLY the text below.`,
@@ -440,7 +451,7 @@ export default function Glossary() {
 
       // 6. All done — clear checkpoint.
       clearCheckpoint();
-      setExtractProgress({ done: totalChunks, total: totalChunks });
+      setExtractProgress({ done: totalChunks, total: totalChunks, delayMs });
 
       if (totalSaved === 0) {
         toast.error("The AI returned no glossary entries across any chunk.");
@@ -544,7 +555,7 @@ export default function Glossary() {
               )}
               <span className="text-xs uppercase tracking-[0.18em]">
                 {extracting && extractProgress
-                  ? `Chunk ${extractProgress.done + 1}/${extractProgress.total}…`
+                  ? `Chunk ${extractProgress.done + 1}/${extractProgress.total} · ~${formatEta(extractProgress.total - extractProgress.done, extractProgress.delayMs)}`
                   : extracting
                     ? "Extracting…"
                     : savedCheckpoint
@@ -566,6 +577,28 @@ export default function Glossary() {
             </button>
           </div>
         </div>
+
+        {/* ── Extraction progress bar ──────────────────────────────── */}
+        {extracting && extractProgress && (
+          <div className="mt-6 space-y-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="uppercase tracking-[0.18em]">
+                Extracting glossary · {extractProgress.done}/{extractProgress.total} chunks
+              </span>
+              <span className="tabular-nums">
+                ~{formatEta(extractProgress.total - extractProgress.done, extractProgress.delayMs)} remaining
+              </span>
+            </div>
+            <div className="h-1 bg-muted rounded-full overflow-hidden">
+              <div
+                className="h-full bg-foreground/60 rounded-full transition-all duration-500"
+                style={{
+                  width: `${extractProgress.total > 0 ? (extractProgress.done / extractProgress.total) * 100 : 0}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* ── Add-form ─────────────────────────────────────────────── */}
         {showAddForm && (
