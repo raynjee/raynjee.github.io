@@ -2,7 +2,7 @@
 // words extracted by the AI (editable by the user). This glossary feeds
 // back into future translations so the LLM remembers names and terms.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -16,6 +16,9 @@ import {
   Pencil,
   Search,
   CopyMinus,
+  Pause,
+  Play,
+  Square,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import { StudioShell } from "@/components/StudioShell";
@@ -90,6 +93,9 @@ export default function Glossary() {
 
   const [entries, setEntries] = useState<GlossaryEntry[]>([]);
   const [extracting, setExtracting] = useState(false);
+  const [extractPaused, setExtractPaused] = useState(false);
+  const extractPausedRef = useRef(false);
+  const extractStoppedRef = useRef(false);
   const [extractProgress, setExtractProgress] = useState<{ done: number; total: number; avgChunkMs: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -324,6 +330,9 @@ export default function Glossary() {
   const onExtract = async (resumeFrom?: ExtractCheckpoint) => {
     if (!bookId || !book) return;
     setExtracting(true);
+    setExtractPaused(false);
+    extractPausedRef.current = false;
+    extractStoppedRef.current = false;
     setExtractProgress(null);
     setResuming(false);
     // Persist on window so extraction survives page navigation.
@@ -397,6 +406,20 @@ export default function Glossary() {
       for (let ci = 0; ci < totalChunks; ci++) {
         // Skip already-completed chunks.
         if (completedSet.has(ci)) continue;
+
+        // Check for stop/pause before each chunk.
+        if (extractStoppedRef.current) {
+          toast.message("Extraction stopped.");
+          break;
+        }
+        while (extractPausedRef.current) {
+          await new Promise((r) => setTimeout(r, 200));
+          if (extractStoppedRef.current) break;
+        }
+        if (extractStoppedRef.current) {
+          toast.message("Extraction stopped.");
+          break;
+        }
 
         // Rate-limit delay (skip first chunk if not resuming).
         const chunksSoFar = ci > 0 || resumeFrom ? ci : 0;
@@ -538,6 +561,9 @@ export default function Glossary() {
       toast.error(`Extraction failed: ${msg.slice(0, 200)}`);
     } finally {
       setExtracting(false);
+      setExtractPaused(false);
+      extractPausedRef.current = false;
+      extractStoppedRef.current = false;
       setExtractProgress(null);
       (window as unknown as { __glossaryExtraction?: boolean }).__glossaryExtraction = false;
     }
@@ -621,6 +647,37 @@ export default function Glossary() {
                   Resume ({savedCheckpoint.completedChunks.length}/{savedCheckpoint.totalChunks})
                 </span>
               </button>
+            )}
+            {extracting && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    extractStoppedRef.current = true;
+                    extractPausedRef.current = false;
+                  }}
+                  className="h-10 w-10 grid place-items-center border border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                  title="Stop extraction"
+                >
+                  <Square className="w-4 h-4" strokeWidth={1.4} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !extractPaused;
+                    setExtractPaused(next);
+                    extractPausedRef.current = next;
+                  }}
+                  className="h-10 w-10 grid place-items-center border border-border hover:border-foreground/40 transition-colors"
+                  title={extractPaused ? "Resume extraction" : "Pause extraction"}
+                >
+                  {extractPaused ? (
+                    <Play className="w-4 h-4" strokeWidth={1.4} />
+                  ) : (
+                    <Pause className="w-4 h-4" strokeWidth={1.4} />
+                  )}
+                </button>
+              </>
             )}
             <button
               type="button"
