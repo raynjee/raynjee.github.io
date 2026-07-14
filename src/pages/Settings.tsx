@@ -746,6 +746,30 @@ function TranslationPreferences({
             <span>Paid tier</span>
           </div>
         </PreferenceCard>
+        <PreferenceCard
+          title="Chunk delay"
+          help={`${((settings.glossaryChunkDelayMs ?? 3000) / 1000).toFixed(1)}s between API calls. Shorter = faster extraction, longer = safer for rate limits.`}
+        >
+          <div className="flex items-center gap-3">
+            <input
+              disabled={!canEdit}
+              type="range"
+              min={500}
+              max={15000}
+              step={500}
+              value={settings.glossaryChunkDelayMs ?? 3000}
+              onChange={(e) => update({ glossaryChunkDelayMs: Number(e.target.value) })}
+              className="flex-1 h-1 accent-foreground"
+            />
+            <span className="font-mono text-sm w-14 text-right tabular-nums">
+              {((settings.glossaryChunkDelayMs ?? 3000) / 1000).toFixed(1)}s
+            </span>
+          </div>
+          <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+            <span>Speed</span>
+            <span>Safety</span>
+          </div>
+        </PreferenceCard>
       </div>
     </section>
   );

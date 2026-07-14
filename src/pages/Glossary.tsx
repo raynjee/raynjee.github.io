@@ -211,15 +211,60 @@ export default function Glossary() {
     resetDraft();
   };
 
-  // ── Extract from EPUB (chunked) ─────────────────────────────────────
+  // ── Extract from EPUB (chunked + resumable) ─────────────────────────
 
-  const CHUNK_CHARS = settings.glossaryChunkSize ?? 4000; // user-configurable chunk size
-  const CHUNK_DELAY_MS = 7000; // ~8.5 RPM — safe under free-tier 10 RPM limit
+  const CHUNK_CHARS = settings.glossaryChunkSize ?? 4000;
+  const CHUNK_DELAY_MS = settings.glossaryChunkDelayMs ?? 3000;
+  const EXTRACT_STATE_KEY = `atelier.glossary-extract.${bookId}`;
 
-  const onExtract = async () => {
+  interface ExtractCheckpoint {
+    bookId: string;
+    providerId: string;
+    totalChunks: number;
+    completedChunks: number[]; // indices of successfully processed chunks
+    seenTerms: string[];
+    totalSaved: number;
+    chunkErrors: number;
+    startedAt: number;
+  }
+
+  const loadCheckpoint = (): ExtractCheckpoint | null => {
+    try {
+      const raw = localStorage.getItem(EXTRACT_STATE_KEY);
+      if (!raw) return null;
+      const cp = JSON.parse(raw) as ExtractCheckpoint;
+      if (cp.bookId !== bookId) return null;
+      return cp;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveCheckpoint = (cp: ExtractCheckpoint) => {
+    try {
+      localStorage.setItem(EXTRACT_STATE_KEY, JSON.stringify(cp));
+    } catch {
+      // localStorage full — non-critical, extraction continues
+    }
+  };
+
+  const clearCheckpoint = () => {
+    try {
+      localStorage.removeItem(EXTRACT_STATE_KEY);
+    } catch {
+      // ignore
+    }
+  };
+
+  // Check for a saved checkpoint on mount so we can offer resume.
+  const savedCheckpoint = useMemo(() => loadCheckpoint(), [bookId]);
+  const [resuming, setResuming] = useState(false);
+
+  const onExtract = async (resumeFrom?: ExtractCheckpoint) => {
     if (!bookId || !book) return;
     setExtracting(true);
     setExtractProgress(null);
+    setResuming(false);
     try {
       // 1. Gather every paragraph from every chapter.
       const chaps = await listChapters(bookId);
@@ -260,23 +305,36 @@ export default function Glossary() {
       if (buf.trim()) chunks.push(buf);
 
       const totalChunks = chunks.length;
-      setExtractProgress({ done: 0, total: totalChunks });
 
-      // 4. Process each chunk — persist new entries immediately as they arrive.
-      const seen = new Set<string>();
-      let chunkErrors = 0;
-      let totalSaved = 0;
+      // 4. Resume or start fresh.
+      const completedSet = new Set(resumeFrom?.completedChunks ?? []);
+      const seen = new Set<string>(resumeFrom?.seenTerms ?? []);
+      let totalSaved = resumeFrom?.totalSaved ?? 0;
+      let chunkErrors = resumeFrom?.chunkErrors ?? 0;
       const now = Date.now();
+      let delayMs = CHUNK_DELAY_MS; // adaptive — grows on 429, resets on success
 
+      // If resuming, seed the table with already-persisted entries.
+      if (resumeFrom) {
+        await reloadEntries();
+        totalSaved = Math.max(totalSaved, entries.length);
+      }
+
+      setExtractProgress({ done: completedSet.size, total: totalChunks });
+
+      // 5. Process each not-yet-completed chunk.
       for (let ci = 0; ci < totalChunks; ci++) {
-        // Rate-limit delay between chunks (skip the first).
-        if (ci > 0) {
-          await new Promise((r) => setTimeout(r, CHUNK_DELAY_MS));
+        // Skip already-completed chunks.
+        if (completedSet.has(ci)) continue;
+
+        // Rate-limit delay (skip first chunk if not resuming).
+        const chunksSoFar = ci > 0 || resumeFrom ? ci : 0;
+        if (chunksSoFar > 0) {
+          await new Promise((r) => setTimeout(r, delayMs));
         }
 
-        setExtractProgress({ done: ci, total: totalChunks });
+        setExtractProgress({ done: completedSet.size, total: totalChunks });
 
-        // Build a contextual prompt: tell the LLM which chunk this is.
         const chunkPrompt = [
           `This is portion ${ci + 1} of ${totalChunks} of a novel. Extract glossary entries from ONLY the text below.`,
           ci < totalChunks - 1
@@ -293,13 +351,15 @@ export default function Glossary() {
             chunkPrompt,
             cfg.id,
           );
+          // Success — reset adaptive delay back to baseline.
+          delayMs = CHUNK_DELAY_MS;
+
           if (extracted && extracted.length > 0) {
             const fresh: GlossaryEntry[] = [];
             for (const item of extracted) {
               const term = (item.term ?? "").trim();
               const translation = (item.translation ?? "").trim();
               if (!term || !translation) continue;
-              // Skip terms we've already saved in a previous chunk.
               if (seen.has(term)) continue;
               seen.add(term);
               const category =
@@ -325,18 +385,61 @@ export default function Glossary() {
               fresh.push(entry);
               totalSaved++;
             }
-            // Stream new entries into the table immediately.
             if (fresh.length > 0) {
               setEntries((prev) => [...prev, ...fresh]);
             }
           }
+
+          // Mark chunk complete and save checkpoint immediately.
+          completedSet.add(ci);
+          saveCheckpoint({
+            bookId,
+            providerId: cfg.id,
+            totalChunks,
+            completedChunks: [...completedSet],
+            seenTerms: [...seen],
+            totalSaved,
+            chunkErrors,
+            startedAt: resumeFrom?.startedAt ?? now,
+          });
         } catch (err) {
-          chunkErrors++;
           const msg = err instanceof Error ? err.message : String(err);
+          const isRateLimit = msg.includes("429") || msg.includes("quota") || msg.includes("rate");
+
+          if (isRateLimit) {
+            // Adaptive backoff — double the delay (capped at 60s).
+            delayMs = Math.min(delayMs * 2, 60_000);
+            console.warn(
+              `Glossary chunk ${ci + 1}/${totalChunks} rate-limited, backing off to ${(delayMs / 1000).toFixed(1)}s`,
+            );
+            toast.message(`Rate limited — backing off to ${(delayMs / 1000).toFixed(0)}s delay`, {
+              duration: 3000,
+            });
+            // Retry this chunk after the backoff delay.
+            await new Promise((r) => setTimeout(r, delayMs));
+            ci--; // re-process this chunk
+            continue;
+          }
+
+          chunkErrors++;
           console.warn(`Glossary chunk ${ci + 1}/${totalChunks} failed:`, msg.slice(0, 120));
+          // Still mark as complete so we don't get stuck on a broken chunk.
+          completedSet.add(ci);
+          saveCheckpoint({
+            bookId,
+            providerId: cfg.id,
+            totalChunks,
+            completedChunks: [...completedSet],
+            seenTerms: [...seen],
+            totalSaved,
+            chunkErrors,
+            startedAt: resumeFrom?.startedAt ?? now,
+          });
         }
       }
 
+      // 6. All done — clear checkpoint.
+      clearCheckpoint();
       setExtractProgress({ done: totalChunks, total: totalChunks });
 
       if (totalSaved === 0) {
@@ -406,9 +509,31 @@ export default function Glossary() {
                 </option>
               ))}
             </select>
+            {/* Resume button — shown when a previous extraction was interrupted */}
+            {savedCheckpoint && !extracting && (
+              <button
+                type="button"
+                onClick={() => {
+                  setResuming(true);
+                  onExtract(savedCheckpoint);
+                }}
+                className="h-10 px-4 inline-flex items-center gap-2 border border-foreground/30 hover:border-foreground/60 bg-foreground/5"
+                title={`Resume from chunk ${savedCheckpoint.completedChunks.length + 1} of ${savedCheckpoint.totalChunks} (${savedCheckpoint.totalSaved} entries saved)`}
+              >
+                <Sparkles className="w-4 h-4" strokeWidth={1.4} />
+                <span className="text-xs uppercase tracking-[0.18em]">
+                  Resume ({savedCheckpoint.completedChunks.length}/{savedCheckpoint.totalChunks})
+                </span>
+              </button>
+            )}
             <button
               type="button"
-              onClick={onExtract}
+              onClick={() => {
+                if (savedCheckpoint && !resuming) {
+                  clearCheckpoint();
+                }
+                onExtract();
+              }}
               disabled={extracting}
               className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
             >
@@ -422,7 +547,9 @@ export default function Glossary() {
                   ? `Chunk ${extractProgress.done + 1}/${extractProgress.total}…`
                   : extracting
                     ? "Extracting…"
-                    : "Extract"}
+                    : savedCheckpoint
+                      ? "Start fresh"
+                      : "Extract"}
               </span>
             </button>
             <button
