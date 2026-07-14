@@ -7,9 +7,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Pause, Play, Square, Volume2, X, FastForward, Repeat } from "lucide-react";
+import { Pause, Play, Square, Volume2, X, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Slider } from "@/components/ui/slider";
 
 const PREFS_KEY = "atelier.readAloud.prefs";
 
@@ -45,8 +46,9 @@ function savePrefs(p: ReadPrefs) {
 }
 
 // Edge voices are labelled "... Online (Natural)" — and Chrome uses
-// "Google ..." with both local and network voices. We surface those
-// first so the default is the nicest voice on each platform.
+// "Google ..." and system voices. We surface natural / neural first
+// so the default is the nicest voice on each platform, then let the
+// user pick ANY English voice regardless of quality label.
 function isNaturalVoice(name: string): boolean {
   const n = name.toLowerCase();
   return (
@@ -60,20 +62,25 @@ function isNaturalVoice(name: string): boolean {
   );
 }
 
+export interface ReadAloudController {
+  /** Jump playback to the given readable-paragraph index. */
+  jumpTo: (idx: number) => void;
+  /** Whether the player is currently active (open or playing). */
+  isActive: () => boolean;
+}
+
 interface ReadAloudProps {
-  // Paragraphs to read in order. Should be the translated English text
-  // when available, falling back to the original chapter text.
+  /** Paragraphs to read in order (translated English or original). */
   paragraphs: string[];
-  // Identity of the current "document" — when this changes (the user
-  // navigated to a new chapter), we reset the player position.
+  /** Stable id that changes when the document (chapter) changes. */
   documentId: string;
-  // True when there is a next chapter we can auto-advance to. The player
-  // calls onAdvanceNext() when it hits the end of the current document.
+  /** Whether there is a next chapter to auto-advance into. */
   hasNext: boolean;
   onAdvanceNext: () => void;
-  // Whether translated paragraphs are being substituted in here vs the
-  // raw original. Drives a small UI label.
+  /** Whether translated text is being read (vs original). */
   isTranslation: boolean;
+  /** Optional ref that the parent uses to programmatically jump. */
+  controllerRef?: React.MutableRefObject<ReadAloudController | null>;
 }
 
 export function ReadAloud({
@@ -82,12 +89,9 @@ export function ReadAloud({
   hasNext,
   onAdvanceNext,
   isTranslation,
+  controllerRef,
 }: ReadAloudProps) {
   // ── Voices ────────────────────────────────────────────────────────────
-  // Voice lists arrive asynchronously on most browsers; speechSynthesis
-  // fires `voiceschanged` when they're ready. We bail out entirely if
-  // the API isn't available (very old browsers, locked-down sandboxes)
-  // and never throw — leaving voices empty simply disables TTS.
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
@@ -109,6 +113,8 @@ export function ReadAloud({
     };
   }, []);
 
+  // Show ALL English voices (Natural first, then Standard) so the user
+  // can pick any browser-provided voice, including Edge's "Sonia (Natural)".
   const englishVoices = useMemo(
     () =>
       voices.filter(
@@ -123,8 +129,6 @@ export function ReadAloud({
 
   const [prefs, setPrefs] = useState<ReadPrefs>(() => loadPrefs());
 
-  // Resolve the actually-set voice object (by name match) so we don't
-  // pass a stale reference to the speechSynthesis API.
   const selectedVoice = useMemo(() => {
     if (prefs.voiceName) {
       const m = voices.find((v) => v.name === prefs.voiceName);
@@ -147,9 +151,6 @@ export function ReadAloud({
   const [paused, setPaused] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
 
-  // Toggle set when WE asked the parent to jump to the next chapter.
-  // The documentId-change effect reads it to decide whether to keep
-  // playing on the new chapter instead of halting.
   const advanceRequestedRef = useRef(false);
   const isMountedRef = useRef(true);
   useEffect(() => {
@@ -166,8 +167,6 @@ export function ReadAloud({
     [paragraphs],
   );
 
-  // `ctxRef` bundles everything speakImpl needs to see fresh values
-  // without forcing the speech callbacks to be re-bound on every render.
   const ctxRef = useRef({
     readable: [] as string[],
     voices: [] as SpeechSynthesisVoice[],
@@ -181,9 +180,6 @@ export function ReadAloud({
   ctxRef.current.advance = onAdvanceNext;
   ctxRef.current.hasNext = hasNext;
 
-  // speakImplRef holds the latest implementation of `speak(i)`. Keeping
-  // it in a ref lets any callback (effect, button handler) call it
-  // without including it in their dep arrays — preventing loops.
   const speakImplRef = useRef<(idx: number) => void>(() => {});
   speakImplRef.current = (idx: number) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
@@ -223,8 +219,6 @@ export function ReadAloud({
         speakImplRef.current(idx + 1);
       };
       utterance.onerror = (ev) => {
-        // `interrupted` and `canceled` are normal lifecycle events. Only
-        // surface real failures with a toast.
         const err = (ev as SpeechSynthesisErrorEvent).error;
         if (err && err !== "interrupted" && err !== "canceled") {
           toast.error(`Read aloud failed: ${err}`);
@@ -234,19 +228,11 @@ export function ReadAloud({
       };
       win.speak(utterance);
     } catch {
-      // Speech engine rejected the utterance (often: document isn't
-      // focused). Bail silently — the user can hit Play again.
       setPlaying(false);
       setPaused(false);
     }
   };
 
-  // When the parent signals a chapter change, decide what to do:
-  //   - if WE triggered it (autoAdvance), keep playing from paragraph 0
-  //   - if the user navigated manually, stop and reset position to 0
-  //   - if both mounted twin components fire this effect, only the one
-  //     that was actively speaking should call cancel() — otherwise we'd
-  //     cut off the other twin's auto-advance restart.
   useEffect(() => {
     const wasAdvance = advanceRequestedRef.current;
     advanceRequestedRef.current = false;
@@ -255,23 +241,39 @@ export function ReadAloud({
 
     if (wasAdvance) {
       try { window.speechSynthesis.cancel(); } catch { /* noop */ }
-      // Defer to the next tick so the new `readable` list has settled
-      // through `useMemo` before speakImpl reads it.
       setPlaying(true);
       setPaused(false);
       queueMicrotask(() => speakImplRef.current(0));
     } else if (playing) {
-      // The user navigated while WE were the active ReadAloud. Cancel
-      // and stop. Don't run on chapter change for an idle twin.
       try { window.speechSynthesis.cancel(); } catch { /* noop */ }
       setPlaying(false);
       setPaused(false);
     }
-    // else: idle. Don't touch speechSynthesis — the other twin may be
-    // mid-utterance and finishing its own restart sequence.
   }, [documentId, readable]);
 
-  // Public actions consumed by the UI.
+  // ── Jump-to-paragraph (exposed to the parent via controllerRef) ────────
+  const jumpTo = useCallback((idx: number) => {
+    try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+    setCurrentIdx(idx);
+    setPlaying(true);
+    setPaused(false);
+    speakImplRef.current(idx);
+  }, []);
+
+  // Let the parent detect whether we're active (so it can render
+  // paragraph click targets).
+  const isActive = useCallback(() => open || playing, [open, playing]);
+
+  // Expose the controller to the parent via the mutable ref.
+  const ctrl = useMemo(() => ({ jumpTo, isActive }), [jumpTo, isActive]);
+  useEffect(() => {
+    if (controllerRef) {
+      controllerRef.current = ctrl;
+      return () => { controllerRef.current = null; };
+    }
+  }, [controllerRef, ctrl]);
+
+  // ── UI actions ─────────────────────────────────────────────────────────
   const beginAt = useCallback((idx: number) => {
     try { window.speechSynthesis.cancel(); } catch { /* noop */ }
     setOpen(true);
@@ -335,9 +337,9 @@ export function ReadAloud({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed left-1/2 -translate-x-1/2 bottom-4 md:bottom-6 z-40 max-w-[calc(100vw-2rem)] w-[min(560px,calc(100vw-2rem))]"
+            className="fixed left-1/2 -translate-x-1/2 bottom-4 md:bottom-6 z-40 max-w-[calc(100vw-2rem)] w-[min(580px,calc(100vw-2rem))]"
           >
-            <div className="bg-background/95 backdrop-blur border border-border shadow-md px-3 md:px-4 py-2.5 md:py-3 flex items-center gap-2 md:gap-3">
+            <div className="bg-background/95 backdrop-blur border border-border shadow-md px-3 md:px-4 py-2.5 md:py-3 flex flex-wrap items-center gap-x-2 md:gap-x-3 gap-y-2">
               {/* Play/Pause */}
               <button
                 type="button"
@@ -384,33 +386,28 @@ export function ReadAloud({
                 </span>
               </div>
 
-              {/* Rate cycle */}
-              <button
-                type="button"
-                onClick={() => {
-                  const cycle: Array<{ v: number; label: string }> = [
-                    { v: 0.85, label: "Slow" },
-                    { v: 1, label: "Regular" },
-                    { v: 1.2, label: "Fast" },
-                  ];
-                  const cur = cycle.findIndex((c) => Math.abs(c.v - prefs.rate) < 0.001);
-                  const next = cycle[(cur === -1 ? 1 : (cur + 1)) % cycle.length];
-                  persist({ rate: next.v });
-                  if (playing) {
-                    try { window.speechSynthesis.cancel(); } catch { /* noop */ }
-                    speakImplRef.current(currentIdx);
-                  }
-                  toast(`Speed: ${next.label}`);
-                }}
-                className="h-9 px-2.5 inline-flex items-center gap-1 border border-border hover:border-foreground/40 text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground shrink-0"
-                aria-label="Cycle playback speed"
-                title="Speed"
-              >
-                <FastForward className="w-3.5 h-3.5" strokeWidth={1.6} />
-                <span className="hidden sm:inline">
-                  {prefs.rate < 0.95 ? "Slow" : prefs.rate > 1.1 ? "Fast" : "1×"}
+              {/* Rate slider */}
+              <div className="flex items-center gap-1.5 shrink-0 min-w-0">
+                <span className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground whitespace-nowrap">
+                  {prefs.rate < 0.75 ? "0.5×" : prefs.rate > 1.85 ? "2×" : `${prefs.rate.toFixed(1)}×`}
                 </span>
-              </button>
+                <Slider
+                  value={[prefs.rate]}
+                  min={0.5}
+                  max={2}
+                  step={0.05}
+                  onValueChange={([v]) => {
+                    if (!v) return;
+                    persist({ rate: v });
+                    if (playing) {
+                      try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+                      speakImplRef.current(currentIdx);
+                    }
+                  }}
+                  className="w-16 sm:w-20"
+                  aria-label="Playback speed"
+                />
+              </div>
 
               {/* Auto-advance */}
               <button
@@ -429,22 +426,22 @@ export function ReadAloud({
                 <span className="hidden md:inline">Next</span>
               </button>
 
-              {/* Voice picker — collapsed into a chip on small screens */}
+              {/* Voice picker — always visible, natural voices first */}
               <select
                 value={selectedVoice?.name ?? ""}
                 onChange={(e) => persist({ voiceName: e.target.value || null })}
-                className="h-9 px-2 bg-transparent border border-border hover:border-foreground/40 text-[10px] uppercase tracking-[0.15em] text-foreground shrink-0 hidden md:block max-w-[180px]"
+                className="h-9 px-2 bg-transparent border border-border hover:border-foreground/40 text-[10px] uppercase tracking-[0.15em] text-foreground shrink-0 max-w-[140px] truncate"
                 aria-label="Voice"
                 title={selectedVoice ? `Voice: ${selectedVoice.name}` : "Default voice"}
               >
-                {!selectedVoice && <option value="">Default voice</option>}
+                {!selectedVoice && <option value="">Default</option>}
                 {[
                   ...naturalVoices.map((v) => ({ v, kind: "Natural" })),
                   ...englishVoices.filter((v) => !isNaturalVoice(v.name)).map((v) => ({ v, kind: "Standard" })),
                 ].map(({ v, kind }) => (
                   <option key={v.name} value={v.name}>
                     {kind === "Natural" ? "✦ " : ""}
-                    {kind}: {v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "")}
+                    {v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").slice(0, 32)}
                   </option>
                 ))}
               </select>

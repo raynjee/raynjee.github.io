@@ -42,7 +42,7 @@ import {
   ReaderSettingsControls,
   ReaderSettingsMenu,
 } from "@/components/studio/ReaderSettingsMenu";
-import { ReadAloud } from "@/components/studio/ReadAloud";
+import { ReadAloud, type ReadAloudController } from "@/components/studio/ReadAloud";
 import { Kbd } from "@/components/ui/kbd";
 
 export default function BookReader() {
@@ -289,6 +289,29 @@ export default function BookReader() {
       })
       .filter((p): p is string => !!p && p.trim().length > 0);
   }, [activeChapter, activeTranslation]);
+
+  // Maps chapter-level paragraph index → readable-paragraph index
+  // (skipping scene breaks & empty lines). Used so clicking a
+  // paragraph in the reader can jump ReadAloud to the right spot.
+  const chapterIdxToReadableIdx = useMemo(() => {
+    if (!activeChapter) return [];
+    const result: number[] = [];
+    let r = 0;
+    for (let i = 0; i < activeChapter.paragraphs.length; i++) {
+      const p = activeChapter.paragraphs[i];
+      if (p === SCENE_BREAK || !p || !p.trim()) {
+        result.push(-1);
+      } else {
+        result.push(r++);
+      }
+    }
+    return result;
+  }, [activeChapter]);
+
+  const readAloudControllerRef = useRef<ReadAloudController | null>(null);
+  const onParagraphJump = useCallback((readableIdx: number) => {
+    readAloudControllerRef.current?.jumpTo(readableIdx);
+  }, []);
 
   const totalWordCount = useMemo(
     () => chapters.reduce((s, c) => s + c.wordCount, 0),
@@ -962,8 +985,11 @@ export default function BookReader() {
                     isTranslation:
                       !!activeTranslation &&
                       activeTranslation.status === "completed",
-                  }}
-                />
+                  controllerRef: readAloudControllerRef,
+                }}
+                chapterIdxToReadableIdx={chapterIdxToReadableIdx}
+                onParagraphJump={onParagraphJump}
+              />
               ) : (
                 <div className="p-12 text-center">
                   <BookOpen className="w-10 h-10 mx-auto text-muted-foreground" strokeWidth={1.2} />
@@ -1009,7 +1035,10 @@ export default function BookReader() {
                   isTranslation:
                     !!activeTranslation &&
                     activeTranslation.status === "completed",
+                  controllerRef: readAloudControllerRef,
                 }}
+                chapterIdxToReadableIdx={chapterIdxToReadableIdx}
+                onParagraphJump={onParagraphJump}
               />
             ) : (
               <div className="p-12 text-center">
@@ -1289,6 +1318,7 @@ export default function BookReader() {
                       !!activeTranslation &&
                       activeTranslation.status === "completed"
                     }
+                    controllerRef={readAloudControllerRef}
                   />
                 )}
                 <button
@@ -1405,6 +1435,7 @@ type ReadAloudHandlerProps = {
   hasNext: boolean;
   onAdvanceNext: () => void;
   isTranslation: boolean;
+  controllerRef?: React.MutableRefObject<ReadAloudController | null>;
 };
 
 function ChapterReader({
@@ -1425,6 +1456,8 @@ function ChapterReader({
   busy,
   mobile,
   readAloudProps,
+  chapterIdxToReadableIdx,
+  onParagraphJump,
 }: {
   chapter: Chapter;
   translation: ChapterTranslation | null;
@@ -1445,6 +1478,8 @@ function ChapterReader({
   busy: boolean;
   mobile?: boolean;
   readAloudProps: ReadAloudHandlerProps;
+  chapterIdxToReadableIdx: number[];
+  onParagraphJump: (readableIdx: number) => void;
 }) {
   const showOriginal = prefs.showOriginal;
   const showToc = prefs.showToc;
@@ -1664,14 +1699,27 @@ function ChapterReader({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.22, delay: Math.min(idx, 6) * 0.02 }}
               >
-                <p className="reader-prose-text text-foreground/80 py-3 px-1 -mx-1 rounded transition-colors duration-1000">
+                <p
+                  className="reader-prose-text text-foreground/80 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5"
+                  onClick={() => {
+                    const ri = chapterIdxToReadableIdx[idx];
+                    if (ri >= 0) onParagraphJump(ri);
+                  }}
+                  title="Click to read aloud from here"
+                >
                   {p}
                 </p>
                 <div className="mt-3">
                   <p className={cn(
-                    "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000",
+                    "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5",
                     freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent",
-                  )}>
+                  )}
+                    onClick={() => {
+                      const ri = chapterIdxToReadableIdx[idx];
+                      if (ri >= 0) onParagraphJump(ri);
+                    }}
+                    title="Click to jump read aloud here"
+                  >
                     {t && t.trim() ? t : (
                       <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
                     )}
@@ -1694,14 +1742,27 @@ function ChapterReader({
               )}
             >
               {showOriginal && (
-                <p className="reader-prose-text text-foreground/80 py-3">
+                <p
+                  className="reader-prose-text text-foreground/80 py-3 cursor-pointer hover:bg-foreground/5 px-1 -mx-1 rounded transition-colors duration-1000"
+                  onClick={() => {
+                    const ri = chapterIdxToReadableIdx[idx];
+                    if (ri >= 0) onParagraphJump(ri);
+                  }}
+                  title="Click to read aloud from here"
+                >
                   {p}
                 </p>
               )}
               <p className={cn(
-                "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000",
+                "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5",
                 freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent",
-              )}>
+              )}
+                onClick={() => {
+                  const ri = chapterIdxToReadableIdx[idx];
+                  if (ri >= 0) onParagraphJump(ri);
+                }}
+                title="Click to jump read aloud here"
+              >
                 {t && t.trim() ? t : (
                   <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
                 )}
