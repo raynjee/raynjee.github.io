@@ -14,6 +14,8 @@ interface BookGalleryTileProps {
   onOpen: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 export function BookGalleryTile({
@@ -22,6 +24,8 @@ export function BookGalleryTile({
   onOpen,
   onEdit,
   onDelete,
+  selected = false,
+  onToggleSelect,
 }: BookGalleryTileProps) {
   const progress = stats?.progress ?? 0;
   const totalWords = stats?.totalWords ?? 0;
@@ -70,6 +74,37 @@ export function BookGalleryTile({
               {pct}%
             </span>
           </div>
+
+          {/* Select checkbox — top-left, always visible when selected, hover-only otherwise */}
+          {onToggleSelect && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onToggleSelect();
+              }}
+              className={cn(
+                "absolute top-2 left-2 w-5 h-5 grid place-items-center border transition-all duration-150",
+                selected
+                  ? "bg-foreground border-foreground text-background"
+                  : "border-border bg-background/80 text-transparent md:opacity-0 md:group-hover:opacity-100",
+              )}
+              aria-label={selected ? `Deselect ${book.title}` : `Select ${book.title}`}
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                className={cn("transition-opacity", selected ? "opacity-100" : "opacity-0")}
+              >
+                <path d="M2 6l2.5 2.5L10 3" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Title block */}

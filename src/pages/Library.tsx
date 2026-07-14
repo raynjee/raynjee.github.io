@@ -65,6 +65,61 @@ export default function Library() {
   const [query, setQuery] = useState("");
   const [langFilter, setLangFilter] = useState<LangFilter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("recent");
+  const [selectedBooks, setSelectedBooks] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelectedBooks((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedBooks(new Set());
+
+  // Clear selection when filters change
+  const prevFilterKey = useRef(`${query}|${langFilter}|${sortBy}`);
+  useEffect(() => {
+    const key = `${query}|${langFilter}|${sortBy}`;
+    if (key !== prevFilterKey.current) {
+      prevFilterKey.current = key;
+      setSelectedBooks(new Set());
+    }
+  }, [query, langFilter, sortBy]);
+
+  const onBatchDelete = async () => {
+    if (selectedBooks.size === 0) return;
+    if (
+      !confirm(
+        `Delete ${selectedBooks.size} book${selectedBooks.size !== 1 ? "s" : ""}? This will remove all translations too.`,
+      )
+    )
+      return;
+    setBatchDeleting(true);
+    let deleted = 0;
+    for (const id of selectedBooks) {
+      try {
+        await deleteBook(id);
+        deleted++;
+      } catch (e) {
+        toast.error(`Failed to delete a book: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    setBatchDeleting(false);
+    setSelectedBooks(new Set());
+    if (deleted > 0) {
+      toast.success(`Deleted ${deleted} book${deleted !== 1 ? "s" : ""}.`);
+    }
+  };
+
+  const onBatchTranslate = () => {
+    if (selectedBooks.size === 0) return;
+    // Open the first selected book — user translates from the reader
+    const first = [...selectedBooks][0];
+    navigate(`/library/${first}`);
+  };
 
   // Filter + sort the catalogue.
   const filteredBooks = useMemo(() => {
@@ -98,6 +153,12 @@ export default function Library() {
     }
     return list;
   }, [books, query, langFilter, sortBy, statsById]);
+
+  const selectAll = () => {
+    setSelectedBooks(new Set(filteredBooks.map((b) => b.id)));
+  };
+
+  const isAllSelected = filteredBooks.length > 0 && selectedBooks.size === filteredBooks.length;
 
   const totals = useMemo(() => {
     let chapters = 0;
@@ -219,6 +280,8 @@ export default function Library() {
                   key={b.id}
                   book={b}
                   stats={statsById.get(b.id)}
+                  selected={selectedBooks.has(b.id)}
+                  onToggleSelect={() => toggleSelect(b.id)}
                   onOpen={() => navigate(`/library/${b.id}`)}
                   onEdit={() => navigate(`/library/${b.id}/edit`)}
                   onDelete={async () => {
@@ -237,6 +300,62 @@ export default function Library() {
           )}
         </div>
       </div>
+
+      {/* ── Batch actions bar ──────────────────────────────────── */}
+      {selectedBooks.size > 0 && (
+        <div className="fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-sm border-t border-border pb-[env(safe-area-inset-bottom,0)]">
+          <div className="mx-auto max-w-[1400px] px-6 lg:px-10 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="w-5 h-5 grid place-items-center border border-border hover:border-foreground/40 transition-colors"
+                aria-label="Clear selection"
+              >
+                <X className="w-3 h-3" strokeWidth={1.4} />
+              </button>
+              <span className="text-xs text-muted-foreground">
+                <span className="studio-num text-foreground">{selectedBooks.size}</span> selected
+              </span>
+              {!isAllSelected && (
+                <button
+                  type="button"
+                  onClick={selectAll}
+                  className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Select all {filteredBooks.length}
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onBatchTranslate}
+                className="h-9 px-3 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 text-xs uppercase tracking-[0.12em] transition-colors"
+              >
+                <Languages className="w-3.5 h-3.5" strokeWidth={1.4} />
+                <span className="hidden sm:inline">Translate</span>
+                <span className="hidden sm:inline">({selectedBooks.size})</span>
+              </button>
+              <button
+                type="button"
+                disabled={batchDeleting}
+                onClick={onBatchDelete}
+                className="h-9 px-3 inline-flex items-center gap-1.5 border border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground text-xs uppercase tracking-[0.12em] transition-colors disabled:opacity-40"
+              >
+                {batchDeleting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5" strokeWidth={1.4} />
+                )}
+                <span className="hidden sm:inline">Delete</span>
+                <span className="hidden sm:inline">({selectedBooks.size})</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </StudioShell>
   );
 }
