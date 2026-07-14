@@ -17,8 +17,6 @@ import {
   Check,
   Copy,
   X,
-  Volume2,
-  Sparkles,
 } from "lucide-react";
 import { StudioShell } from "@/components/StudioShell";
 import { useSettings } from "@/hooks/use-settings";
@@ -52,7 +50,6 @@ export default function SettingsPage() {
         <div className="mt-0 space-y-10 sm:space-y-12">
           <DeepSeekTutorial />
           <ProviderSettings settings={settings} update={update} canEdit={true} />
-          <BrowserVoiceGallery />
           <TranslationPreferences settings={settings} update={update} canEdit={true} />
           <LogsCard />
           <BackupPanel canEdit={true} />
@@ -1012,131 +1009,6 @@ function RpmControl({
         instead of failing.
       </p>
     </div>
-  );
-}
-
-// ── Browser Voice Gallery ────────────────────────────────────────────────
-
-function BrowserVoiceGallery() {
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    const synth = window.speechSynthesis;
-    if (!synth) return;
-    const load = () => {
-      try { setVoices(synth.getVoices?.() ?? []); } catch { setVoices([]); }
-    };
-    try { load(); } catch { /* noop */ }
-    try { synth.addEventListener?.("voiceschanged", load); } catch { /* noop */ }
-    return () => {
-      try { synth.removeEventListener?.("voiceschanged", load); } catch { /* noop */ }
-    };
-  }, []);
-
-  const englishVoices = voices.filter(
-    (v) => v.lang.startsWith("en") || /english/i.test(v.name),
-  );
-  const naturalVoices = englishVoices.filter(
-    (v) =>
-      v.name.toLowerCase().includes("natural") ||
-      v.name.toLowerCase().includes("neural") ||
-      v.name.toLowerCase().includes("online") ||
-      v.name.toLowerCase().includes("premium") ||
-      v.name.toLowerCase().includes("enhanced") ||
-      v.name.toLowerCase().includes("google") ||
-      v.name.toLowerCase().includes("siri"),
-  );
-  const standardVoices = englishVoices.filter(
-    (v) => !naturalVoices.includes(v),
-  );
-
-  // Force-load remote voices on mount.
-  useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    const synth = window.speechSynthesis;
-    if (!synth) return;
-    if (synth.getVoices?.().length === 0) return;
-    try {
-      const wu = new SpeechSynthesisUtterance(".");
-      wu.volume = 0;
-      wu.rate = 2;
-      wu.onstart = () => { try { synth.cancel(); } catch { /* noop */ } };
-      synth.speak(wu);
-      setTimeout(() => { try { synth.cancel(); } catch { /* noop */ } }, 300);
-    } catch { /* noop */ }
-  }, []);
-
-  const hasVoices = englishVoices.length > 0;
-
-  return (
-    <section>
-      <SectionHeader eyebrow="TTS" title="Browser voice gallery" />
-      <p className="text-muted-foreground max-w-[58ch] text-sm leading-relaxed">
-        The Read Aloud player uses your browser's built-in speech synthesis.
-        Natural voices (marked ✦) are automatically preferred. On Edge you
-        get Microsoft online voices, on macOS/iOS you get enhanced Siri
-        voices, and on Chrome you get Google voices. Open a book and tap
-        Listen to try them.
-      </p>
-
-      {!hasVoices ? (
-        <div className="mt-5 studio-card p-6 text-center text-muted-foreground text-sm">
-          <Loader2 className="w-5 h-5 mx-auto mb-2 animate-spin" strokeWidth={1.4} />
-          Loading voice list…
-        </div>
-      ) : (
-        <>
-          {/* Natural voices */}
-          {naturalVoices.length > 0 && (
-            <div className="mt-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Volume2 className="w-4 h-4 text-muted-foreground" strokeWidth={1.4} />
-                <h3 className="studio-caps text-muted-foreground">
-                  Natural voices ({naturalVoices.length})
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {naturalVoices.map((v) => (
-                  <div key={v.name} className="border border-border p-3">
-                    <div className="text-xs text-muted-foreground truncate">
-                      ✦ {v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").slice(0, 32)}
-                    </div>
-                    <div className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground mt-1">
-                      {v.lang}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Standard voices */}
-          {standardVoices.length > 0 && (
-            <div className="mt-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Volume2 className="w-4 h-4 text-muted-foreground/50" strokeWidth={1.4} />
-                <h3 className="studio-caps text-muted-foreground/70">
-                  Standard voices ({standardVoices.length})
-                </h3>
-              </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {standardVoices.map((v) => (
-                  <div key={v.name} className="border border-border/50 p-3 opacity-60">
-                    <div className="text-xs text-muted-foreground truncate">
-                      {v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").slice(0, 32)}
-                    </div>
-                    <div className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground mt-1">
-                      {v.lang}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-    </section>
   );
 }
 

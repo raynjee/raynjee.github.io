@@ -4,9 +4,6 @@
 // (the browser/OS does the speaking; nothing is recorded or cached).
 // Only a tiny preference blob (chosen voice name, rate, auto-advance
 // toggle) is kept in localStorage — 100 bytes tops.
-//
-// Includes aggressive voice warm-up for mobile Edge/Chrome to force
-// remote (online/natural) voice loading inside a user gesture.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -48,6 +45,10 @@ function savePrefs(p: ReadPrefs) {
   }
 }
 
+// Edge voices are labelled "... Online (Natural)" — and Chrome uses
+// "Google ..." and system voices. We surface natural / neural first
+// so the default is the nicest voice on each platform, then let the
+// user pick ANY English voice regardless of quality label.
 function isNaturalVoice(name: string): boolean {
   const n = name.toLowerCase();
   return (
@@ -62,16 +63,23 @@ function isNaturalVoice(name: string): boolean {
 }
 
 export interface ReadAloudController {
+  /** Jump playback to the given readable-paragraph index. */
   jumpTo: (idx: number) => void;
+  /** Whether the player is currently active (open or playing). */
   isActive: () => boolean;
 }
 
 interface ReadAloudProps {
+  /** Paragraphs to read in order (translated English or original). */
   paragraphs: string[];
+  /** Stable id that changes when the document (chapter) changes. */
   documentId: string;
+  /** Whether there is a next chapter to auto-advance into. */
   hasNext: boolean;
   onAdvanceNext: () => void;
+  /** Whether translated text is being read (vs original). */
   isTranslation: boolean;
+  /** Optional ref that the parent uses to programmatically jump. */
   controllerRef?: React.MutableRefObject<ReadAloudController | null>;
 }
 
@@ -86,11 +94,17 @@ export function ReadAloud({
   // ── Voices ────────────────────────────────────────────────────────────
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      return;
+    }
     const synth = window.speechSynthesis;
     if (!synth) return;
     const load = () => {
-      try { setVoices(synth.getVoices?.() ?? []); } catch { setVoices([]); }
+      try {
+        setVoices(synth.getVoices?.() ?? []);
+      } catch {
+        setVoices([]);
+      }
     };
     try { load(); } catch { /* noop */ }
     try { synth.addEventListener?.("voiceschanged", load); } catch { /* noop */ }
@@ -99,8 +113,13 @@ export function ReadAloud({
     };
   }, []);
 
+  // Show ALL English voices (Natural first, then Standard) so the user
+  // can pick any browser-provided voice, including Edge's "Sonia (Natural)".
   const englishVoices = useMemo(
-    () => voices.filter((v) => v.lang.startsWith("en") || /english/i.test(v.name)),
+    () =>
+      voices.filter(
+        (v) => v.lang.startsWith("en") || /english/i.test(v.name),
+      ),
     [voices],
   );
   const naturalVoices = useMemo(
@@ -108,15 +127,7 @@ export function ReadAloud({
     [englishVoices],
   );
 
-  // ── Prefs ──────────────────────────────────────────────────────────
   const [prefs, setPrefs] = useState<ReadPrefs>(() => loadPrefs());
-  const persist = useCallback((next: Partial<ReadPrefs>) => {
-    setPrefs((prev) => {
-      const merged = { ...prev, ...next };
-      savePrefs(merged);
-      return merged;
-    });
-  }, []);
 
   const selectedVoice = useMemo(() => {
     if (prefs.voiceName) {
@@ -126,7 +137,15 @@ export function ReadAloud({
     return naturalVoices[0] ?? englishVoices[0] ?? voices[0] ?? null;
   }, [voices, naturalVoices, englishVoices, prefs.voiceName]);
 
-  // ── Playback state ─────────────────────────────────────────────────
+  const persist = useCallback((next: Partial<ReadPrefs>) => {
+    setPrefs((prev) => {
+      const merged = { ...prev, ...next };
+      savePrefs(merged);
+      return merged;
+    });
+  }, []);
+
+  // ── Playback state ────────────────────────────────────────────────────
   const [open, setOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -134,7 +153,6 @@ export function ReadAloud({
 
   const advanceRequestedRef = useRef(false);
   const isMountedRef = useRef(true);
-
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -143,6 +161,7 @@ export function ReadAloud({
     };
   }, []);
 
+  // Filter readable paragraphs (skip null/empty strings).
   const readable = useMemo(
     () => paragraphs.filter((p) => typeof p === "string" && p.trim().length > 0),
     [paragraphs],
@@ -163,6 +182,10 @@ export function ReadAloud({
   ctxRef.current.advance = onAdvanceNext;
   ctxRef.current.hasNext = hasNext;
 
+  /** Resolve the best voice from a fresh global-API snapshot, with a
+   * natural-first English fallback.  Never depends on React state so
+   * it works even on mobile where voices load lazily inside the first
+   * user-gesture speak() call. */
   function resolveVoice(
     fresh: SpeechSynthesisVoice[],
     savedName: string | null,
@@ -171,16 +194,25 @@ export function ReadAloud({
       const m = fresh.find((v) => v.name === savedName);
       if (m) return m;
     }
+    // First natural English, then any English, then anything.
     return (
       fresh.find(
-        (v) => isNaturalVoice(v.name) && (v.lang.startsWith("en") || /english/i.test(v.name)),
+        (v) =>
+          isNaturalVoice(v.name) &&
+          (v.lang.startsWith("en") || /english/i.test(v.name)),
       ) ??
-      fresh.find((v) => v.lang.startsWith("en") || /english/i.test(v.name)) ??
+      fresh.find(
+        (v) => v.lang.startsWith("en") || /english/i.test(v.name),
+      ) ??
       fresh[0] ??
       null
     );
   }
 
+  /** Create and speak an utterance for a single paragraph index,
+   * using the pre-resolved voice.  Called either directly (when
+   * natural voices are already available) or from the warm-up
+   * callback (after forcing remote-voice loading on mobile). */
   function speakUtterance(idx: number, voice: SpeechSynthesisVoice | null) {
     const synth = window.speechSynthesis;
     if (!synth) return;
@@ -192,8 +224,14 @@ export function ReadAloud({
       utterance.rate = ctx.prefs.rate;
       utterance.pitch = ctx.prefs.pitch;
       utterance.lang = voice?.lang ?? "en-US";
-      utterance.onstart = () => { if (isMountedRef.current) setCurrentIdx(idx); };
-      utterance.onend = () => { if (isMountedRef.current) speakImplRef.current(idx + 1); };
+      utterance.onstart = () => {
+        if (!isMountedRef.current) return;
+        setCurrentIdx(idx);
+      };
+      utterance.onend = () => {
+        if (!isMountedRef.current) return;
+        speakImplRef.current(idx + 1);
+      };
       utterance.onerror = (ev) => {
         const err = (ev as SpeechSynthesisErrorEvent).error;
         if (err && err !== "interrupted" && err !== "canceled") {
@@ -211,6 +249,11 @@ export function ReadAloud({
 
   const speakImplRef = useRef<(idx: number) => void>(() => {});
   speakImplRef.current = (idx: number) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      return;
+    }
+    const synth = window.speechSynthesis;
+    if (!synth) return;
     const ctx = ctxRef.current;
     if (idx >= ctx.readable.length) {
       setPlaying(false);
@@ -226,16 +269,28 @@ export function ReadAloud({
       return;
     }
 
-    const synth = window.speechSynthesis;
-    if (!synth) return;
+    // ── Aggressive voice warm-up (critical for mobile Edge) ──────
+    // Mobile browsers (Edge Android, Chrome Android) only load remote /
+    // online voices after the engine actually processes a speak() call
+    // inside a user gesture.  The old "speak empty + instant cancel"
+    // was too fast to trigger initialisation.
+    //
+    // Strategy: speak a real character "." at volume 0, wait for the
+    // onstart event (proving the engine pipeline is alive), THEN cancel
+    // and re-read voices.  A 500 ms safety timeout prevents hanging if
+    // onstart never fires (e.g. no voices at all).
     const freshVoices = synth.getVoices?.() ?? [];
     const hasNatural = freshVoices.some(
-      (v) => isNaturalVoice(v.name) && (v.lang.startsWith("en") || /english/i.test(v.name)),
+      (v) =>
+        isNaturalVoice(v.name) &&
+        (v.lang.startsWith("en") || /english/i.test(v.name)),
     );
 
     const proceed = (voicesSnapshot: SpeechSynthesisVoice[]) => {
       const voice = resolveVoice(voicesSnapshot, ctx.prefs.voiceName);
-      if (voicesSnapshot.length !== voices.length) setVoices(voicesSnapshot);
+      if (voicesSnapshot.length !== voices.length) {
+        setVoices(voicesSnapshot);
+      }
       speakUtterance(idx, voice);
     };
 
@@ -249,22 +304,28 @@ export function ReadAloud({
           if (settled) return;
           settled = true;
           try { synth.cancel(); } catch { /* noop */ }
-          proceed(synth.getVoices?.() ?? freshVoices);
+          const updated = synth.getVoices?.() ?? freshVoices;
+          proceed(updated);
         };
         wu.onstart = finish;
         wu.onerror = finish;
         synth.speak(wu);
+        // Safety: if onstart never fires (e.g. no TTS engine at all),
+        // bail after 500 ms and proceed with whatever voices we have.
         setTimeout(finish, 500);
         return;
-      } catch { /* fall through */ }
+      } catch {
+        /* proceed with whatever we had */
+      }
     }
+
     proceed(freshVoices);
   };
 
-  // ── documentId change → stop or auto-advance ──────────────────────
   useEffect(() => {
     const wasAdvance = advanceRequestedRef.current;
     advanceRequestedRef.current = false;
+
     setCurrentIdx(0);
 
     if (wasAdvance) {
@@ -279,7 +340,7 @@ export function ReadAloud({
     }
   }, [documentId, readable]);
 
-  // ── Controller ─────────────────────────────────────────────────────
+  // ── Jump-to-paragraph (exposed to the parent via controllerRef) ────────
   const jumpTo = useCallback((idx: number) => {
     try { window.speechSynthesis.cancel(); } catch { /* noop */ }
     setCurrentIdx(idx);
@@ -288,8 +349,11 @@ export function ReadAloud({
     speakImplRef.current(idx);
   }, []);
 
+  // Let the parent detect whether we're active (so it can render
+  // paragraph click targets).
   const isActive = useCallback(() => open || playing, [open, playing]);
 
+  // Expose the controller to the parent via the mutable ref.
   const ctrl = useMemo(() => ({ jumpTo, isActive }), [jumpTo, isActive]);
   useEffect(() => {
     if (controllerRef) {
@@ -298,8 +362,12 @@ export function ReadAloud({
     }
   }, [controllerRef, ctrl]);
 
-  // ── UI actions ─────────────────────────────────────────────────────
+  // ── UI actions ─────────────────────────────────────────────────────────
   const beginAt = useCallback((idx: number) => {
+    // speakImplRef handles voice warm-up / resolution on its own — no
+    // need to block here.  It reads voices directly from the global
+    // API so it works even when React state hasn't caught up yet
+    // (critical for mobile Edge where remote voices appear lazily).
     try { window.speechSynthesis.cancel(); } catch { /* noop */ }
     setOpen(true);
     setCurrentIdx(idx);
@@ -309,13 +377,20 @@ export function ReadAloud({
   }, []);
 
   const onTogglePlay = useCallback(() => {
+    const win = typeof window !== "undefined" ? window.speechSynthesis : null;
+    if (!win) return;
     if (playing) {
-      const synth = window.speechSynthesis;
-      if (!synth) return;
       try {
-        if (paused) { synth.resume?.(); setPaused(false); }
-        else { synth.pause?.(); setPaused(true); }
-      } catch { setPaused(false); }
+        if (paused) {
+          win.resume?.();
+          setPaused(false);
+        } else {
+          win.pause?.();
+          setPaused(true);
+        }
+      } catch {
+        setPaused(false);
+      }
       return;
     }
     beginAt(currentIdx);
@@ -340,7 +415,10 @@ export function ReadAloud({
     <>
       <ReadAloudTrigger
         onClick={() => {
-          if (open || playing) { onClose(); return; }
+          if (open || playing) {
+            onClose();
+            return;
+          }
           beginAt(0);
         }}
         active={open || playing}
@@ -363,7 +441,7 @@ export function ReadAloud({
                   "h-9 w-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors shrink-0",
                   playing && !paused && "bg-foreground text-background border-foreground",
                 )}
-                aria-label={playing && !paused ? "Pause" : "Play"}
+                aria-label={playing && !paused ? "Pause read aloud" : "Play read aloud"}
               >
                 {playing && !paused ? (
                   <Pause className="w-4 h-4" strokeWidth={1.6} />
@@ -377,13 +455,13 @@ export function ReadAloud({
                 type="button"
                 onClick={onStop}
                 className="h-9 w-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors shrink-0"
-                aria-label="Stop"
+                aria-label="Stop read aloud"
                 title="Stop"
               >
                 <Square className="w-3.5 h-3.5" strokeWidth={1.6} />
               </button>
 
-              {/* Progress */}
+              {/* Progress label */}
               <div className="flex-1 min-w-0 flex items-center gap-2">
                 <span className="studio-num text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
                   {Math.min(currentIdx + 1, readable.length)} / {readable.length}
@@ -434,14 +512,14 @@ export function ReadAloud({
                     ? "bg-foreground text-background border-foreground"
                     : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40",
                 )}
-                aria-label="Auto-advance"
+                aria-label="Auto-advance to next chapter"
                 title={hasNext ? "Auto-advance to next chapter" : "No next chapter"}
               >
                 <Repeat className="w-3.5 h-3.5" strokeWidth={1.6} />
                 <span className="hidden md:inline">Next</span>
               </button>
 
-              {/* Voice picker */}
+              {/* Voice picker — always visible, natural voices first */}
               <select
                 value={selectedVoice?.name ?? ""}
                 onChange={(e) => persist({ voiceName: e.target.value || null })}
@@ -456,7 +534,7 @@ export function ReadAloud({
                 ].map(({ v, kind }) => (
                   <option key={v.name} value={v.name}>
                     {kind === "Natural" ? "✦ " : ""}
-                    {v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").slice(0, 28)}
+                    {v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").slice(0, 32)}
                   </option>
                 ))}
               </select>
@@ -466,7 +544,7 @@ export function ReadAloud({
                 type="button"
                 onClick={onClose}
                 className="h-9 w-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors shrink-0"
-                aria-label="Close"
+                aria-label="Close read aloud"
               >
                 <X className="w-4 h-4" strokeWidth={1.6} />
               </button>
@@ -499,7 +577,7 @@ function ReadAloudTrigger({
       aria-label="Read aloud"
     >
       <Volume2 className="w-4 h-4" strokeWidth={1.4} />
-      <span className="hidden sm:inline text-xs uppercase tracking-[0.18em]\">Listen</span>
+      <span className="hidden sm:inline text-xs uppercase tracking-[0.18em]">Listen</span>
     </button>
   );
 }
