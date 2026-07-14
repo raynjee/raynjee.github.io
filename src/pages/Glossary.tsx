@@ -14,6 +14,7 @@ import {
   X,
   BookOpen,
   Pencil,
+  Search,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import { StudioShell } from "@/components/StudioShell";
@@ -91,6 +92,7 @@ export default function Glossary() {
   const [extractProgress, setExtractProgress] = useState<{ done: number; total: number; avgChunkMs: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Enabled provider IDs — recomputed whenever settings change.
   const enabledProviderIds = useMemo(
@@ -484,6 +486,19 @@ export default function Glossary() {
     }
   };
 
+  // ── Filtered entries for search ────────────────────────────────────
+
+  const filteredEntries = useMemo(() => {
+    if (!searchQuery.trim()) return entries;
+    const q = searchQuery.trim().toLowerCase();
+    return entries.filter(
+      (e) =>
+        e.term.toLowerCase().includes(q) ||
+        e.translation.toLowerCase().includes(q) ||
+        e.notes.toLowerCase().includes(q),
+    );
+  }, [entries, searchQuery]);
+
   if (!book || !bookId) {
     return (
       <StudioShell>
@@ -568,7 +583,7 @@ export default function Glossary() {
               )}
               <span className="text-xs uppercase tracking-[0.18em]">
                 {extracting && extractProgress
-                  ? `Chunk ${extractProgress.done + 1}/${extractProgress.total} · ~${formatEta(extractProgress.total - extractProgress.done, extractProgress.avgChunkMs)}`
+                  ? `Chunk ${extractProgress.done + 1}/${extractProgress.total}…`
                   : extracting
                     ? "Extracting…"
                     : savedCheckpoint
@@ -654,6 +669,33 @@ export default function Glossary() {
           </div>
         ) : (
           <>
+            {/* Search bar */}
+            <div className="mt-8 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" strokeWidth={1.4} />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={`Search ${entries.length} entries by term, translation, or notes…`}
+                className="w-full h-11 pl-10 pr-10 bg-transparent border border-border focus:border-foreground outline-none text-sm"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" strokeWidth={1.4} />
+                </button>
+              )}
+            </div>
+            {searchQuery && filteredEntries.length === 0 && (
+              <p className="mt-6 text-center text-sm text-muted-foreground">
+                No entries match "{searchQuery}".
+              </p>
+            )}
+
             {/* Desktop table (md+) */}
             <div className="hidden md:block mt-8 border border-border">
               {/* Table header */}
@@ -668,7 +710,7 @@ export default function Glossary() {
 
               {/* Table body */}
               <div className="divide-y divide-border max-h-[calc(100vh-16rem)] overflow-y-auto thin-scrollbar">
-                {entries.map((entry) =>
+                {filteredEntries.map((entry) =>
                   editingId === entry.id ? (
                     <GlossaryEditRow
                       key={entry.id}
@@ -691,7 +733,7 @@ export default function Glossary() {
 
             {/* Mobile card list (< md) */}
             <div className="md:hidden mt-6 space-y-3">
-              {entries.map((entry) =>
+              {filteredEntries.map((entry) =>
                 editingId === entry.id ? (
                   <div key={entry.id} className="border border-border bg-card p-4">
                     <GlossaryEditForm
