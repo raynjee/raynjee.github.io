@@ -1117,8 +1117,24 @@ export default function BookReader() {
                 Prev
               </button>
 
-              {/* Center: TOC + Translate */}
+              {/* Center: Listen + TOC + Translate */}
               <div className="flex-1 flex items-center justify-center gap-1.5">
+                {activeChapter && (
+                  <ReadAloud
+                    paragraphs={readableParagraphs}
+                    documentId={`${book.id}:${activeChapter.id}`}
+                    hasNext={activeIdx >= 0 && activeIdx < chapters.length - 1}
+                    onAdvanceNext={() => {
+                      if (activeIdx < 0 || activeIdx >= chapters.length - 1) return;
+                      setActiveId(chapters[activeIdx + 1].id);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    isTranslation={
+                      !!activeTranslation &&
+                      activeTranslation.status === "completed"
+                    }
+                  />
+                )}
                 <button
                   type="button"
                   onClick={toggleTocDrawer}

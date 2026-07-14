@@ -244,23 +244,31 @@ export function ReadAloud({
   // When the parent signals a chapter change, decide what to do:
   //   - if WE triggered it (autoAdvance), keep playing from paragraph 0
   //   - if the user navigated manually, stop and reset position to 0
+  //   - if both mounted twin components fire this effect, only the one
+  //     that was actively speaking should call cancel() — otherwise we'd
+  //     cut off the other twin's auto-advance restart.
   useEffect(() => {
     const wasAdvance = advanceRequestedRef.current;
     advanceRequestedRef.current = false;
 
-    try { window.speechSynthesis.cancel(); } catch { /* noop */ }
     setCurrentIdx(0);
 
     if (wasAdvance) {
+      try { window.speechSynthesis.cancel(); } catch { /* noop */ }
       // Defer to the next tick so the new `readable` list has settled
       // through `useMemo` before speakImpl reads it.
       setPlaying(true);
       setPaused(false);
       queueMicrotask(() => speakImplRef.current(0));
-    } else {
+    } else if (playing) {
+      // The user navigated while WE were the active ReadAloud. Cancel
+      // and stop. Don't run on chapter change for an idle twin.
+      try { window.speechSynthesis.cancel(); } catch { /* noop */ }
       setPlaying(false);
       setPaused(false);
     }
+    // else: idle. Don't touch speechSynthesis — the other twin may be
+    // mid-utterance and finishing its own restart sequence.
   }, [documentId, readable]);
 
   // Public actions consumed by the UI.
@@ -479,7 +487,7 @@ function ReadAloudTrigger({
       aria-label="Read aloud"
     >
       <Volume2 className="w-4 h-4" strokeWidth={1.4} />
-      <span className="text-xs uppercase tracking-[0.18em]">Listen</span>
+      <span className="hidden sm:inline text-xs uppercase tracking-[0.18em]">Listen</span>
     </button>
   );
 }
