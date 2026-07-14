@@ -79,8 +79,25 @@ export default function BookReader() {
   const mountedRef = useRef(true);
   useEffect(() => {
     mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
+    // Reconnect to a running translation that survived page navigation.
+    const win = window as unknown as { __translationManager?: TranslationManager | null };
+    const existing = win.__translationManager;
+    if (existing) {
+      managerRef.current = existing;
+      setBusy(true);
+      setPaused(existing.isPaused());
+    }
+    return () => {
+      mountedRef.current = false;
+      // Keep the manager alive on window if translation is still running,
+      // so it survives page navigation.
+      if (managerRef.current && busy) {
+        win.__translationManager = managerRef.current;
+      } else {
+        win.__translationManager = null;
+      }
+    };
+  }, []); // intentionally only on mount/unmount
   const { settings, prefsFor, updateBookPrefs } = useSettings();
   // Reader preferences (per-book, falling back to global defaults). Used to
   // drive typography, layout mode, and toggles for the TOC/original column.
@@ -287,6 +304,7 @@ export default function BookReader() {
       setProgress({ done: 0, total: ch.paragraphs.length, provider: null });
       const mgr = makeManager();
       managerRef.current = mgr;
+      (window as unknown as { __translationManager?: TranslationManager | null }).__translationManager = mgr;
       const result = await mgr.translateChapter({
         paragraphs: ch.paragraphs,
         contextHint: `Chapter: ${ch.title}. From ${book.title}.`,
@@ -625,6 +643,23 @@ export default function BookReader() {
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <ApiLender settings={settings} />
+            {busy && (
+              <button
+                type="button"
+                onClick={paused ? onResume : onPause}
+                className="h-11 sm:h-10 px-3 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 active:scale-[0.97] transition-transform"
+                title={paused ? "Resume translation" : "Pause translation"}
+              >
+                {paused ? (
+                  <Play className="w-4 h-4" strokeWidth={1.4} />
+                ) : (
+                  <Pause className="w-4 h-4" strokeWidth={1.4} />
+                )}
+                <span className="text-xs uppercase tracking-[0.18em] hidden sm:inline">
+                  {paused ? "Resume" : "Pause"}
+                </span>
+              </button>
+            )}
             <button
               type="button"
               disabled={busy}

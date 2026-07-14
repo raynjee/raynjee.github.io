@@ -649,8 +649,6 @@ export default function Glossary() {
               className="h-10 px-3 sm:px-4 inline-flex items-center gap-1.5 sm:gap-2 border border-border hover:border-foreground/40"
             >
               <Plus className="w-4 h-4" strokeWidth={1.4} />
-              <span className="text-xs uppercase tracking-[0.18em] hidden sm:inline">Add entry</span>
-              <span className="text-xs uppercase tracking-[0.18em] sm:hidden">Add</span>
             </button>
             {entries.length > 0 && (
               <button
