@@ -10,9 +10,11 @@
 //   const buf = await synthesizeWithKokoro("Hello", "af_bella");
 //   // buf is an AudioBuffer ready for AudioContext playback.
 
-import { KokoroTTS } from "kokoro-js";
-
-// ── Voices ────────────────────────────────────────────────────────────
+// kokoro-js is imported dynamically inside loadKokoroModel() —
+// NOT at the top level — so the heavy ONNX Runtime Web WASM chain
+// only loads when the user explicitly switches to the Kokoro engine.
+// Static imports would crash the page at module evaluation time on
+// browsers where ONNX/WASM isn't available.
 
 export interface KokoroVoice {
   id: string;
@@ -35,7 +37,7 @@ type Status = "unloaded" | "loading" | "ready" | "error";
 type ProgressFn = (pct: number, statusMsg: string) => void;
 
 let status: Status = "unloaded";
-let instance: KokoroTTS | null = null;
+let instance: any = null;
 let errorMsg = "";
 const progressListeners = new Set<ProgressFn>();
 
@@ -87,6 +89,7 @@ export async function loadKokoroModel(onProgress?: ProgressFn): Promise<void> {
   notifyProgress(0, "Downloading model (92 MB)…");
 
   try {
+    const { KokoroTTS } = await import("kokoro-js");
     instance = await KokoroTTS.from_pretrained(
       "onnx-community/Kokoro-82M-ONNX",
       {
