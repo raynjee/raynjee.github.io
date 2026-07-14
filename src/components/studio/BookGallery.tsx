@@ -5,7 +5,7 @@ import { BookOpen } from "lucide-react";
 import type { Book, ChapterTranslation } from "@/lib/types";
 import type { BookStats } from "@/hooks/use-library";
 import { cn } from "@/lib/utils";
-import { formatLanguage, formatRelativeTime } from "@/lib/util";
+import { formatRelativeTime } from "@/lib/util";
 
 interface BookGalleryTileProps {
   book: Book;
@@ -29,14 +29,9 @@ export function BookGalleryTile({
 }: BookGalleryTileProps) {
   const progress = stats?.progress ?? 0;
   const totalWords = stats?.totalWords ?? 0;
-  const translatedWords = Math.round(progress * totalWords);
   const totalChapters =
     stats?.totalChapters ?? book.chapterOrder.length;
   const pct = Math.round(progress * 100);
-  const language = formatLanguage(book.language);
-  const languageDisplay = language === "Unknown"
-    ? `${pct}% translated`
-    : language;
   const updated = formatRelativeTime(book.updatedAt);
 
   return (
@@ -100,9 +95,6 @@ export function BookGalleryTile({
 
         {/* Title block */}
         <div className="mt-3">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
-            {languageDisplay} · {totalChapters} ch
-          </div>
           <h3 className="font-display text-[15px] leading-snug line-clamp-2 text-foreground mt-0.5">
             {book.title}
           </h3>
