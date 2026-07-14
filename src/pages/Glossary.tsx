@@ -334,8 +334,14 @@ export default function Glossary() {
         totalSaved = Math.max(totalSaved, entries.length);
       }
 
-      // Initial estimate: use configured delay (will be refined as we measure).
-      setExtractProgress({ done: completedSet.size, total: totalChunks, avgChunkMs: CHUNK_DELAY_MS });
+      // Initial guess: use configured delay (refined after first chunk completes).
+      let currentAvgMs = CHUNK_DELAY_MS;
+      setExtractProgress({ done: completedSet.size, total: totalChunks, avgChunkMs: currentAvgMs });
+
+      // Helper to bump progress without touching the measured average.
+      const tickProgress = (done: number) => {
+        setExtractProgress({ done, total: totalChunks, avgChunkMs: currentAvgMs });
+      };
 
       // 5. Process each not-yet-completed chunk.
       for (let ci = 0; ci < totalChunks; ci++) {
@@ -348,7 +354,7 @@ export default function Glossary() {
           await new Promise((r) => setTimeout(r, delayMs));
         }
 
-        setExtractProgress({ done: completedSet.size, total: totalChunks, avgChunkMs: CHUNK_DELAY_MS });
+        tickProgress(completedSet.size);
 
         // Time this chunk to build a real average.
         const chunkStart = Date.now();
@@ -414,9 +420,9 @@ export default function Glossary() {
           // Recompute actual average time per chunk from wall clock.
           const elapsed = Date.now() - extractionStartedAt;
           const chunksDone = completedSet.size;
-          const avgChunkMs = elapsed / chunksDone;
+          currentAvgMs = elapsed / chunksDone;
 
-          setExtractProgress({ done: chunksDone, total: totalChunks, avgChunkMs });
+          setExtractProgress({ done: chunksDone, total: totalChunks, avgChunkMs: currentAvgMs });
 
           saveCheckpoint({
             bookId,
