@@ -2,9 +2,15 @@ import { vlyPlugin } from "@vly-ai/integrations";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import path from "node:path";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
+  },
   optimizeDeps: {
     // kokoro-js is loaded dynamically via await import() only when the
     // user switches to the Kokoro engine.  Pre-bundling it eager-loads
