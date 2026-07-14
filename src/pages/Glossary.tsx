@@ -45,9 +45,9 @@ const EXTRACTION_PROMPT = [
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
-function formatEta(remaining: number, delayMs: number): string {
+function formatEta(remaining: number, avgChunkMs: number): string {
   if (remaining <= 0) return "done";
-  const totalSec = Math.ceil((remaining * delayMs) / 1000);
+  const totalSec = Math.ceil((remaining * avgChunkMs) / 1000);
   if (totalSec < 60) return `${totalSec}s`;
   const mins = Math.floor(totalSec / 60);
   const secs = totalSec % 60;
@@ -88,7 +88,7 @@ export default function Glossary() {
 
   const [entries, setEntries] = useState<GlossaryEntry[]>([]);
   const [extracting, setExtracting] = useState(false);
-  const [extractProgress, setExtractProgress] = useState<{ done: number; total: number; delayMs: number } | null>(null);
+  const [extractProgress, setExtractProgress] = useState<{ done: number; total: number; avgChunkMs: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -324,6 +324,7 @@ export default function Glossary() {
       let chunkErrors = resumeFrom?.chunkErrors ?? 0;
       const now = Date.now();
       let delayMs = CHUNK_DELAY_MS; // adaptive — grows on 429, resets on success
+      const extractionStartedAt = Date.now();
 
       // If resuming, seed the table with already-persisted entries.
       if (resumeFrom) {
@@ -331,7 +332,8 @@ export default function Glossary() {
         totalSaved = Math.max(totalSaved, entries.length);
       }
 
-      setExtractProgress({ done: completedSet.size, total: totalChunks, delayMs });
+      // Initial estimate: use configured delay (will be refined as we measure).
+      setExtractProgress({ done: completedSet.size, total: totalChunks, avgChunkMs: CHUNK_DELAY_MS });
 
       // 5. Process each not-yet-completed chunk.
       for (let ci = 0; ci < totalChunks; ci++) {
@@ -344,7 +346,10 @@ export default function Glossary() {
           await new Promise((r) => setTimeout(r, delayMs));
         }
 
-        setExtractProgress({ done: completedSet.size, total: totalChunks, delayMs });
+        setExtractProgress({ done: completedSet.size, total: totalChunks, avgChunkMs: CHUNK_DELAY_MS });
+
+        // Time this chunk to build a real average.
+        const chunkStart = Date.now();
 
         const chunkPrompt = [
           `This is portion ${ci + 1} of ${totalChunks} of a novel. Extract glossary entries from ONLY the text below.`,
@@ -403,6 +408,14 @@ export default function Glossary() {
 
           // Mark chunk complete and save checkpoint immediately.
           completedSet.add(ci);
+
+          // Recompute actual average time per chunk from wall clock.
+          const elapsed = Date.now() - extractionStartedAt;
+          const chunksDone = completedSet.size;
+          const avgChunkMs = elapsed / chunksDone;
+
+          setExtractProgress({ done: chunksDone, total: totalChunks, avgChunkMs });
+
           saveCheckpoint({
             bookId,
             providerId: cfg.id,
@@ -451,7 +464,7 @@ export default function Glossary() {
 
       // 6. All done — clear checkpoint.
       clearCheckpoint();
-      setExtractProgress({ done: totalChunks, total: totalChunks, delayMs });
+      setExtractProgress({ done: totalChunks, total: totalChunks, avgChunkMs: 0 });
 
       if (totalSaved === 0) {
         toast.error("The AI returned no glossary entries across any chunk.");
@@ -555,7 +568,7 @@ export default function Glossary() {
               )}
               <span className="text-xs uppercase tracking-[0.18em]">
                 {extracting && extractProgress
-                  ? `Chunk ${extractProgress.done + 1}/${extractProgress.total} · ~${formatEta(extractProgress.total - extractProgress.done, extractProgress.delayMs)}`
+                  ? `Chunk ${extractProgress.done + 1}/${extractProgress.total} · ~${formatEta(extractProgress.total - extractProgress.done, extractProgress.avgChunkMs)}`
                   : extracting
                     ? "Extracting…"
                     : savedCheckpoint
@@ -586,7 +599,7 @@ export default function Glossary() {
                 Extracting glossary · {extractProgress.done}/{extractProgress.total} chunks
               </span>
               <span className="tabular-nums">
-                ~{formatEta(extractProgress.total - extractProgress.done, extractProgress.delayMs)} remaining
+                ~{formatEta(extractProgress.total - extractProgress.done, extractProgress.avgChunkMs)} remaining
               </span>
             </div>
             <div className="h-1 bg-muted rounded-full overflow-hidden">
