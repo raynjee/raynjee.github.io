@@ -1,31 +1,59 @@
-// ReadAloud — browser-native text-to-speech player.
+// ReadAloud — dual-engine text-to-speech player.
 //
-// Uses the Web SpeechSynthesis API to render audio on the user's device
-// (the browser/OS does the speaking; nothing is recorded or cached).
+// Two engines, selectable via a toggle:
+//   Browser — window.speechSynthesis (zero download, variable quality)
+//   Kokoro  — kokoro-js neural model (~92 MB one-time download, natural voices)
+//
 // Only a tiny preference blob (chosen voice name, rate, auto-advance
-// toggle) is kept in localStorage — 100 bytes tops.
+// toggle, and engine choice) is kept in localStorage — 100 bytes tops.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Pause, Play, Square, Volume2, X, Repeat } from "lucide-react";
+import {
+  Pause,
+  Play,
+  Square,
+  Volume2,
+  X,
+  Repeat,
+  Sparkles,
+  Globe,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
+import {
+  KOKORO_VOICES,
+  loadKokoroModel,
+  onKokoroProgress,
+  synthesizeWithKokoro,
+  playAudioBuffer,
+  getKokoroStatus,
+} from "@/lib/kokoro-tts";
+import type { KokoroVoice } from "@/lib/kokoro-tts";
 
 const PREFS_KEY = "atelier.readAloud.prefs";
 
+type TtsEngine = "browser" | "kokoro";
+
 type ReadPrefs = {
   voiceName: string | null;
+  /** Kokoro voice id (e.g. "af_bella") */
+  kokoroVoiceId: string;
   rate: number;
   pitch: number;
   autoAdvance: boolean;
+  engine: TtsEngine;
 };
 
 const DEFAULT_PREFS: ReadPrefs = {
   voiceName: null,
+  kokoroVoiceId: "af_bella",
   rate: 1,
   pitch: 1,
   autoAdvance: true,
+  engine: "browser",
 };
 
 function loadPrefs(): ReadPrefs {
@@ -45,10 +73,6 @@ function savePrefs(p: ReadPrefs) {
   }
 }
 
-// Edge voices are labelled "... Online (Natural)" — and Chrome uses
-// "Google ..." and system voices. We surface natural / neural first
-// so the default is the nicest voice on each platform, then let the
-// user pick ANY English voice regardless of quality label.
 function isNaturalVoice(name: string): boolean {
   const n = name.toLowerCase();
   return (
@@ -63,23 +87,16 @@ function isNaturalVoice(name: string): boolean {
 }
 
 export interface ReadAloudController {
-  /** Jump playback to the given readable-paragraph index. */
   jumpTo: (idx: number) => void;
-  /** Whether the player is currently active (open or playing). */
   isActive: () => boolean;
 }
 
 interface ReadAloudProps {
-  /** Paragraphs to read in order (translated English or original). */
   paragraphs: string[];
-  /** Stable id that changes when the document (chapter) changes. */
   documentId: string;
-  /** Whether there is a next chapter to auto-advance into. */
   hasNext: boolean;
   onAdvanceNext: () => void;
-  /** Whether translated text is being read (vs original). */
   isTranslation: boolean;
-  /** Optional ref that the parent uses to programmatically jump. */
   controllerRef?: React.MutableRefObject<ReadAloudController | null>;
 }
 
@@ -91,20 +108,14 @@ export function ReadAloud({
   isTranslation,
   controllerRef,
 }: ReadAloudProps) {
-  // ── Voices ────────────────────────────────────────────────────────────
+  // ── Browser voices ─────────────────────────────────────────────────
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      return;
-    }
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const synth = window.speechSynthesis;
     if (!synth) return;
     const load = () => {
-      try {
-        setVoices(synth.getVoices?.() ?? []);
-      } catch {
-        setVoices([]);
-      }
+      try { setVoices(synth.getVoices?.() ?? []); } catch { setVoices([]); }
     };
     try { load(); } catch { /* noop */ }
     try { synth.addEventListener?.("voiceschanged", load); } catch { /* noop */ }
@@ -113,13 +124,8 @@ export function ReadAloud({
     };
   }, []);
 
-  // Show ALL English voices (Natural first, then Standard) so the user
-  // can pick any browser-provided voice, including Edge's "Sonia (Natural)".
   const englishVoices = useMemo(
-    () =>
-      voices.filter(
-        (v) => v.lang.startsWith("en") || /english/i.test(v.name),
-      ),
+    () => voices.filter((v) => v.lang.startsWith("en") || /english/i.test(v.name)),
     [voices],
   );
   const naturalVoices = useMemo(
@@ -127,16 +133,8 @@ export function ReadAloud({
     [englishVoices],
   );
 
+  // ── Prefs ──────────────────────────────────────────────────────────
   const [prefs, setPrefs] = useState<ReadPrefs>(() => loadPrefs());
-
-  const selectedVoice = useMemo(() => {
-    if (prefs.voiceName) {
-      const m = voices.find((v) => v.name === prefs.voiceName);
-      if (m) return m;
-    }
-    return naturalVoices[0] ?? englishVoices[0] ?? voices[0] ?? null;
-  }, [voices, naturalVoices, englishVoices, prefs.voiceName]);
-
   const persist = useCallback((next: Partial<ReadPrefs>) => {
     setPrefs((prev) => {
       const merged = { ...prev, ...next };
@@ -145,7 +143,37 @@ export function ReadAloud({
     });
   }, []);
 
-  // ── Playback state ────────────────────────────────────────────────────
+  // ── Kokoro model state ─────────────────────────────────────────────
+  const [kokoroStatus, setKokoroStatus] = useState<"unloaded" | "loading" | "ready" | "error">(
+    () => getKokoroStatus(),
+  );
+  const [kokoroProgress, setKokoroProgress] = useState(0);
+  const [kokoroStatusMsg, setKokoroStatusMsg] = useState("");
+
+  useEffect(() => {
+    return onKokoroProgress((pct, msg) => {
+      setKokoroProgress(pct);
+      setKokoroStatusMsg(msg);
+      setKokoroStatus(getKokoroStatus());
+    });
+  }, []);
+
+  // ── Resolved voice (browser) ───────────────────────────────────────
+  const selectedBrowserVoice = useMemo(() => {
+    if (prefs.voiceName) {
+      const m = voices.find((v) => v.name === prefs.voiceName);
+      if (m) return m;
+    }
+    return naturalVoices[0] ?? englishVoices[0] ?? voices[0] ?? null;
+  }, [voices, naturalVoices, englishVoices, prefs.voiceName]);
+
+  // ── Resolved Kokoro voice ──────────────────────────────────────────
+  const selectedKokoroVoice = useMemo(
+    () => KOKORO_VOICES.find((v) => v.id === prefs.kokoroVoiceId) ?? KOKORO_VOICES[0],
+    [prefs.kokoroVoiceId],
+  );
+
+  // ── Playback state ─────────────────────────────────────────────────
   const [open, setOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -153,15 +181,17 @@ export function ReadAloud({
 
   const advanceRequestedRef = useRef(false);
   const isMountedRef = useRef(true);
+  const stopKokoroRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
       try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+      stopKokoroRef.current?.();
     };
   }, []);
 
-  // Filter readable paragraphs (skip null/empty strings).
   const readable = useMemo(
     () => paragraphs.filter((p) => typeof p === "string" && p.trim().length > 0),
     [paragraphs],
@@ -170,22 +200,19 @@ export function ReadAloud({
   const ctxRef = useRef({
     readable: [] as string[],
     voices: [] as SpeechSynthesisVoice[],
-    selectedVoice: null as SpeechSynthesisVoice | null,
+    selectedBrowserVoice: null as SpeechSynthesisVoice | null,
     prefs: DEFAULT_PREFS,
     advance: () => {},
     hasNext: false,
   });
   ctxRef.current.readable = readable;
   ctxRef.current.voices = voices;
-  ctxRef.current.selectedVoice = selectedVoice;
+  ctxRef.current.selectedBrowserVoice = selectedBrowserVoice;
   ctxRef.current.prefs = prefs;
   ctxRef.current.advance = onAdvanceNext;
   ctxRef.current.hasNext = hasNext;
 
-  /** Resolve the best voice from a fresh global-API snapshot, with a
-   * natural-first English fallback.  Never depends on React state so
-   * it works even on mobile where voices load lazily inside the first
-   * user-gesture speak() call. */
+  // ── Voice resolution (browser engine) ──────────────────────────────
   function resolveVoice(
     fresh: SpeechSynthesisVoice[],
     savedName: string | null,
@@ -194,25 +221,17 @@ export function ReadAloud({
       const m = fresh.find((v) => v.name === savedName);
       if (m) return m;
     }
-    // First natural English, then any English, then anything.
     return (
       fresh.find(
-        (v) =>
-          isNaturalVoice(v.name) &&
-          (v.lang.startsWith("en") || /english/i.test(v.name)),
+        (v) => isNaturalVoice(v.name) && (v.lang.startsWith("en") || /english/i.test(v.name)),
       ) ??
-      fresh.find(
-        (v) => v.lang.startsWith("en") || /english/i.test(v.name),
-      ) ??
+      fresh.find((v) => v.lang.startsWith("en") || /english/i.test(v.name)) ??
       fresh[0] ??
       null
     );
   }
 
-  /** Create and speak an utterance for a single paragraph index,
-   * using the pre-resolved voice.  Called either directly (when
-   * natural voices are already available) or from the warm-up
-   * callback (after forcing remote-voice loading on mobile). */
+  // ── Browser engine: speak one paragraph ────────────────────────────
   function speakUtterance(idx: number, voice: SpeechSynthesisVoice | null) {
     const synth = window.speechSynthesis;
     if (!synth) return;
@@ -224,14 +243,8 @@ export function ReadAloud({
       utterance.rate = ctx.prefs.rate;
       utterance.pitch = ctx.prefs.pitch;
       utterance.lang = voice?.lang ?? "en-US";
-      utterance.onstart = () => {
-        if (!isMountedRef.current) return;
-        setCurrentIdx(idx);
-      };
-      utterance.onend = () => {
-        if (!isMountedRef.current) return;
-        speakImplRef.current(idx + 1);
-      };
+      utterance.onstart = () => { if (isMountedRef.current) setCurrentIdx(idx); };
+      utterance.onend = () => { if (isMountedRef.current) speakImplRef.current(idx + 1); };
       utterance.onerror = (ev) => {
         const err = (ev as SpeechSynthesisErrorEvent).error;
         if (err && err !== "interrupted" && err !== "canceled") {
@@ -247,13 +260,56 @@ export function ReadAloud({
     }
   }
 
+  // ── Kokoro engine: async playback loop ─────────────────────────────
+  /** Starts (or resumes) the Kokoro async playback loop from `startIdx`.
+   *  The loop stops when reaching the end of readable paragraphs or when
+   *  `stopKokoroRef.current` is called. */
+  async function runKokoroLoop(startIdx: number) {
+    const ctx = ctxRef.current;
+    for (let i = startIdx; i < ctx.readable.length; i++) {
+      // Check for cancellation before each paragraph.
+      if (!isMountedRef.current) return;
+
+      setCurrentIdx(i);
+
+      try {
+        const buffer = await synthesizeWithKokoro(ctx.readable[i], ctx.prefs.kokoroVoiceId);
+        // Re-check after synthesis (user might have stopped while waiting).
+        if (!isMountedRef.current) return;
+
+        const { stop, promise } = playAudioBuffer(buffer);
+        stopKokoroRef.current = stop;
+
+        // Wait for playback to finish (or be stopped).
+        await promise;
+        stopKokoroRef.current = null;
+      } catch (err) {
+        if (!isMountedRef.current) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Kokoro playback failed: ${msg}`);
+        setPlaying(false);
+        setPaused(false);
+        return;
+      }
+    }
+
+    // End of readable content.
+    if (!isMountedRef.current) return;
+    setPlaying(false);
+    setPaused(false);
+    setCurrentIdx(ctx.readable.length);
+    if (ctx.prefs.autoAdvance && ctx.hasNext) {
+      toast("Advancing to the next chapter…", { icon: "⏭️" });
+      advanceRequestedRef.current = true;
+      ctx.advance();
+    } else {
+      toast("Finished reading.");
+    }
+  }
+
+  // ── Dispatcher: speakImplRef → calls correct engine ────────────────
   const speakImplRef = useRef<(idx: number) => void>(() => {});
   speakImplRef.current = (idx: number) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      return;
-    }
-    const synth = window.speechSynthesis;
-    if (!synth) return;
     const ctx = ctxRef.current;
     if (idx >= ctx.readable.length) {
       setPlaying(false);
@@ -269,28 +325,25 @@ export function ReadAloud({
       return;
     }
 
-    // ── Aggressive voice warm-up (critical for mobile Edge) ──────
-    // Mobile browsers (Edge Android, Chrome Android) only load remote /
-    // online voices after the engine actually processes a speak() call
-    // inside a user gesture.  The old "speak empty + instant cancel"
-    // was too fast to trigger initialisation.
-    //
-    // Strategy: speak a real character "." at volume 0, wait for the
-    // onstart event (proving the engine pipeline is alive), THEN cancel
-    // and re-read voices.  A 500 ms safety timeout prevents hanging if
-    // onstart never fires (e.g. no voices at all).
+    if (ctx.prefs.engine === "kokoro") {
+      // Stop any in-flight Kokoro playback before starting new loop.
+      stopKokoroRef.current?.();
+      stopKokoroRef.current = null;
+      void runKokoroLoop(idx);
+      return;
+    }
+
+    // ── Browser engine path ──────────────────────────────────────
+    const synth = window.speechSynthesis;
+    if (!synth) return;
     const freshVoices = synth.getVoices?.() ?? [];
     const hasNatural = freshVoices.some(
-      (v) =>
-        isNaturalVoice(v.name) &&
-        (v.lang.startsWith("en") || /english/i.test(v.name)),
+      (v) => isNaturalVoice(v.name) && (v.lang.startsWith("en") || /english/i.test(v.name)),
     );
 
     const proceed = (voicesSnapshot: SpeechSynthesisVoice[]) => {
       const voice = resolveVoice(voicesSnapshot, ctx.prefs.voiceName);
-      if (voicesSnapshot.length !== voices.length) {
-        setVoices(voicesSnapshot);
-      }
+      if (voicesSnapshot.length !== voices.length) setVoices(voicesSnapshot);
       speakUtterance(idx, voice);
     };
 
@@ -304,56 +357,54 @@ export function ReadAloud({
           if (settled) return;
           settled = true;
           try { synth.cancel(); } catch { /* noop */ }
-          const updated = synth.getVoices?.() ?? freshVoices;
-          proceed(updated);
+          proceed(synth.getVoices?.() ?? freshVoices);
         };
         wu.onstart = finish;
         wu.onerror = finish;
         synth.speak(wu);
-        // Safety: if onstart never fires (e.g. no TTS engine at all),
-        // bail after 500 ms and proceed with whatever voices we have.
         setTimeout(finish, 500);
         return;
-      } catch {
-        /* proceed with whatever we had */
-      }
+      } catch { /* fall through */ }
     }
-
     proceed(freshVoices);
   };
 
+  // ── documentId change → stop or auto-advance ──────────────────────
   useEffect(() => {
     const wasAdvance = advanceRequestedRef.current;
     advanceRequestedRef.current = false;
-
     setCurrentIdx(0);
 
     if (wasAdvance) {
+      // Stop any in-flight playback.
       try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+      stopKokoroRef.current?.();
+      stopKokoroRef.current = null;
       setPlaying(true);
       setPaused(false);
       queueMicrotask(() => speakImplRef.current(0));
     } else if (playing) {
       try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+      stopKokoroRef.current?.();
+      stopKokoroRef.current = null;
       setPlaying(false);
       setPaused(false);
     }
   }, [documentId, readable]);
 
-  // ── Jump-to-paragraph (exposed to the parent via controllerRef) ────────
+  // ── Controller: jumpTo + isActive ──────────────────────────────────
   const jumpTo = useCallback((idx: number) => {
     try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+    stopKokoroRef.current?.();
+    stopKokoroRef.current = null;
     setCurrentIdx(idx);
     setPlaying(true);
     setPaused(false);
     speakImplRef.current(idx);
   }, []);
 
-  // Let the parent detect whether we're active (so it can render
-  // paragraph click targets).
   const isActive = useCallback(() => open || playing, [open, playing]);
 
-  // Expose the controller to the parent via the mutable ref.
   const ctrl = useMemo(() => ({ jumpTo, isActive }), [jumpTo, isActive]);
   useEffect(() => {
     if (controllerRef) {
@@ -362,13 +413,11 @@ export function ReadAloud({
     }
   }, [controllerRef, ctrl]);
 
-  // ── UI actions ─────────────────────────────────────────────────────────
+  // ── UI actions ─────────────────────────────────────────────────────
   const beginAt = useCallback((idx: number) => {
-    // speakImplRef handles voice warm-up / resolution on its own — no
-    // need to block here.  It reads voices directly from the global
-    // API so it works even when React state hasn't caught up yet
-    // (critical for mobile Edge where remote voices appear lazily).
     try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+    stopKokoroRef.current?.();
+    stopKokoroRef.current = null;
     setOpen(true);
     setCurrentIdx(idx);
     setPlaying(true);
@@ -377,27 +426,37 @@ export function ReadAloud({
   }, []);
 
   const onTogglePlay = useCallback(() => {
-    const win = typeof window !== "undefined" ? window.speechSynthesis : null;
-    if (!win) return;
+    const engine = prefs.engine;
     if (playing) {
-      try {
+      if (engine === "kokoro") {
+        // Pause: suspend AudioContext.  Resume: resume AudioContext.
         if (paused) {
-          win.resume?.();
+          const ctx = (window as any).__kokoroAudioCtx as AudioContext | undefined;
+          void ctx?.resume();
           setPaused(false);
         } else {
-          win.pause?.();
+          const ctx = (window as any).__kokoroAudioCtx as AudioContext | undefined;
+          void ctx?.suspend();
           setPaused(true);
         }
-      } catch {
-        setPaused(false);
+        return;
       }
+      // Browser engine
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+      try {
+        if (paused) { synth.resume?.(); setPaused(false); }
+        else { synth.pause?.(); setPaused(true); }
+      } catch { setPaused(false); }
       return;
     }
     beginAt(currentIdx);
-  }, [playing, paused, beginAt, currentIdx]);
+  }, [playing, paused, beginAt, currentIdx, prefs.engine]);
 
   const onStop = useCallback(() => {
     try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+    stopKokoroRef.current?.();
+    stopKokoroRef.current = null;
     setPlaying(false);
     setPaused(false);
     setCurrentIdx(0);
@@ -405,20 +464,39 @@ export function ReadAloud({
 
   const onClose = useCallback(() => {
     try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+    stopKokoroRef.current?.();
+    stopKokoroRef.current = null;
     setPlaying(false);
     setPaused(false);
     setCurrentIdx(0);
     setOpen(false);
   }, []);
 
+  const onSwitchEngine = useCallback((engine: TtsEngine) => {
+    // Stop any in-flight playback before switching.
+    try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+    stopKokoroRef.current?.();
+    stopKokoroRef.current = null;
+    setPlaying(false);
+    setPaused(false);
+    persist({ engine });
+    if (engine === "kokoro" && kokoroStatus === "unloaded") {
+      // Start downloading the model in the background.
+      void loadKokoroModel().catch((err) => {
+        toast.error(`Failed to load Kokoro: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    }
+  }, [persist, kokoroStatus]);
+
+  // Whether Kokoro is usable right now.
+  const kokoroReady = kokoroStatus === "ready";
+  const kokoroLoading = kokoroStatus === "loading";
+
   return (
     <>
       <ReadAloudTrigger
         onClick={() => {
-          if (open || playing) {
-            onClose();
-            return;
-          }
+          if (open || playing) { onClose(); return; }
           beginAt(0);
         }}
         active={open || playing}
@@ -430,124 +508,197 @@ export function ReadAloud({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 12 }}
             transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed left-1/2 -translate-x-1/2 bottom-4 md:bottom-6 z-40 max-w-[calc(100vw-2rem)] w-[min(580px,calc(100vw-2rem))]"
+            className="fixed left-1/2 -translate-x-1/2 bottom-4 md:bottom-6 z-40 max-w-[calc(100vw-2rem)] w-[min(620px,calc(100vw-2rem))]"
           >
-            <div className="bg-background/95 backdrop-blur border border-border shadow-md px-3 md:px-4 py-2.5 md:py-3 flex flex-wrap items-center gap-x-2 md:gap-x-3 gap-y-2">
-              {/* Play/Pause */}
-              <button
-                type="button"
-                onClick={onTogglePlay}
-                className={cn(
-                  "h-9 w-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors shrink-0",
-                  playing && !paused && "bg-foreground text-background border-foreground",
-                )}
-                aria-label={playing && !paused ? "Pause read aloud" : "Play read aloud"}
-              >
-                {playing && !paused ? (
-                  <Pause className="w-4 h-4" strokeWidth={1.6} />
-                ) : (
-                  <Play className="w-4 h-4" strokeWidth={1.6} />
-                )}
-              </button>
+            <div className="bg-background/95 backdrop-blur border border-border shadow-md px-3 md:px-4 py-2.5 md:py-3 space-y-2">
+              {/* Row 1: controls */}
+              <div className="flex flex-wrap items-center gap-x-2 md:gap-x-3 gap-y-2">
+                {/* Play/Pause */}
+                <button
+                  type="button"
+                  onClick={onTogglePlay}
+                  className={cn(
+                    "h-9 w-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors shrink-0",
+                    playing && !paused && "bg-foreground text-background border-foreground",
+                  )}
+                  aria-label={playing && !paused ? "Pause" : "Play"}
+                >
+                  {playing && !paused ? (
+                    <Pause className="w-4 h-4" strokeWidth={1.6} />
+                  ) : (
+                    <Play className="w-4 h-4" strokeWidth={1.6} />
+                  )}
+                </button>
 
-              {/* Stop */}
-              <button
-                type="button"
-                onClick={onStop}
-                className="h-9 w-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors shrink-0"
-                aria-label="Stop read aloud"
-                title="Stop"
-              >
-                <Square className="w-3.5 h-3.5" strokeWidth={1.6} />
-              </button>
+                {/* Stop */}
+                <button
+                  type="button"
+                  onClick={onStop}
+                  className="h-9 w-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors shrink-0"
+                  aria-label="Stop"
+                  title="Stop"
+                >
+                  <Square className="w-3.5 h-3.5" strokeWidth={1.6} />
+                </button>
 
-              {/* Progress label */}
-              <div className="flex-1 min-w-0 flex items-center gap-2">
-                <span className="studio-num text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
-                  {Math.min(currentIdx + 1, readable.length)} / {readable.length}
-                </span>
-                <div className="h-1 flex-1 bg-border overflow-hidden">
-                  <div
-                    className="h-full bg-foreground transition-all"
-                    style={{
-                      width: `${readable.length ? Math.min(100, ((currentIdx + 1) / readable.length) * 100) : 0}%`,
+                {/* Progress */}
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <span className="studio-num text-[11px] text-muted-foreground tabular-nums whitespace-nowrap">
+                    {Math.min(currentIdx + 1, readable.length)} / {readable.length}
+                  </span>
+                  <div className="h-1 flex-1 bg-border overflow-hidden">
+                    <div
+                      className="h-full bg-foreground transition-all"
+                      style={{
+                        width: `${readable.length ? Math.min(100, ((currentIdx + 1) / readable.length) * 100) : 0}%`,
+                      }}
+                    />
+                  </div>
+                  <span className="hidden md:inline text-[10px] uppercase tracking-[0.18em] text-muted-foreground whitespace-nowrap">
+                    {isTranslation ? "English" : "Original"}
+                  </span>
+                </div>
+
+                {/* Auto-advance */}
+                <button
+                  type="button"
+                  onClick={() => persist({ autoAdvance: !prefs.autoAdvance })}
+                  className={cn(
+                    "h-9 px-2.5 inline-flex items-center gap-1 border text-[10px] uppercase tracking-[0.18em] shrink-0",
+                    prefs.autoAdvance
+                      ? "bg-foreground text-background border-foreground"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40",
+                  )}
+                  aria-label="Auto-advance"
+                  title={hasNext ? "Auto-advance to next chapter" : "No next chapter"}
+                >
+                  <Repeat className="w-3.5 h-3.5" strokeWidth={1.6} />
+                  <span className="hidden md:inline">Next</span>
+                </button>
+
+                {/* Close */}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="h-9 w-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors shrink-0"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" strokeWidth={1.6} />
+                </button>
+              </div>
+
+              {/* Row 2: engine toggle + rate + voice */}
+              <div className="flex flex-wrap items-center gap-x-2 md:gap-x-3 gap-y-2">
+                {/* Engine toggle pill group */}
+                <div className="inline-flex items-center border border-border shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => onSwitchEngine("browser")}
+                    className={cn(
+                      "h-8 px-2.5 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] transition-colors",
+                      prefs.engine === "browser"
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <Globe className="w-3 h-3" strokeWidth={1.6} />
+                    <span className="hidden sm:inline">Browser</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSwitchEngine("kokoro")}
+                    className={cn(
+                      "h-8 px-2.5 inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.15em] transition-colors",
+                      kokoroLoading && "pointer-events-none",
+                      prefs.engine === "kokoro"
+                        ? "bg-foreground text-background"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {kokoroLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin" strokeWidth={1.6} />
+                    ) : (
+                      <Sparkles className="w-3 h-3" strokeWidth={1.6} />
+                    )}
+                    <span className="hidden sm:inline">Kokoro</span>
+                  </button>
+                </div>
+
+                {/* Download progress (only when loading Kokoro) */}
+                {kokoroLoading && (
+                  <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+                    <div className="h-1 w-14 sm:w-20 bg-border overflow-hidden">
+                      <div
+                        className="h-full bg-foreground transition-all"
+                        style={{ width: `${Math.min(100, kokoroProgress)}%` }}
+                      />
+                    </div>
+                    <span className="text-[9px] text-muted-foreground whitespace-nowrap truncate">
+                      {kokoroStatusMsg}
+                    </span>
+                  </div>
+                )}
+
+                {/* Rate slider */}
+                <div className="flex items-center gap-1.5 shrink-0 min-w-0">
+                  <span className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground whitespace-nowrap">
+                    {prefs.rate < 0.75 ? "0.5×" : prefs.rate > 1.85 ? "2×" : `${prefs.rate.toFixed(1)}×`}
+                  </span>
+                  <Slider
+                    value={[prefs.rate]}
+                    min={0.5}
+                    max={2}
+                    step={0.05}
+                    onValueChange={([v]) => {
+                      if (!v) return;
+                      persist({ rate: v });
+                      if (playing) {
+                        try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+                        stopKokoroRef.current?.();
+                        stopKokoroRef.current = null;
+                        speakImplRef.current(currentIdx);
+                      }
                     }}
+                    className="w-16 sm:w-20"
+                    aria-label="Playback speed"
                   />
                 </div>
-                <span className="hidden md:inline text-[10px] uppercase tracking-[0.18em] text-muted-foreground whitespace-nowrap">
-                  {isTranslation ? "English" : "Original"}
-                </span>
-              </div>
 
-              {/* Rate slider */}
-              <div className="flex items-center gap-1.5 shrink-0 min-w-0">
-                <span className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground whitespace-nowrap">
-                  {prefs.rate < 0.75 ? "0.5×" : prefs.rate > 1.85 ? "2×" : `${prefs.rate.toFixed(1)}×`}
-                </span>
-                <Slider
-                  value={[prefs.rate]}
-                  min={0.5}
-                  max={2}
-                  step={0.05}
-                  onValueChange={([v]) => {
-                    if (!v) return;
-                    persist({ rate: v });
-                    if (playing) {
-                      try { window.speechSynthesis.cancel(); } catch { /* noop */ }
-                      speakImplRef.current(currentIdx);
-                    }
-                  }}
-                  className="w-16 sm:w-20"
-                  aria-label="Playback speed"
-                />
-              </div>
-
-              {/* Auto-advance */}
-              <button
-                type="button"
-                onClick={() => persist({ autoAdvance: !prefs.autoAdvance })}
-                className={cn(
-                  "h-9 px-2.5 inline-flex items-center gap-1 border text-[10px] uppercase tracking-[0.18em] shrink-0",
-                  prefs.autoAdvance
-                    ? "bg-foreground text-background border-foreground"
-                    : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/40",
+                {/* Voice selector */}
+                {prefs.engine === "kokoro" ? (
+                  <select
+                    value={prefs.kokoroVoiceId}
+                    onChange={(e) => persist({ kokoroVoiceId: e.target.value })}
+                    className="h-8 px-2 bg-transparent border border-border hover:border-foreground/40 text-[10px] uppercase tracking-[0.15em] text-foreground shrink-0 max-w-[130px] truncate"
+                    aria-label="Kokoro voice"
+                  >
+                    {KOKORO_VOICES.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        ✦ {v.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select
+                    value={selectedBrowserVoice?.name ?? ""}
+                    onChange={(e) => persist({ voiceName: e.target.value || null })}
+                    className="h-8 px-2 bg-transparent border border-border hover:border-foreground/40 text-[10px] uppercase tracking-[0.15em] text-foreground shrink-0 max-w-[130px] truncate"
+                    aria-label="Voice"
+                    title={selectedBrowserVoice ? `Voice: ${selectedBrowserVoice.name}` : "Default voice"}
+                  >
+                    {!selectedBrowserVoice && <option value="">Default</option>}
+                    {[
+                      ...naturalVoices.map((v) => ({ v, kind: "Natural" })),
+                      ...englishVoices.filter((v) => !isNaturalVoice(v.name)).map((v) => ({ v, kind: "Standard" })),
+                    ].map(({ v, kind }) => (
+                      <option key={v.name} value={v.name}>
+                        {kind === "Natural" ? "✦ " : ""}
+                        {v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").slice(0, 28)}
+                      </option>
+                    ))}
+                  </select>
                 )}
-                aria-label="Auto-advance to next chapter"
-                title={hasNext ? "Auto-advance to next chapter" : "No next chapter"}
-              >
-                <Repeat className="w-3.5 h-3.5" strokeWidth={1.6} />
-                <span className="hidden md:inline">Next</span>
-              </button>
-
-              {/* Voice picker — always visible, natural voices first */}
-              <select
-                value={selectedVoice?.name ?? ""}
-                onChange={(e) => persist({ voiceName: e.target.value || null })}
-                className="h-9 px-2 bg-transparent border border-border hover:border-foreground/40 text-[10px] uppercase tracking-[0.15em] text-foreground shrink-0 max-w-[140px] truncate"
-                aria-label="Voice"
-                title={selectedVoice ? `Voice: ${selectedVoice.name}` : "Default voice"}
-              >
-                {!selectedVoice && <option value="">Default</option>}
-                {[
-                  ...naturalVoices.map((v) => ({ v, kind: "Natural" })),
-                  ...englishVoices.filter((v) => !isNaturalVoice(v.name)).map((v) => ({ v, kind: "Standard" })),
-                ].map(({ v, kind }) => (
-                  <option key={v.name} value={v.name}>
-                    {kind === "Natural" ? "✦ " : ""}
-                    {v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").slice(0, 32)}
-                  </option>
-                ))}
-              </select>
-
-              {/* Close */}
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-9 w-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors shrink-0"
-                aria-label="Close read aloud"
-              >
-                <X className="w-4 h-4" strokeWidth={1.6} />
-              </button>
+              </div>
             </div>
           </motion.div>
         )}
