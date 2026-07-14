@@ -45,23 +45,11 @@ function savePrefs(p: ReadPrefs) {
   }
 }
 
-// Edge voices are labelled "... Online (Natural)", Chrome uses
-// "Google ...", and iOS uses Siri voices named like "Samantha".
-// We surface natural / neural / Siri first so the default is the
-// nicest voice on each platform, then let the user pick ANY English
-// voice regardless of quality label.
+// Edge voices are labelled "... Online (Natural)" — and Chrome uses
+// "Google ..." and system voices. We surface natural / neural first
+// so the default is the nicest voice on each platform, then let the
+// user pick ANY English voice regardless of quality label.
 function isNaturalVoice(name: string): boolean {
-  // On iOS Safari every voice uses the high-quality Siri engine —
-  // there's no offline/online distinction.  Voice names are just
-  // person names ("Samantha", "Daniel", "Karen", …) so the
-  // keyword checks below would miss them.  Short-circuit: all
-  // voices on iOS are natural.
-  if (
-    typeof navigator !== "undefined" &&
-    /iPhone|iPad|iPod/.test(navigator.userAgent)
-  ) {
-    return true;
-  }
   const n = name.toLowerCase();
   return (
     n.includes("natural") ||
