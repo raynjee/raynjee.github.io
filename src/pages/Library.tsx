@@ -46,16 +46,7 @@ import { cn } from "@/lib/utils";
 import { countWords, uid } from "@/lib/util";
 import { splitIntoChapters } from "@/lib/text-import";
 
-type LangFilter = "all" | "zh" | "ja" | "ko" | "other";
 type SortBy = "recent" | "title" | "progress";
-
-const LANG_LABELS: Record<LangFilter, string> = {
-  all: "All",
-  zh: "中文",
-  ja: "日本語",
-  ko: "한국어",
-  other: "Other",
-};
 
 export default function Library() {
   const { books, refresh, loading } = useLibrary();
@@ -63,7 +54,6 @@ export default function Library() {
   const navigate = useNavigate();
 
   const [query, setQuery] = useState("");
-  const [langFilter, setLangFilter] = useState<LangFilter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("recent");
   const [selectedBooks, setSelectedBooks] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
@@ -80,14 +70,14 @@ export default function Library() {
   const clearSelection = () => setSelectedBooks(new Set());
 
   // Clear selection when filters change
-  const prevFilterKey = useRef(`${query}|${langFilter}|${sortBy}`);
+  const prevFilterKey = useRef(`${query}|${sortBy}`);
   useEffect(() => {
-    const key = `${query}|${langFilter}|${sortBy}`;
+    const key = `${query}|${sortBy}`;
     if (key !== prevFilterKey.current) {
       prevFilterKey.current = key;
       setSelectedBooks(new Set());
     }
-  }, [query, langFilter, sortBy]);
+  }, [query, sortBy]);
 
   const onBatchDelete = async () => {
     if (selectedBooks.size === 0) return;
@@ -124,13 +114,6 @@ export default function Library() {
   // Filter + sort the catalogue.
   const filteredBooks = useMemo(() => {
     let list = books;
-    if (langFilter !== "all") {
-      list = list.filter((b) =>
-        langFilter === "other"
-          ? !["zh", "ja", "ko"].includes(b.language)
-          : b.language === langFilter,
-      );
-    }
     const q = query.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -152,7 +135,7 @@ export default function Library() {
       });
     }
     return list;
-  }, [books, query, langFilter, sortBy, statsById]);
+  }, [books, query, sortBy, statsById]);
 
   const selectAll = () => {
     setSelectedBooks(new Set(filteredBooks.map((b) => b.id)));
@@ -183,7 +166,6 @@ export default function Library() {
 
   const resetFilters = () => {
     setQuery("");
-    setLangFilter("all");
   };
 
   return (
@@ -238,17 +220,6 @@ export default function Library() {
             />
           </div>
 
-          <div className="flex items-center gap-1.5">
-            {(Object.keys(LANG_LABELS) as LangFilter[]).map((opt) => (
-              <LangChip
-                key={opt}
-                value={opt}
-                label={LANG_LABELS[opt]}
-                current={langFilter}
-                onChange={setLangFilter}
-              />
-            ))}
-          </div>
 
           <select
             value={sortBy}
@@ -270,7 +241,6 @@ export default function Library() {
           ) : filteredBooks.length === 0 ? (
             <NoMatch
               currentQuery={query}
-              hasFilter={langFilter !== "all"}
               onReset={resetFilters}
             />
           ) : (
@@ -364,33 +334,6 @@ export default function Library() {
 
 
 
-function LangChip({
-  value,
-  label,
-  current,
-  onChange,
-}: {
-  value: LangFilter;
-  label: string;
-  current: LangFilter;
-  onChange: (v: LangFilter) => void;
-}) {
-  const active = current === value;
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(value)}
-      className={cn(
-        "h-7 px-2.5 text-[10px] uppercase tracking-[0.15em] transition-colors",
-        active
-          ? "bg-foreground text-background"
-          : "text-muted-foreground hover:text-foreground",
-      )}
-    >
-      {label}
-    </button>
-  );
-}
 
 function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -709,34 +652,25 @@ function EmptyDrop({ onUploaded }: { onUploaded: () => Promise<void> }) {
 
 function NoMatch({
   currentQuery,
-  hasFilter,
   onReset,
 }: {
   currentQuery: string;
-  hasFilter: boolean;
   onReset: () => void;
 }) {
   return (
     <div className="py-16 text-center">
       <div className="font-display text-xl tracking-tight text-muted-foreground">
-        {currentQuery ? (
-          <>
-            Nothing matches{" "}
-            <span className="text-foreground">
-              &ldquo;{currentQuery}&rdquo;
-            </span>
-            {hasFilter ? " with the current filters" : ""}
-          </>
-        ) : (
-          <>No volumes in this language.</>
-        )}
+        Nothing matches{" "}
+        <span className="text-foreground">
+          &ldquo;{currentQuery}&rdquo;
+        </span>
       </div>
       <button
         type="button"
         onClick={onReset}
         className="mt-4 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
-        Clear filters
+        Clear search
       </button>
     </div>
   );
