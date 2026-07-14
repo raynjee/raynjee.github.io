@@ -74,6 +74,77 @@ const FULL_TEXT_PROMPT = [
   'Example: [{"term":"周娇娇","translation":"Zhou Jiaojiao","category":"character","gender":"F","notes":"Protagonist, appears in chapter 1"}]',
 ].join("\n");
 
+// ── DeepSeek 3-pass focused instruction prompts ────────────────────────
+// Each pass sends the FULL novel but with a different extraction focus so
+// the model concentrates on one category per call. We merge + dedupe the
+// results client-side. 3 API calls total regardless of book length.
+const DEEPSEEK_PASS_SYSTEM = [
+  // Pass 1 — characters and locations
+  [
+    "Focus on extracting ONLY:",
+    "1. Named characters — anyone with a proper name (主角, 配角, 次要人物)",
+    "2. Family titles and address forms — 爸爸, 妈妈, 奶奶, 叔叔, 大哥, 老大, 兄台, etc.",
+    "3. Locations — cities, towns, villages, regions, buildings, rooms, shops, mountains",
+    "",
+    "For each character, infer gender from context: name patterns (芳→F, 强→M), titles (奶奶→F, 叔叔→M), honorifics, pronouns, behavior. If genuinely ambiguous, use N (neutral). For locations, gender should be null.",
+    "",
+    "Output STRICTLY a raw JSON array of objects. NO markdown code fences, NO commentary, NO wrapping.",
+    "",
+    "Each object must have exactly these fields:",
+    '- "term": original Chinese text',
+    '- "translation": English meaning (use canonical romanization for character names, e.g. "Zhou Jiaojiao")',
+    '- "category": "character" or "location"',
+    '- "gender": "F", "M", "N", or null',
+    '- "notes": brief one-sentence context in English',
+    "",
+    'Example: [{"term":"周娇娇","translation":"Zhou Jiaojiao","category":"character","gender":"F","notes":"Protagonist"},{"term":"老大","translation":"Eldest","category":"character","gender":"N","notes":"Ambiguous from context"}]',
+  ].join("\n"),
+
+  // Pass 2 — difficult & culture-specific words
+  [
+    "Focus on extracting ONLY difficult or culture-specific vocabulary that an English reader would not know:",
+    "- Classical Chinese terms, literary vocabulary, archaic forms",
+    "- Cultural concepts: festivals, holidays, customs, food, religious terms, philosophical concepts",
+    "- Technical or specialized vocabulary (medicine, martial arts, government, etc.)",
+    "- Plants, animals, objects, materials that English readers may not recognize",
+    "",
+    "Skip: names of people, named places, family titles. Those were covered in a previous pass.",
+    "",
+    "Output STRICTLY a raw JSON array of objects. NO markdown code fences, NO commentary, NO wrapping.",
+    "",
+    "Each object must have exactly these fields:",
+    '- "term": original Chinese text',
+    '- "translation": natural English meaning or short gloss',
+    '- "category": "word"',
+    '- "gender": null',
+    '- "notes": brief one-sentence context in English',
+    "",
+    'Example: [{"term":"襁褓","translation":"swaddling clothes","category":"word","gender":null,"notes":"Used when describing a newborn"},{"term":"中元节","translation":"Ghost Festival (7th lunar month)","category":"word","gender":null,"notes":"Annual ancestral remembrance"}]',
+  ].join("\n"),
+
+  // Pass 3 — slang, idioms, conversational expressions
+  [
+    "Focus on extracting ONLY:",
+    "- Slang and colloquial expressions — informal, regional, generational",
+    "- Set phrases and four-character idioms (成语) whose meaning differs from literal reading",
+    "- Honorifics and address forms beyond standard family titles",
+    "- Onomatopoeia and interjections that carry meaning",
+    "",
+    "Skip: names of people, named places, and standard vocabulary. Those were covered in earlier passes.",
+    "",
+    "Output STRICTLY a raw JSON array of objects. NO markdown code fences, NO commentary, NO wrapping.",
+    "",
+    "Each object must have exactly these fields:",
+    '- "term": original Chinese text',
+    '- "translation": natural English equivalent',
+    '- "category": "slang" OR "word" (idioms can be "word")',
+    '- "gender": null',
+    '- "notes": brief one-sentence context in English',
+    "",
+    'Example: [{"term":"一言难尽","translation":"Hard to put in a few words","category":"word","gender":null,"notes":"Used to deflect a question"},{"term":"干嘛呢","translation":"What are you doing?","category":"slang","gender":null,"notes":"Casual greeting"}]',
+  ].join("\n"),
+];
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 function formatEta(remaining: number, avgChunkMs: number): string {
