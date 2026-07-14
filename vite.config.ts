@@ -1,3 +1,4 @@
+import { vlyPlugin } from "@vly-ai/integrations";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
