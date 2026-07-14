@@ -209,65 +209,14 @@ export function ReadAloud({
     );
   }
 
-  const speakImplRef = useRef<(idx: number) => void>(() => {});
-  speakImplRef.current = (idx: number) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      return;
-    }
+  /** Create and speak an utterance for a single paragraph index,
+   * using the pre-resolved voice.  Called either directly (when
+   * natural voices are already available) or from the warm-up
+   * callback (after forcing remote-voice loading on mobile). */
+  function speakUtterance(idx: number, voice: SpeechSynthesisVoice | null) {
     const synth = window.speechSynthesis;
     if (!synth) return;
     const ctx = ctxRef.current;
-    if (idx >= ctx.readable.length) {
-      setPlaying(false);
-      setPaused(false);
-      setCurrentIdx(ctx.readable.length);
-      if (ctx.prefs.autoAdvance && ctx.hasNext && isMountedRef.current) {
-        toast("Advancing to the next chapter…", { icon: "⏭️" });
-        advanceRequestedRef.current = true;
-        ctx.advance();
-      } else if (isMountedRef.current) {
-        toast("Finished reading.");
-      }
-      return;
-    }
-
-    // ── Voice resolution (works on mobile Edge) ────────────────────
-    // Mobile browsers (Edge Android, Chrome Android) only load remote /
-    // online voices after the first speak() call that happens inside a
-    // user gesture (tap/click).  We warm the engine here — this always
-    // runs in response to a user action — then re-read getVoices() and
-    // pick the best available voice with our own fallback.
-    let freshVoices = synth.getVoices?.() ?? [];
-
-    // If we have zero natural voices, the remote list hasn't loaded yet.
-    // Brief warm-up speak → cancel forces the browser to pull them in.
-    const hasNatural = freshVoices.some(
-      (v) =>
-        isNaturalVoice(v.name) &&
-        (v.lang.startsWith("en") || /english/i.test(v.name)),
-    );
-    if (!hasNatural && freshVoices.length > 0) {
-      try {
-        const wu = new SpeechSynthesisUtterance("");
-        wu.volume = 0;
-        wu.rate = 2;
-        synth.speak(wu);
-        synth.cancel();
-        freshVoices = synth.getVoices?.() ?? freshVoices;
-      } catch {
-        /* keep whatever we had */
-      }
-    }
-
-    // Work entirely from the fresh snapshot — no React-state dependency.
-    const voice = resolveVoice(freshVoices, ctx.prefs.voiceName);
-
-    // Update React state in the background so the voice picker catches
-    // up (especially important on that very first play on mobile).
-    if (freshVoices.length !== voices.length) {
-      setVoices(freshVoices);
-    }
-
     const text = ctx.readable[idx];
     try {
       const utterance = new SpeechSynthesisUtterance(text);
@@ -296,6 +245,81 @@ export function ReadAloud({
       setPlaying(false);
       setPaused(false);
     }
+  }
+
+  const speakImplRef = useRef<(idx: number) => void>(() => {});
+  speakImplRef.current = (idx: number) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      return;
+    }
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    const ctx = ctxRef.current;
+    if (idx >= ctx.readable.length) {
+      setPlaying(false);
+      setPaused(false);
+      setCurrentIdx(ctx.readable.length);
+      if (ctx.prefs.autoAdvance && ctx.hasNext && isMountedRef.current) {
+        toast("Advancing to the next chapter…", { icon: "⏭️" });
+        advanceRequestedRef.current = true;
+        ctx.advance();
+      } else if (isMountedRef.current) {
+        toast("Finished reading.");
+      }
+      return;
+    }
+
+    // ── Aggressive voice warm-up (critical for mobile Edge) ──────
+    // Mobile browsers (Edge Android, Chrome Android) only load remote /
+    // online voices after the engine actually processes a speak() call
+    // inside a user gesture.  The old "speak empty + instant cancel"
+    // was too fast to trigger initialisation.
+    //
+    // Strategy: speak a real character "." at volume 0, wait for the
+    // onstart event (proving the engine pipeline is alive), THEN cancel
+    // and re-read voices.  A 500 ms safety timeout prevents hanging if
+    // onstart never fires (e.g. no voices at all).
+    const freshVoices = synth.getVoices?.() ?? [];
+    const hasNatural = freshVoices.some(
+      (v) =>
+        isNaturalVoice(v.name) &&
+        (v.lang.startsWith("en") || /english/i.test(v.name)),
+    );
+
+    const proceed = (voicesSnapshot: SpeechSynthesisVoice[]) => {
+      const voice = resolveVoice(voicesSnapshot, ctx.prefs.voiceName);
+      if (voicesSnapshot.length !== voices.length) {
+        setVoices(voicesSnapshot);
+      }
+      speakUtterance(idx, voice);
+    };
+
+    if (!hasNatural && freshVoices.length > 0) {
+      try {
+        const wu = new SpeechSynthesisUtterance(".");
+        wu.volume = 0;
+        wu.rate = 2;
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          try { synth.cancel(); } catch { /* noop */ }
+          const updated = synth.getVoices?.() ?? freshVoices;
+          proceed(updated);
+        };
+        wu.onstart = finish;
+        wu.onerror = finish;
+        synth.speak(wu);
+        // Safety: if onstart never fires (e.g. no TTS engine at all),
+        // bail after 500 ms and proceed with whatever voices we have.
+        setTimeout(finish, 500);
+        return;
+      } catch {
+        /* proceed with whatever we had */
+      }
+    }
+
+    proceed(freshVoices);
   };
 
   useEffect(() => {
