@@ -32,7 +32,7 @@ import {
   loadKokoroModel,
   onKokoroProgress,
   getKokoroStatus,
-} from "@/lib/kokoro-tts";
+} from "@/lib/kokoro-voices";
 import type { ApiCallLog, ProviderId, StudioSettings, Quality, SourceLanguage } from "@/lib/types";
 
 const GEMINI_MODELS = [
