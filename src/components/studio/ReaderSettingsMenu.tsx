@@ -50,19 +50,76 @@ interface SegmentOption<T extends string> {
   Icon?: React.ComponentType<{ className?: string; strokeWidth?: number }>;
 }
 
-export function ReaderSettingsMenu({ bookId }: { bookId: string }) {
-  const {
-    prefsFor,
-    updateBookPrefs,
-    resetBookPrefs,
-    settings,
-  } = useSettings();
+// ── Reusable controls ────────────────────────────────────────────────────
+// The body of the reader-settings popover, extracted so it can also be
+// rendered directly inside a side drawer (no Popover wrapper needed).
+export function ReaderSettingsControls({ bookId }: { bookId: string }) {
+  const { prefsFor, updateBookPrefs } = useSettings();
   const prefs = prefsFor(bookId);
-  const hasOverride = !!settings.bookReaderPrefs[bookId];
-
-  // Stepped-slider indices for the two enum-based controls.
   const leadingIdx = LEADING_INDEX.indexOf(prefs.leading);
   const gapIdx = GAP_INDEX.indexOf(prefs.gap);
+
+  return (
+    <div className="space-y-5">
+      <Segment
+        label="Layout"
+        value={prefs.layout}
+        options={[
+          { value: "split", label: "Side-by-side", Icon: Columns2 },
+          { value: "stack", label: "Stacked", Icon: AlignJustify },
+        ]}
+        onChange={(v) => updateBookPrefs(bookId, { layout: v as ReaderLayout })}
+      />
+
+      <Segment
+        label="Type"
+        value={prefs.font}
+        options={[
+          { value: "serif", label: "Serif", Icon: TypeIcon },
+          { value: "sans", label: "Sans", Icon: List },
+        ]}
+        onChange={(v) => updateBookPrefs(bookId, { font: v as ReaderFont })}
+      />
+
+      <SizeControl
+        label="Size"
+        value={prefs.fontSize}
+        onChange={(v) => updateBookPrefs(bookId, { fontSize: v })}
+      />
+
+      <SteppedSlider
+        label="Line height"
+        idx={leadingIdx}
+        total={LEADING_INDEX.length}
+        labels={LEADING_LABELS}
+        onChange={(i) => updateBookPrefs(bookId, { leading: LEADING_INDEX[i] })}
+        displayValue={LEADING_LABELS[leadingIdx]}
+      />
+
+      <SteppedSlider
+        label="Paragraphs"
+        idx={gapIdx}
+        total={GAP_INDEX.length}
+        labels={GAP_LABELS}
+        onChange={(i) => updateBookPrefs(bookId, { gap: GAP_INDEX[i] })}
+        displayValue={GAP_LABELS[gapIdx]}
+      />
+
+      <div className="border-t border-border pt-4 space-y-3">
+        <Toggle
+          label="Original column"
+          checked={prefs.showOriginal}
+          onChange={(v) => updateBookPrefs(bookId, { showOriginal: v })}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function ReaderSettingsMenu({ bookId }: { bookId: string }) {
+  const { prefsFor, resetBookPrefs, settings } = useSettings();
+  const prefs = prefsFor(bookId);
+  const hasOverride = !!settings.bookReaderPrefs[bookId];
 
   return (
     <Popover>
@@ -97,67 +154,8 @@ export function ReaderSettingsMenu({ bookId }: { bookId: string }) {
             </button>
           )}
         </div>
-
-        <div className="p-4 max-h-[70vh] overflow-y-auto thin-scrollbar space-y-5">
-          <Segment
-            label="Layout"
-            value={prefs.layout}
-            options={[
-              { value: "split", label: "Side-by-side", Icon: Columns2 },
-              { value: "stack", label: "Stacked", Icon: AlignJustify },
-            ]}
-            onChange={(v) =>
-              updateBookPrefs(bookId, { layout: v as ReaderLayout })
-            }
-          />
-
-          <Segment
-            label="Type"
-            value={prefs.font}
-            options={[
-              { value: "serif", label: "Serif", Icon: TypeIcon },
-              { value: "sans", label: "Sans", Icon: List },
-            ]}
-            onChange={(v) =>
-              updateBookPrefs(bookId, { font: v as ReaderFont })
-            }
-          />
-
-          <SizeControl
-            label="Size"
-            value={prefs.fontSize}
-            onChange={(v) => updateBookPrefs(bookId, { fontSize: v })}
-          />
-
-          <SteppedSlider
-            label="Line height"
-            idx={leadingIdx}
-            total={LEADING_INDEX.length}
-            labels={LEADING_LABELS}
-            onChange={(i) =>
-              updateBookPrefs(bookId, { leading: LEADING_INDEX[i] })
-            }
-            displayValue={LEADING_LABELS[leadingIdx]}
-          />
-
-          <SteppedSlider
-            label="Paragraphs"
-            idx={gapIdx}
-            total={GAP_INDEX.length}
-            labels={GAP_LABELS}
-            onChange={(i) =>
-              updateBookPrefs(bookId, { gap: GAP_INDEX[i] })
-            }
-            displayValue={GAP_LABELS[gapIdx]}
-          />
-
-          <div className="border-t border-border pt-4 space-y-3">
-            <Toggle
-              label="Original column"
-              checked={prefs.showOriginal}
-              onChange={(v) => updateBookPrefs(bookId, { showOriginal: v })}
-            />
-          </div>
+        <div className="p-4 max-h-[70vh] overflow-y-auto thin-scrollbar">
+          <ReaderSettingsControls bookId={bookId} />
         </div>
       </PopoverContent>
     </Popover>

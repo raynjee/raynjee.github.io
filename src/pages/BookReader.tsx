@@ -17,6 +17,7 @@ import {
   PanelLeftOpen,
   Pause,
   Play,
+  Settings2,
   Sparkles,
   Square,
   Trash2,
@@ -38,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/util";
 import {
   prefsToCssVars,
+  ReaderSettingsControls,
   ReaderSettingsMenu,
 } from "@/components/studio/ReaderSettingsMenu";
 import { ReadAloud } from "@/components/studio/ReadAloud";
@@ -130,6 +132,17 @@ export default function BookReader() {
     setActiveId(id);
     setTocDrawerOpen(false);
   }, []);
+
+  // Mobile tools drawer (slides in from the right). Mirrors the
+  // left-side TOC drawer pattern but surfaces the chapter-header
+  // actions we hide from mobile (Reader settings, Auto-advance,
+  // Delete, Glossary) plus the in-flight Stop / Pause controls.
+  const [toolsDrawerOpen, setToolsDrawerOpen] = useState(false);
+  const toggleToolsDrawer = useCallback(
+    () => setToolsDrawerOpen((v) => !v),
+    [],
+  );
+  const closeToolsDrawer = useCallback(() => setToolsDrawerOpen(false), []);
 
   // Load all chapters + translations when the book opens
   useEffect(() => {
@@ -1100,6 +1113,149 @@ export default function BookReader() {
             )}
           </AnimatePresence>
 
+          {/* Mobile tools slide-in drawer (right side) */}
+          <AnimatePresence>
+            {toolsDrawerOpen && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  onClick={closeToolsDrawer}
+                />
+                <motion.aside
+                  initial={{ x: "100%" }}
+                  animate={{ x: 0 }}
+                  exit={{ x: "100%" }}
+                  transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                  className="md:hidden fixed inset-y-0 right-0 z-50 w-80 max-w-[85vw] bg-background border-l border-border shadow-xl flex flex-col"
+                >
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                    <span className="studio-caps text-muted-foreground text-xs">
+                      Tools
+                    </span>
+                    <button
+                      onClick={closeToolsDrawer}
+                      className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40 rounded"
+                      aria-label="Close tools"
+                    >
+                      <X className="w-4 h-4" strokeWidth={1.4} />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto thin-scrollbar px-5 py-5 space-y-7">
+                    <section className="space-y-3">
+                      <h3 className="studio-caps text-muted-foreground text-xs">
+                        Translate
+                      </h3>
+                      {busy ? (
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onStop();
+                              closeToolsDrawer();
+                            }}
+                            className="h-10 px-3 inline-flex items-center justify-center gap-2 border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors"
+                          >
+                            <Square className="w-3.5 h-3.5" strokeWidth={1.6} />
+                            <span className="text-xs uppercase tracking-[0.18em]">
+                              Stop translation
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={paused ? onResume : onPause}
+                            className="h-10 px-3 inline-flex items-center justify-center gap-2 border border-border hover:border-foreground/40 transition-colors"
+                          >
+                            {paused ? (
+                              <Play className="w-4 h-4" strokeWidth={1.4} />
+                            ) : (
+                              <Pause className="w-4 h-4" strokeWidth={1.4} />
+                            )}
+                            <span className="text-xs uppercase tracking-[0.18em]">
+                              {paused ? "Resume" : "Pause"}
+                            </span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          <button
+                            type="button"
+                            onClick={onToggleAutoAdvance}
+                            className={cn(
+                              "h-10 px-3 inline-flex items-center justify-center gap-2 border transition-colors",
+                              autoAdvance
+                                ? "bg-foreground text-background border-foreground"
+                                : "border-border hover:border-foreground/40 text-foreground",
+                            )}
+                            title={
+                              autoAdvance
+                                ? "Auto-advance is on - disable"
+                                : "Auto-advance: translate next chapter after this one"
+                            }
+                          >
+                            <Sparkles
+                              className={cn("w-3.5 h-3.5", autoAdvance ? "" : "opacity-50")}
+                              strokeWidth={1.4}
+                            />
+                            <span className="text-xs uppercase tracking-[0.18em]">
+                              Auto-advance: {autoAdvance ? "on" : "off"}
+                            </span>
+                          </button>
+                          {activeTranslation &&
+                            activeTranslation.paragraphs.some((p) => p && p.trim()) && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onDeleteTranslation();
+                                  closeToolsDrawer();
+                                }}
+                                className="h-10 px-3 inline-flex items-center justify-center gap-2 border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" strokeWidth={1.4} />
+                                <span className="text-xs uppercase tracking-[0.18em]">
+                                  Delete translation
+                                </span>
+                              </button>
+                            )}
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="space-y-3">
+                      <h3 className="studio-caps text-muted-foreground text-xs">
+                        Navigation
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!book) return;
+                          closeToolsDrawer();
+                          navigate(`/library/${book.id}/glossary`);
+                        }}
+                        className="h-10 px-3 w-full inline-flex items-center justify-center gap-2 border border-border hover:border-foreground/40 transition-colors"
+                      >
+                        <BookOpen className="w-4 h-4" strokeWidth={1.4} />
+                        <span className="text-xs uppercase tracking-[0.18em]">
+                          Glossary
+                        </span>
+                      </button>
+                    </section>
+
+                    <section className="space-y-3">
+                      <h3 className="studio-caps text-muted-foreground text-xs">
+                        Reader
+                      </h3>
+                      <ReaderSettingsControls bookId={book.id} />
+                    </section>
+                  </div>
+                </motion.aside>
+              </>
+            )}
+          </AnimatePresence>
+
           {/* ── Mobile bottom nav bar ────────────────────────── */}
           <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-background/95 backdrop-blur-sm border-t border-border pb-[env(safe-area-inset-bottom,0)]">
             <div className="flex items-center px-3 py-2.5 max-w-lg mx-auto gap-2">
@@ -1117,7 +1273,7 @@ export default function BookReader() {
                 Prev
               </button>
 
-              {/* Center: Listen + TOC + Translate */}
+              {/* Center: Listen + TOC + Tools + Translate */}
               <div className="flex-1 flex items-center justify-center gap-1.5">
                 {activeChapter && (
                   <ReadAloud
@@ -1143,6 +1299,15 @@ export default function BookReader() {
                 >
                   <List className="w-4 h-4" strokeWidth={1.4} />
                   <span className="hidden sm:inline">Chapters</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleToolsDrawer}
+                  aria-label="Reader tools"
+                  className="h-11 px-3 sm:px-4 inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-foreground/40 active:scale-95 transition-all text-sm font-medium"
+                >
+                  <Settings2 className="w-4 h-4" strokeWidth={1.4} />
+                  <span className="hidden sm:inline">Tools</span>
                 </button>
 
                 {activeChapter && (
