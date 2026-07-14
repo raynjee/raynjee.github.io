@@ -1,7 +1,7 @@
 // Book cover tile — gallery-style with framing, title, author, language and
 // word-level progress driven by aggregate BookStats for the whole book.
 
-import { BookOpen, Languages } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import type { Book, ChapterTranslation } from "@/lib/types";
 import type { BookStats } from "@/hooks/use-library";
 import { cn } from "@/lib/utils";
@@ -34,9 +34,9 @@ export function BookGalleryTile({
   return (
     <article
       className={cn(
-        "group relative flex flex-col h-full bg-card border border-border p-3",
-        "transition-[border-color,transform] duration-200 ease-out",
-        "hover:border-foreground/40 hover:-translate-y-0.5",
+        "group relative flex flex-col h-full border border-border p-3",
+        "transition-[border-color,transform] duration-300 ease-out",
+        "hover:border-foreground/30 hover:-translate-y-0.5",
       )}
     >
       <button
@@ -45,7 +45,7 @@ export function BookGalleryTile({
         aria-label={`Open ${book.title}`}
       >
         {/* Cover */}
-        <div className="gallery-frame relative aspect-[3/4] overflow-hidden bg-muted">
+        <div className="relative aspect-[3/4] overflow-hidden bg-muted">
           {book.coverDataUrl ? (
             <img
               src={book.coverDataUrl}
@@ -54,15 +54,15 @@ export function BookGalleryTile({
             />
           ) : (
             <div className="grid place-items-center w-full h-full text-muted-foreground">
-              <BookOpen className="w-10 h-10" strokeWidth={1.2} />
+              <BookOpen className="w-8 h-8" strokeWidth={1.2} />
             </div>
           )}
 
-          {/* Progress pill, top-right inside the frame */}
+          {/* Progress pill, top-right */}
           <div
             className={cn(
               "absolute top-2 right-2 inline-flex items-center px-2 py-0.5",
-              "bg-background/95 border border-border backdrop-blur-[2px]",
+              "bg-background/90 border border-border",
             )}
             aria-hidden="true"
           >
@@ -73,23 +73,22 @@ export function BookGalleryTile({
         </div>
 
         {/* Title block */}
-        <div className="mt-4 px-0.5">
-          <div className="studio-caps text-muted-foreground">
-            {language} · {String(totalChapters).padStart(2, "0")} ch
+        <div className="mt-3">
+          <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+            {language} · {totalChapters} ch
           </div>
-          <h3 className="font-display text-[17px] leading-tight line-clamp-2 text-foreground mt-1">
+          <h3 className="font-display text-[15px] leading-snug line-clamp-2 text-foreground mt-0.5">
             {book.title}
           </h3>
-          <p className="mt-1 text-xs text-muted-foreground truncate">
+          <p className="mt-0.5 text-xs text-muted-foreground truncate">
             {book.author}
           </p>
         </div>
       </button>
 
-      {/* Stats line — pushed to the bottom so tiles in a row align evenly */}
-      <div className="plate mt-auto pt-3 px-0.5 flex items-center justify-between studio-caps text-[10px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1.5">
-          <Languages className="w-3 h-3" strokeWidth={1.4} />
+      {/* Stats line */}
+      <div className="mt-auto pt-2.5 flex items-center justify-between text-[10px] text-muted-foreground">
+        <span className="inline-flex items-center gap-1">
           <span className="studio-num">{totalWords.toLocaleString()}</span>
           <span>words</span>
         </span>
@@ -100,8 +99,6 @@ export function BookGalleryTile({
       <div
         className={cn(
           "mt-2 grid grid-cols-2 gap-2 transition-all duration-200 ease-out",
-          // On mobile: always visible
-          // On desktop (md+): hidden until hover/focus
           "md:opacity-0 md:translate-y-0.5 md:pointer-events-none",
           "md:group-hover:opacity-100 md:group-focus-within:opacity-100 md:group-hover:translate-y-0 md:group-hover:pointer-events-auto",
         )}
@@ -111,7 +108,7 @@ export function BookGalleryTile({
             e.preventDefault();
             onEdit?.();
           }}
-          className="h-8 inline-flex items-center justify-center border border-border hover:border-foreground/40 text-[10px] uppercase tracking-[0.18em]"
+          className="h-8 inline-flex items-center justify-center border border-border hover:border-foreground/40 text-[10px] uppercase tracking-[0.12em] transition-colors"
         >
           Edit
         </button>
@@ -120,7 +117,7 @@ export function BookGalleryTile({
             e.preventDefault();
             onDelete?.();
           }}
-          className="h-8 inline-flex items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground text-[10px] uppercase tracking-[0.18em] transition-colors"
+          className="h-8 inline-flex items-center justify-center border border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground text-[10px] uppercase tracking-[0.12em] transition-colors"
         >
           Delete
         </button>

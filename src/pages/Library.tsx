@@ -129,67 +129,55 @@ export default function Library() {
     <StudioShell>
       <div className="mx-auto max-w-[1400px] px-6 lg:px-10 pt-12 pb-24">
         {/* ── § I · Header ───────────────────────────────────────── */}
-        <header className="grid grid-cols-12 gap-8 lg:gap-12 items-end">
-          <div className="col-span-12 lg:col-span-7">
-            <div className="studio-caps text-muted-foreground">
-              Edition 01 · The Gallery
-            </div>
-            <h1 className="font-display text-[36px] sm:text-[48px] md:text-[60px] lg:text-[80px] mt-2 tracking-tight leading-[0.95]">
-              Library.
+        <header className="flex flex-col lg:flex-row gap-8 lg:gap-16 items-start lg:items-end">
+          <div className="flex-1 min-w-0">
+            <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-[0.95]">
+              Library
             </h1>
-            <p className="text-muted-foreground mt-4 max-w-[56ch] leading-relaxed">
-              Every volume brought into the studio. Click a tile to open it at
-              the reading desk; drop a fresh EPUB on the right to add another.
+            <p className="text-muted-foreground mt-3 max-w-[48ch] text-sm leading-relaxed">
+              Click a volume to open it at the reading desk, or drop a new file to add one.
             </p>
 
-            {/* Index strip — counts across the whole gallery */}
-            <div className="mt-10 plate pt-5 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
-              <Stat
-                label="Volumes"
-                value={String(totals.volumes).padStart(2, "0")}
-                sub="in the gallery"
-              />
-              <Stat
-                label="Chapters"
-                value={totals.chapters.toLocaleString()}
-                sub="opened to read"
-              />
-              <Stat
-                label="Words"
-                value={totals.words.toLocaleString()}
-                sub={statsLoading ? "counting…" : "in the originals"}
-              />
-              <Stat
-                label="Translated"
-                value={`${Math.round((totals.progress ?? 0) * 100)}%`}
-                sub="of every line"
-              />
+            {/* Index strip — subtle inline stats */}
+            <div className="mt-8 flex flex-wrap items-center gap-x-8 gap-y-2 text-sm">
+              <span className="text-muted-foreground">
+                <span className="studio-num font-display text-foreground text-lg">{totals.volumes}</span>{" "}
+                volume{totals.volumes !== 1 ? "s" : ""}
+              </span>
+              <span className="text-muted-foreground">
+                <span className="studio-num font-display text-foreground text-lg">{totals.chapters.toLocaleString()}</span>{" "}
+                chapters
+              </span>
+              <span className="text-muted-foreground">
+                <span className="studio-num font-display text-foreground text-lg">{totals.words.toLocaleString()}</span>{" "}
+                words
+              </span>
+              <span className="text-muted-foreground">
+                <span className="studio-num font-display text-foreground text-lg">
+                  {statsLoading ? "…" : `${Math.round((totals.progress ?? 0) * 100)}%`}
+                </span>{" "}
+                translated
+              </span>
             </div>
           </div>
 
-          <div className="col-span-12 lg:col-span-5">
+          <div className="w-full lg:w-80 shrink-0">
             <ImportPanel onUploaded={refresh} />
           </div>
         </header>
 
         {/* ── § II · Toolbar ────────────────────────────────────── */}
-        <div className="mt-14 flex flex-col md:flex-row md:items-center gap-4 md:gap-8 py-3 border-y border-border">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <span className="studio-caps text-muted-foreground whitespace-nowrap">
-              Search
-            </span>
+        <div className="mt-12 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-5 pb-6 border-b border-border">
+          <div className="flex-1 min-w-0">
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Title or author"
-              className="flex-1 min-w-0 max-w-[280px] bg-transparent border-b border-border focus:border-foreground outline-none py-1 text-sm caret-ink placeholder:text-muted-foreground"
+              placeholder="Search title or author…"
+              className="w-full max-w-[320px] bg-transparent border-b border-border focus:border-foreground outline-none py-1.5 text-sm caret-ink placeholder:text-muted-foreground"
             />
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="studio-caps text-muted-foreground mr-1 whitespace-nowrap">
-              Language
-            </span>
+          <div className="flex items-center gap-1.5">
             {(Object.keys(LANG_LABELS) as LangFilter[]).map((opt) => (
               <LangChip
                 key={opt}
@@ -201,22 +189,19 @@ export default function Library() {
             ))}
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="studio-caps text-muted-foreground">Sort</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortBy)}
-              className="bg-transparent outline-none cursor-pointer text-[11px] uppercase tracking-[0.18em] py-1 caret-ink"
-            >
-              <option value="recent">Recent</option>
-              <option value="title">Title</option>
-              <option value="progress">Progress</option>
-            </select>
-          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortBy)}
+            className="bg-transparent outline-none cursor-pointer text-xs tracking-[0.12em] py-1.5 caret-ink text-muted-foreground"
+          >
+            <option value="recent">Recent</option>
+            <option value="title">Title</option>
+            <option value="progress">Progress</option>
+          </select>
         </div>
 
         {/* ── § III · Wall ──────────────────────────────────────── */}
-        <div className="mt-12">
+        <div className="mt-10">
           {loading ? (
             <LoadingGrid />
           ) : books.length === 0 ? (
@@ -258,26 +243,7 @@ export default function Library() {
 
 // ─── Subcomponents ───────────────────────────────────────────────────────
 
-function Stat({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-}) {
-  return (
-    <div>
-      <div className="studio-caps text-muted-foreground">{label}</div>
-      <div className="font-display text-3xl mt-1 studio-num">{value}</div>
-      {sub && (          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-1">
-          {sub}
-        </div>
-      )}
-    </div>
-  );
-}
+
 
 function LangChip({
   value,
@@ -296,10 +262,10 @@ function LangChip({
       type="button"
       onClick={() => onChange(value)}
       className={cn(
-        "h-7 px-2.5 border text-[10px] uppercase tracking-[0.18em] transition-colors",
+        "h-7 px-2.5 text-[10px] uppercase tracking-[0.15em] transition-colors",
         active
-          ? "bg-foreground text-background border-foreground"
-          : "bg-transparent text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+          ? "bg-foreground text-background"
+          : "text-muted-foreground hover:text-foreground",
       )}
     >
       {label}
@@ -361,7 +327,7 @@ function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
   };
 
   return (
-    <div className="studio-card">
+    <div className="border border-border">
       <input
         ref={inputRef}
         type="file"
@@ -371,7 +337,6 @@ function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
         onChange={(e) => void onFiles(e.target.files)}
       />
 
-      {/* Drop zone */}
       <div
         role="button"
         tabIndex={0}
@@ -402,38 +367,28 @@ function ImportPanel({ onUploaded }: { onUploaded: () => Promise<void> }) {
         }}
         aria-label="Drag files here to import, or click to browse"
         className={cn(
-          "block px-6 py-9 border border-dashed text-center cursor-pointer outline-none select-none transition-colors focus-visible:ring-1 focus-visible:ring-foreground/40",
+          "block px-5 py-8 text-center cursor-pointer outline-none select-none transition-colors focus-visible:ring-1 focus-visible:ring-foreground/40",
           dragActive
-            ? "border-foreground bg-accent/60"
-            : "border-border hover:border-foreground/40 hover:bg-accent/30",
+            ? "bg-accent/40"
+            : "hover:bg-accent/20",
         )}
       >
-        <div className="grid place-items-center gap-2.5">
+        <div className="grid place-items-center gap-2">
           <Upload
             className={cn(
-              "w-5 h-5",
+              "w-4 h-4",
               dragActive ? "text-foreground" : "text-muted-foreground",
             )}
             strokeWidth={1.4}
           />
-          <div
-            className={cn(
-              "font-display text-lg tracking-tight",
-              dragActive ? "text-foreground" : "text-foreground/90",
-            )}
-          >
-            {busy
-              ? "Reading…"
-              : dragActive
-                ? "Release to add to the gallery"
-                : "Drop or click to add"}
+          <div className="text-sm text-muted-foreground">
+            {busy ? "Importing…" : dragActive ? "Release to import" : "Drop or click to add"}
           </div>
-          <div className="studio-caps text-muted-foreground">
-            .epub · .txt · .docx · multiple allowed
+          <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
+            .epub · .txt · .docx
           </div>
         </div>
       </div>
-
     </div>
   );
 }
@@ -472,49 +427,43 @@ function EmptyWall({ onUploaded }: { onUploaded: () => Promise<void> }) {
     }
   };
   return (
-    <div className="max-w-2xl mx-auto studio-card p-6 sm:p-10 lg:p-14 text-center">
-      <div className="studio-caps text-muted-foreground">Plate 0 — Empty Wall</div>
-      <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl mt-3 tracking-tight leading-tight">
-        The wall is bare.
+    <div className="max-w-lg mx-auto py-16 text-center">
+      <div className="w-12 h-12 mx-auto mb-6 grid place-items-center border border-border">
+        <BookOpenCheck className="w-5 h-5 text-muted-foreground" strokeWidth={1.2} />
+      </div>
+      <h2 className="font-display text-2xl tracking-tight">
+        Your library is empty
       </h2>
-      <p className="text-muted-foreground mt-4 leading-relaxed max-w-[48ch] mx-auto">
-        Drop an .epub, .txt, or .docx file below and the studio will unfold
-        its contents, capture the metadata, and set each chapter on its own shelf.
+      <p className="text-muted-foreground mt-3 text-sm leading-relaxed max-w-[40ch] mx-auto">
+        Drop an .epub, .txt, or .docx file to add your first volume.
       </p>
-      <div className="mt-8 mx-auto max-w-md">
+      <div className="mt-8 mx-auto max-w-sm">
         <EmptyDrop onUploaded={onUploaded} />
       </div>
 
       <div className="mt-8 flex items-center justify-center gap-3">
-        <span className="h-px w-12 bg-border" />
-        <span className="studio-caps text-muted-foreground">or</span>
-        <span className="h-px w-12 bg-border" />
+        <span className="h-px w-8 bg-border" />
+        <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">or</span>
+        <span className="h-px w-8 bg-border" />
       </div>
 
-      <div className="mt-6">
+      <div className="mt-5">
         <button
           type="button"
           onClick={() => void onSeed()}
           disabled={seeding}
-          className="h-11 px-5 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40 inline-flex items-center gap-1.5"
         >
           {seeding ? (
-            <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
+            <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
           ) : (
-            <BookOpenCheck className="w-4 h-4" strokeWidth={1.4} />
+            <BookOpenCheck className="w-3.5 h-3.5" strokeWidth={1.4} />
           )}
-          <span className="text-xs uppercase tracking-[0.22em]">
-            {seeding ? "Seeding sample…" : "Try with the sample volume"}
-          </span>
+          {seeding ? "Seeding sample…" : "Try the sample volume"}
         </button>
-        <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mt-3 max-w-[40ch] mx-auto leading-relaxed">
-          A multilingual travel essay — Japanese, Korean, Chinese & others — so
-          you can test the workflow before uploading your own.
+        <p className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground mt-3 max-w-[36ch] mx-auto leading-relaxed">
+          A multilingual travel essay so you can test the workflow.
         </p>
-      </div>
-
-      <div className="mt-8 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-        Multiple files · .epub · .txt · .docx
       </div>
     </div>
   );
@@ -613,24 +562,24 @@ function EmptyDrop({ onUploaded }: { onUploaded: () => Promise<void> }) {
         }}
         aria-label="Drag files here to import, or click to browse"
         className={cn(
-          "block px-6 py-12 border border-dashed text-center cursor-pointer outline-none select-none transition-colors focus-visible:ring-1 focus-visible:ring-foreground/40",
+          "block px-5 py-10 border border-border text-center cursor-pointer outline-none select-none transition-colors focus-visible:ring-1 focus-visible:ring-foreground/40",
           dragActive
-            ? "border-foreground bg-accent/60"
-            : "border-foreground/20 hover:border-foreground/40 hover:bg-accent/30",
+            ? "bg-accent/40"
+            : "hover:bg-accent/20",
         )}
       >
-        <div className="grid place-items-center gap-3">
+        <div className="grid place-items-center gap-2">
           <Upload
             className={cn(
-              "w-7 h-7",
+              "w-5 h-5",
               dragActive ? "text-foreground" : "text-muted-foreground",
             )}
-            strokeWidth={1.3}
+            strokeWidth={1.4}
           />
-          <div className="font-display text-2xl tracking-tight">
-            {busy ? "Reading…" : dragActive ? "Release to begin" : "Drop to begin"}
+          <div className="text-sm text-muted-foreground">
+            {busy ? "Importing…" : dragActive ? "Release to import" : "Drop or click to add"}
           </div>
-          <div className="studio-caps text-muted-foreground">
+          <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
             .epub · .txt · .docx
           </div>
         </div>
@@ -649,16 +598,15 @@ function NoMatch({
   onReset: () => void;
 }) {
   return (
-    <div className="py-16 text-center border-y border-border">
-      <div className="studio-caps text-muted-foreground">No volumes match</div>
-      <div className="font-display text-3xl mt-2 tracking-tight">
+    <div className="py-16 text-center">
+      <div className="font-display text-xl tracking-tight text-muted-foreground">
         {currentQuery ? (
           <>
             Nothing matches{" "}
-            <em className="not-italic text-muted-foreground">
+            <span className="text-foreground">
               &ldquo;{currentQuery}&rdquo;
-            </em>
-            {hasFilter ? " with the current filters" : ""}.
+            </span>
+            {hasFilter ? " with the current filters" : ""}
           </>
         ) : (
           <>No volumes in this language.</>
@@ -667,7 +615,7 @@ function NoMatch({
       <button
         type="button"
         onClick={onReset}
-        className="mt-6 h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 text-xs uppercase tracking-[0.18em]"
+        className="mt-4 text-xs text-muted-foreground hover:text-foreground transition-colors"
       >
         Clear filters
       </button>
