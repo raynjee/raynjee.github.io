@@ -390,7 +390,15 @@ export default function Glossary() {
 
       // 3. DeepSeek: use full-text 3-pass strategy (fewer API calls, deeper thinking).
       if (cfg.id === "deepseek") {
-        await extractDeepSeekFull(cfg, allParagraphs, bookId);
+        await extractDeepSeekFull(
+          cfg,
+          allParagraphs,
+          bookId,
+          (done, total, avgMs) => setExtractProgress({ done, total, avgChunkMs: avgMs }),
+          extractStoppedRef,
+          extractPausedRef,
+        );
+        await reloadEntries();
         return;
       }
 
@@ -729,7 +737,9 @@ export default function Glossary() {
               )}
               <span className="text-xs uppercase tracking-[0.18em]">
                 {extracting && extractProgress
-                  ? `Chunk ${extractProgress.done + 1}/${extractProgress.total}…`
+                  ? extractProvider === "deepseek"
+                    ? `Pass ${Math.min(extractProgress.done + 1, extractProgress.total)}/${extractProgress.total}…`
+                    : `Chunk ${extractProgress.done + 1}/${extractProgress.total}…`
                   : extracting
                     ? "Extracting…"
                     : savedCheckpoint
@@ -766,7 +776,9 @@ export default function Glossary() {
           <div className="mt-6 space-y-2">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span className="uppercase tracking-[0.18em]">
-                Extracting glossary · {extractProgress.done}/{extractProgress.total} chunks
+                {extractProvider === "deepseek"
+                  ? `Extracting glossary · Pass ${extractProgress.done}/${extractProgress.total}`
+                  : `Extracting glossary · ${extractProgress.done}/${extractProgress.total} chunks`}
               </span>
               <span className="tabular-nums">
                 ~{formatEta(extractProgress.total - extractProgress.done, extractProgress.avgChunkMs)} remaining
@@ -1298,46 +1310,97 @@ function GlossaryEditForm({
 }
 
 // ── DeepSeek full-text 3-pass extraction ────────────────────────────────
-// Sends the ENTIRE novel in 3 parallel requests, asking the model to
-// think deeply. Merges results, deduping by term (best entry kept).
+// Sends the ENTIRE novel in 3 PARALLEL requests, each with a different
+// focus prompt (characters+locations, words+slang, catch-all). Merges
+// results, deduping by term (best entry kept).
 // Total: 3 API calls regardless of book length.
 
 async function extractDeepSeekFull(
   cfg: ProviderConfig,
   allParagraphs: string[],
   bookId: string,
+  onProgress: (done: number, total: number, avgChunkMs: number) => void,
+  stoppedRef: { current: boolean },
+  pausedRef: { current: boolean },
 ) {
   const fullText = allParagraphs.join("\n\n");
-  const userPrompt = [
-    "Below is the COMPLETE text of a novel. Read it thoroughly and extract an exhaustive glossary.",
-    "",
-    fullText,
-  ].join("\n");
 
-  // We'll update progress via closure — the caller manages setExtractProgress.
-  // Find the setter from the outer scope via a module-level workaround.
-  // Actually, we pass progress via a callback.
+  // Build 3 user prompts — identical full text, different instructions.
+  const userPrompts = DEEPSEEK_PASS_SYSTEM.map((sys) =>
+    [sys, "", "Below is the COMPLETE text of a novel.", "", fullText].join("\n"),
+  );
 
-  // Fire 3 parallel passes.
-  const passes = [
-    extractSinglePass(cfg, FULL_TEXT_PROMPT, userPrompt, cfg.id, "Pass 1/3"),
-    extractSinglePass(cfg, FULL_TEXT_PROMPT, userPrompt, cfg.id, "Pass 2/3"),
-    extractSinglePass(cfg, FULL_TEXT_PROMPT, userPrompt, cfg.id, "Pass 3/3"),
-  ];
+  let completed = 0;
+  const total = 3;
+  onProgress(0, total, 0);
 
-  const results = await Promise.allSettled(passes);
+  // Fire passes sequentially (not parallel) so progress UI updates per pass
+  // and we can check stop/pause between passes.
+  const allEntries: GlossaryEntry[][] = [];
+  let passErrors = 0;
+
+  for (let i = 0; i < total; i++) {
+    // Check stop/pause.
+    if (stoppedRef.current) {
+      toast.message("Extraction stopped.");
+      break;
+    }
+    while (pausedRef.current) {
+      await new Promise((r) => setTimeout(r, 200));
+      if (stoppedRef.current) break;
+    }
+    if (stoppedRef.current) break;
+
+    const startedAt = Date.now();
+    try {
+      const raw = await callProviderForExtraction(
+        cfg,
+        "You are a Chinese literary analyst. Output STRICTLY a raw JSON array with NO markdown fences. Each object must have: term, translation, category, gender, notes.",
+        userPrompts[i],
+        cfg.id,
+      );
+      const entries: GlossaryEntry[] = [];
+      for (const item of raw) {
+        const term = (item.term ?? "").trim();
+        const translation = (item.translation ?? "").trim();
+        if (!term || !translation) continue;
+        const category =
+          item.category != null && (CATEGORIES as string[]).includes(item.category)
+            ? item.category
+            : "word";
+        const gender =
+          item.gender === "F" || item.gender === "M" || item.gender === "N"
+            ? item.gender
+            : null;
+        entries.push({
+          id: "",
+          bookId: "",
+          term,
+          translation,
+          category: category as GlossaryEntry["category"],
+          gender: gender as GlossaryEntry["gender"],
+          notes: (item.notes ?? "").trim(),
+          createdAt: 0,
+          updatedAt: 0,
+        });
+      }
+      allEntries.push(entries);
+    } catch (err) {
+      passErrors++;
+      console.warn(`DeepSeek pass ${i + 1}/3 failed:`, err);
+    }
+
+    completed++;
+    if (completed < total) {
+      const elapsed = Date.now() - startedAt;
+      onProgress(completed, total, elapsed);
+    }
+  }
 
   // Merge results — dedup by term (keep the entry with most detail).
   const bestByTerm = new Map<string, GlossaryEntry>();
-  let passErrors = 0;
-
-  for (const result of results) {
-    if (result.status === "rejected") {
-      passErrors++;
-      console.warn("DeepSeek full-text pass failed:", result.reason);
-      continue;
-    }
-    for (const entry of result.value) {
+  for (const batch of allEntries) {
+    for (const entry of batch) {
       const key = entry.term.trim().toLowerCase();
       const existing = bestByTerm.get(key);
       if (!existing || scoreEntry(entry) > scoreEntry(existing)) {
@@ -1356,9 +1419,7 @@ async function extractDeepSeekFull(
 
   // Save all entries.
   const now = Date.now();
-  const fresh: GlossaryEntry[] = [];
-  for (const [,, entry] of bestByTerm) {
-    // Re-assign IDs so they're unique to this book.
+  for (const entry of bestByTerm.values()) {
     const saved: GlossaryEntry = {
       ...entry,
       id: `${bookId}:${uid()}`,
@@ -1367,55 +1428,12 @@ async function extractDeepSeekFull(
       updatedAt: now,
     };
     await putGlossaryEntry(saved);
-    fresh.push(saved);
-  }
-
-  if (fresh.length > 0) {
-    // We can't directly set state here since we're outside the component.
-    // The caller (onExtract) will handle state via reloadEntries in finally.
   }
 
   const warning = passErrors > 0
     ? ` (${passErrors} pass${passErrors > 1 ? "es" : ""} failed)`
     : "";
   toast.success(`Extracted ${bestByTerm.size} glossary entries via 3-pass full-text analysis${warning}.`);
-}
-
-// Single full-text pass — returns parsed glossary entries.
-async function extractSinglePass(
-  cfg: ProviderConfig,
-  systemPrompt: string,
-  userContent: string,
-  provider: string,
-  _label: string,
-): Promise<GlossaryEntry[]> {
-  const raw = await callProviderForExtraction(cfg, systemPrompt, userContent, provider);
-  const entries: GlossaryEntry[] = [];
-  for (const item of raw) {
-    const term = (item.term ?? "").trim();
-    const translation = (item.translation ?? "").trim();
-    if (!term || !translation) continue;
-    const category =
-      item.category != null && (CATEGORIES as string[]).includes(item.category)
-        ? item.category
-        : "word";
-    const gender =
-      item.gender === "F" || item.gender === "M" || item.gender === "N"
-        ? item.gender
-        : null;
-    entries.push({
-      id: "", // assigned later
-      bookId: "",
-      term,
-      translation,
-      category: category as GlossaryEntry["category"],
-      gender: gender as GlossaryEntry["gender"],
-      notes: (item.notes ?? "").trim(),
-      createdAt: 0,
-      updatedAt: 0,
-    });
-  }
-  return entries;
 }
 
 // Score an entry for dedup — prefer entries with more detail.
