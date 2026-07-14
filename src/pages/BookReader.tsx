@@ -40,6 +40,7 @@ import {
   prefsToCssVars,
   ReaderSettingsMenu,
 } from "@/components/studio/ReaderSettingsMenu";
+import { ReadAloud } from "@/components/studio/ReadAloud";
 import { Kbd } from "@/components/ui/kbd";
 
 export default function BookReader() {
@@ -258,6 +259,23 @@ export default function BookReader() {
     [chapters, activeId],
   );
   const activeTranslation = activeId ? translations[activeId] : undefined;
+  const activeIdx = chapters.findIndex((c) => c.id === activeId);
+
+  // Paragraphs the ReadAloud component should speak. We prefer the
+  // translated English so the natural voice reads the polished text;
+  // fallback to the original when translation is missing or in progress.
+  // Scene-break markers (the SCENE_BREAK constant) are filtered out.
+  const readableParagraphs = useMemo(() => {
+    if (!activeChapter) return [];
+    const translated = activeTranslation?.paragraphs ?? [];
+    return activeChapter.paragraphs
+      .map((p, i) => {
+        if (p === SCENE_BREAK) return null;
+        const t = translated[i];
+        return t && t.trim() ? t : p;
+      })
+      .filter((p): p is string => !!p && p.trim().length > 0);
+  }, [activeChapter, activeTranslation]);
 
   const totalWordCount = useMemo(
     () => chapters.reduce((s, c) => s + c.wordCount, 0),
@@ -619,9 +637,6 @@ export default function BookReader() {
   // can pick up typography, leading, and gap without inline styles.
   const readerVarStyle = prefsToCssVars(prefs);
 
-  // Current chapter index for the shortcuts hint.
-  const activeIdx = chapters.findIndex((c) => c.id === activeId);
-
   return (
     <StudioShell>
       <div
@@ -922,6 +937,19 @@ export default function BookReader() {
                     setTranslations((m) => ({ ...m, [activeChapter.id]: updated }));
                   }}
                   busy={busy}
+                  readAloudProps={{
+                    paragraphs: readableParagraphs,
+                    documentId: `${book.id}:${activeChapter.id}`,
+                    hasNext: activeIdx >= 0 && activeIdx < chapters.length - 1,
+                    onAdvanceNext: () => {
+                      if (activeIdx < 0 || activeIdx >= chapters.length - 1) return;
+                      setActiveId(chapters[activeIdx + 1].id);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    },
+                    isTranslation:
+                      !!activeTranslation &&
+                      activeTranslation.status === "completed",
+                  }}
                 />
               ) : (
                 <div className="p-12 text-center">
@@ -952,9 +980,23 @@ export default function BookReader() {
                 autoAdvance={autoAdvance}
                 onToggleAutoAdvance={onToggleAutoAdvance}
                 isPaused={paused}
+                mobile
                 onTranslateParagraph={async () => {}}
                 onResetParagraph={() => {}}
                 busy={busy}
+                readAloudProps={{
+                  paragraphs: readableParagraphs,
+                  documentId: `${book.id}:${activeChapter.id}`,
+                  hasNext: activeIdx >= 0 && activeIdx < chapters.length - 1,
+                  onAdvanceNext: () => {
+                    if (activeIdx < 0 || activeIdx >= chapters.length - 1) return;
+                    setActiveId(chapters[activeIdx + 1].id);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  },
+                  isTranslation:
+                    !!activeTranslation &&
+                    activeTranslation.status === "completed",
+                }}
               />
             ) : (
               <div className="p-12 text-center">
@@ -1176,6 +1218,14 @@ function countWords(s: string): number {
 
 // ── ChapterReader (sub) ──────────────────────────────────────────────────
 
+type ReadAloudHandlerProps = {
+  paragraphs: string[];
+  documentId: string;
+  hasNext: boolean;
+  onAdvanceNext: () => void;
+  isTranslation: boolean;
+};
+
 function ChapterReader({
   chapter,
   translation,
@@ -1193,6 +1243,7 @@ function ChapterReader({
   onResetParagraph,
   busy,
   mobile,
+  readAloudProps,
 }: {
   chapter: Chapter;
   translation: ChapterTranslation | null;
@@ -1212,6 +1263,7 @@ function ChapterReader({
   onResetParagraph: (idx: number) => void;
   busy: boolean;
   mobile?: boolean;
+  readAloudProps: ReadAloudHandlerProps;
 }) {
   const showOriginal = prefs.showOriginal;
   const showToc = prefs.showToc;
@@ -1303,6 +1355,7 @@ function ChapterReader({
             <span className="hidden xs:inline text-xs uppercase tracking-[0.18em]">Glossary</span>
           </button>
           <ReaderSettingsMenu bookId={bookId} />
+          <ReadAloud {...readAloudProps} />
           {busy ? (
             <>
               <button
