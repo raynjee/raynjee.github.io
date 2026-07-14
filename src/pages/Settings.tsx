@@ -187,13 +187,7 @@ if __name__ == "__main__":
         f"cors_shim listening on http://{LISTEN_HOST}:{LISTEN_PORT}, "
         f"forwarding to {UPSTREAM} (timeout {PROXY_TIMEOUT}s)"
     )
-    uvicorn.run(
-        app,
-        host=LISTEN_HOST,
-        port=LISTEN_PORT,
-        log_level="warning",
-        access_log=False,
-    )
+    uvicorn.run(app, host=LISTEN_HOST, port=LISTEN_PORT, log_level="info")
 `;
 
 const RUN_BAT = `@echo off
