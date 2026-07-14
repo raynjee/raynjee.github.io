@@ -17,6 +17,8 @@ import {
   Check,
   Copy,
   X,
+  Volume2,
+  Sparkles,
 } from "lucide-react";
 import { StudioShell } from "@/components/StudioShell";
 import { useSettings } from "@/hooks/use-settings";
@@ -25,6 +27,12 @@ import { buildBackup, restoreBackup, listLogs, appendLog } from "@/lib/db";
 import { toast } from "sonner";
 import { formatRelativeTime } from "@/lib/util";
 import { setGeminiRpmLimit, geminiRpmUsage } from "@/lib/translators/gemini";
+import {
+  KOKORO_US_VOICES,
+  loadKokoroModel,
+  onKokoroProgress,
+  getKokoroStatus,
+} from "@/lib/kokoro-tts";
 import type { ApiCallLog, ProviderId, StudioSettings, Quality, SourceLanguage } from "@/lib/types";
 
 const GEMINI_MODELS = [
@@ -50,6 +58,7 @@ export default function SettingsPage() {
         <div className="mt-0 space-y-10 sm:space-y-12">
           <DeepSeekTutorial />
           <ProviderSettings settings={settings} update={update} canEdit={true} />
+          <KokoroTtsCard />
           <TranslationPreferences settings={settings} update={update} canEdit={true} />
           <LogsCard />
           <BackupPanel canEdit={true} />
@@ -1009,6 +1018,168 @@ function RpmControl({
         instead of failing.
       </p>
     </div>
+  );
+}
+
+// ── Kokoro TTS Card ──────────────────────────────────────────────────────
+
+function KokoroTtsCard() {
+  const [status, setStatus] = useState(() => getKokoroStatus());
+  const [progress, setProgress] = useState(0);
+  const [statusMsg, setStatusMsg] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    return onKokoroProgress((pct, msg) => {
+      setProgress(pct);
+      setStatusMsg(msg);
+      const s = getKokoroStatus();
+      setStatus(s);
+      if (s === "error") setError(msg);
+    });
+  }, []);
+
+  const downloading = status === "loading";
+  const ready = status === "ready";
+  const failed = status === "error";
+
+  return (
+    <section>
+      <SectionHeader eyebrow="TTS" title="Kokoro neural voices" />
+      <p className="text-muted-foreground max-w-[58ch] text-sm leading-relaxed">
+        High-quality neural text-to-speech that runs entirely on your device —
+        no cloud, no API keys, no monthly limits. The 92 MB model downloads once
+        and is cached in your browser. Once loaded, select any voice from the
+        Read Aloud player.
+      </p>
+
+      <div className="mt-5 studio-card p-5 sm:p-6">
+        {/* Download row */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className={`w-10 h-10 grid place-items-center border shrink-0 ${
+                ready
+                  ? "bg-foreground text-background border-foreground"
+                  : failed
+                    ? "border-red-500/40 text-red-400"
+                    : downloading
+                      ? "border-border"
+                      : "border-border"
+              }`}
+            >
+              {downloading ? (
+                <Loader2 className="w-5 h-5 animate-spin" strokeWidth={1.4} />
+              ) : ready ? (
+                <Check className="w-5 h-5" strokeWidth={1.6} />
+              ) : failed ? (
+                <X className="w-5 h-5" strokeWidth={1.6} />
+              ) : (
+                <Sparkles className="w-5 h-5" strokeWidth={1.4} />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="font-display text-lg">
+                {ready
+                  ? "Model ready"
+                  : downloading
+                    ? "Downloading…"
+                    : failed
+                      ? "Download failed"
+                      : "Kokoro-82M neural model"}
+              </div>
+              <div className="text-xs text-muted-foreground truncate">
+                {ready
+                  ? "20 American voices available in the Read Aloud player"
+                  : downloading
+                    ? statusMsg
+                    : failed
+                      ? error
+                      : "~92 MB · one-time download · cached in browser"}
+              </div>
+            </div>
+          </div>
+
+          {!ready && (
+            <button
+              type="button"
+              disabled={downloading}
+              onClick={() => {
+                setError("");
+                void loadKokoroModel().catch((err) => {
+                  setError(err instanceof Error ? err.message : String(err));
+                });
+              }}
+              className="h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 shrink-0"
+            >
+              {downloading ? (
+                <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
+              ) : (
+                <Download className="w-4 h-4" strokeWidth={1.4} />
+              )}
+              <span className="text-xs uppercase tracking-[0.18em]">
+                {downloading
+                  ? `${Math.round(progress)}%`
+                  : failed
+                    ? "Retry"
+                    : "Download model"}
+              </span>
+            </button>
+          )}
+        </div>
+
+        {/* Progress bar */}
+        {downloading && (
+          <div className="mt-4">
+            <div className="h-1.5 bg-muted overflow-hidden">
+              <div
+                className="h-full bg-foreground transition-all"
+                style={{ width: `${Math.min(100, progress)}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* US Voice gallery */}
+      <div className="mt-6">
+        <div className="flex items-center gap-2 mb-4">
+          <Volume2 className="w-4 h-4 text-muted-foreground" strokeWidth={1.4} />
+          <h3 className="studio-caps text-muted-foreground">
+            American voices ({KOKORO_US_VOICES.length})
+          </h3>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+          {KOKORO_US_VOICES.map((v) => {
+            const isFemale = v.id.startsWith("af_");
+            return (
+              <div
+                key={v.id}
+                className={`border p-3 text-center ${
+                  ready
+                    ? "border-border hover:border-foreground/40 transition-colors"
+                    : "border-border/50 opacity-50"
+                }`}
+              >
+                <div
+                  className={`text-2xl mb-1 ${
+                    isFemale ? "opacity-90" : "opacity-70"
+                  }`}
+                >
+                  {isFemale ? "♀" : "♂"}
+                </div>
+                <div className="font-display text-sm truncate">
+                  {v.label.replace(/\s*\(.. [♀♂]\)$/, "")}
+                </div>
+                <div className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground mt-0.5">
+                  {isFemale ? "Female" : "Male"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </section>
   );
 }
 

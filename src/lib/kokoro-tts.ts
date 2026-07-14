@@ -21,15 +21,46 @@ export interface KokoroVoice {
   label: string;
 }
 
-/** All English voices shipped with Kokoro-82M. */
+/** All English voices shipped with Kokoro-82M, grouped by accent. */
 export const KOKORO_VOICES: KokoroVoice[] = [
+  // ── American female ─────────────────────────────────────────────
   { id: "af_bella", label: "Bella (US ♀)" },
   { id: "af_sky", label: "Sky (US ♀)" },
-  { id: "am_echo", label: "Echo (US ♂)" },
+  { id: "af_heart", label: "Heart (US ♀)" },
+  { id: "af_alloy", label: "Alloy (US ♀)" },
+  { id: "af_aoede", label: "Aoede (US ♀)" },
+  { id: "af_jessica", label: "Jessica (US ♀)" },
+  { id: "af_kore", label: "Kore (US ♀)" },
+  { id: "af_nicole", label: "Nicole (US ♀)" },
+  { id: "af_nova", label: "Nova (US ♀)" },
+  { id: "af_river", label: "River (US ♀)" },
+  { id: "af_sarah", label: "Sarah (US ♀)" },
+  // ── American male ───────────────────────────────────────────────
   { id: "am_adam", label: "Adam (US ♂)" },
+  { id: "am_echo", label: "Echo (US ♂)" },
+  { id: "am_eric", label: "Eric (US ♂)" },
+  { id: "am_fenrir", label: "Fenrir (US ♂)" },
+  { id: "am_liam", label: "Liam (US ♂)" },
+  { id: "am_michael", label: "Michael (US ♂)" },
+  { id: "am_onyx", label: "Onyx (US ♂)" },
+  { id: "am_puck", label: "Puck (US ♂)" },
+  { id: "am_santa", label: "Santa (US ♂)" },
+  // ── British female ──────────────────────────────────────────────
   { id: "bf_emma", label: "Emma (UK ♀)" },
+  { id: "bf_isabella", label: "Isabella (UK ♀)" },
+  { id: "bf_alice", label: "Alice (UK ♀)" },
+  { id: "bf_lily", label: "Lily (UK ♀)" },
+  // ── British male ────────────────────────────────────────────────
   { id: "bm_daniel", label: "Daniel (UK ♂)" },
+  { id: "bm_george", label: "George (UK ♂)" },
+  { id: "bm_lewis", label: "Lewis (UK ♂)" },
+  { id: "bm_fable", label: "Fable (UK ♂)" },
 ];
+
+/** American voices only (for the Settings card gallery). */
+export const KOKORO_US_VOICES = KOKORO_VOICES.filter(
+  (v) => v.id.startsWith("af_") || v.id.startsWith("am_"),
+);
 
 // ── Model state ───────────────────────────────────────────────────────
 
