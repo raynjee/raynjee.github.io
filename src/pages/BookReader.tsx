@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Pause,
+  Pencil,
   Play,
   Settings2,
   Sparkles,
@@ -1475,6 +1476,9 @@ function ChapterReader({
   autoAdvance,
   onToggleAutoAdvance,
   isPaused,
+  editMode,
+  onToggleEditMode,
+  onSaveEdits,
   onTranslateParagraph,
   onResetParagraph,
   busy,
@@ -1497,6 +1501,9 @@ function ChapterReader({
   autoAdvance: boolean;
   onToggleAutoAdvance: () => void;
   isPaused: boolean;
+  editMode: boolean;
+  onToggleEditMode: () => void;
+  onSaveEdits: (chapterId: string, editedParagraphs: (string | null)[]) => void | Promise<void>;
   onTranslateParagraph: (idx: number) => void | Promise<void>;
   onResetParagraph: (idx: number) => void;
   busy: boolean;
@@ -1512,6 +1519,16 @@ function ChapterReader({
   const navigate = useNavigate();
   const paragraphs = chapter.paragraphs;
   const translated = translation?.paragraphs ?? Array(paragraphs.length).fill(null);
+
+  // ── Edit mode local state ─────────────────────────────────────
+  const [editedTexts, setEditedTexts] = useState<(string | null)[]>([]) as [
+    (string | null)[],
+    React.Dispatch<React.SetStateAction<(string | null)[]>>,
+  ];
+  // Initialize editedTexts from translation when entering edit mode
+  useEffect(() => {
+    if (editMode) setEditedTexts([...translated]);
+  }, [editMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track freshly-translated paragraphs for a brief highlight animation.
   // Only triggers when busy (streaming), not on initial load of an already-completed chapter.
