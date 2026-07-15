@@ -18,6 +18,7 @@ export async function callDeepSeek(
   const userPrompt = buildUserPrompt(req);
 
   const body = {
+    model: cfg.model || "deepseek-chat",
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

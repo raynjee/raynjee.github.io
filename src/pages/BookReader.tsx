@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Pause,
+  Pencil,
   Play,
   Settings2,
   Sparkles,
@@ -36,7 +37,7 @@ import { buildTranslatedEpub } from "@/lib/epub";
 import { SCENE_BREAK } from "@/lib/text-import";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { formatRelativeTime } from "@/lib/util";
+import { formatRelativeTime, saveBookmark } from "@/lib/util";
 import {
   prefsToCssVars,
   ReaderSettingsControls,
@@ -77,6 +78,25 @@ export default function BookReader() {
       return next;
     });
   }, []);
+
+  // ── Edit translation mode ────────────────────────────────────────
+  const [editMode, setEditMode] = useState(false);
+  const onSaveEdits = useCallback(async (chapterId: string, editedParagraphs: (string | null)[]) => {
+    if (!book) return;
+    const tr = translations[chapterId];
+    if (!tr) return;
+    const updated: ChapterTranslation = {
+      ...tr,
+      paragraphs: editedParagraphs,
+      status: "completed",
+      completedAt: Date.now(),
+    };
+    await saveTranslation(updated);
+    setTranslations((m) => ({ ...m, [chapterId]: updated }));
+    setEditMode(false);
+    notifyLibraryChanged();
+    toast.success("Translation saved.");
+  }, [book, translations]);
   // Track whether the component is still mounted so long-running translates
   // (especially batch mode) don't setState after the user navigates away.
   const mountedRef = useRef(true);
@@ -182,6 +202,12 @@ export default function BookReader() {
     if (window.location.pathname !== wanted) {
       navigate(wanted, { replace: true });
     }
+  }, [activeId, book?.id]);
+
+  // Persist reading position so the Library can show "Continue Reading".
+  useEffect(() => {
+    if (!book || !activeId) return;
+    saveBookmark(book.id, activeId);
   }, [activeId, book?.id]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────
@@ -942,10 +968,12 @@ export default function BookReader() {
                   autoAdvance={autoAdvance}
                   onToggleAutoAdvance={onToggleAutoAdvance}
                   isPaused={paused}
+                  editMode={editMode}
+                  onToggleEditMode={() => setEditMode((v) => !v)}
+                  onSaveEdits={onSaveEdits}
                   onTranslateParagraph={async (paragraphIdx) => {
                     if (!book || !activeChapter) return;
                     const tr = activeTranslation ?? makeEmptyTranslation(book.id, activeChapter.id, activeChapter.paragraphs.length);
-                    if (tr.paragraphs[paragraphIdx] && tr.paragraphs[paragraphIdx]?.trim()) return;
                     const mgr = makeManager();
                     const res = await mgr.translateChapter({
                       paragraphs: [activeChapter.paragraphs[paragraphIdx]],
@@ -1013,14 +1041,16 @@ export default function BookReader() {
                 bookId={book.id}
                 onTranslate={onTranslateActive}
                 onPause={onPause}
-                onResume={onResume}
-                onStop={onStop}
-                onDeleteTranslation={onDeleteTranslation}
-                autoAdvance={autoAdvance}
-                onToggleAutoAdvance={onToggleAutoAdvance}
-                isPaused={paused}
-                mobile
-                onTranslateParagraph={async () => {}}
+                onResume={onResume}                  onStop={onStop}
+                  onDeleteTranslation={onDeleteTranslation}
+                  autoAdvance={autoAdvance}
+                  onToggleAutoAdvance={onToggleAutoAdvance}
+                  isPaused={paused}
+                  editMode={editMode}
+                  onToggleEditMode={() => setEditMode((v) => !v)}
+                  onSaveEdits={onSaveEdits}
+                  mobile
+                  onTranslateParagraph={async () => {}}
                 onResetParagraph={() => {}}
                 busy={busy}
                 readAloudProps={{
@@ -1451,6 +1481,9 @@ function ChapterReader({
   autoAdvance,
   onToggleAutoAdvance,
   isPaused,
+  editMode,
+  onToggleEditMode,
+  onSaveEdits,
   onTranslateParagraph,
   onResetParagraph,
   busy,
@@ -1473,6 +1506,9 @@ function ChapterReader({
   autoAdvance: boolean;
   onToggleAutoAdvance: () => void;
   isPaused: boolean;
+  editMode: boolean;
+  onToggleEditMode: () => void;
+  onSaveEdits: (chapterId: string, editedParagraphs: (string | null)[]) => void | Promise<void>;
   onTranslateParagraph: (idx: number) => void | Promise<void>;
   onResetParagraph: (idx: number) => void;
   busy: boolean;
@@ -1488,6 +1524,16 @@ function ChapterReader({
   const navigate = useNavigate();
   const paragraphs = chapter.paragraphs;
   const translated = translation?.paragraphs ?? Array(paragraphs.length).fill(null);
+
+  // ── Edit mode local state ─────────────────────────────────────
+  const [editedTexts, setEditedTexts] = useState<(string | null)[]>([]) as [
+    (string | null)[],
+    React.Dispatch<React.SetStateAction<(string | null)[]>>,
+  ];
+  // Initialize editedTexts from translation when entering edit mode
+  useEffect(() => {
+    if (editMode) setEditedTexts([...translated]);
+  }, [editMode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track freshly-translated paragraphs for a brief highlight animation.
   // Only triggers when busy (streaming), not on initial load of an already-completed chapter.
@@ -1699,16 +1745,26 @@ function ChapterReader({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.22, delay: Math.min(idx, 6) * 0.02 }}
               >
-                <p
-                  className="reader-prose-text text-foreground/80 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5"
-                  onClick={() => {
-                    const ri = chapterIdxToReadableIdx[idx];
-                    if (ri >= 0) onParagraphJump(ri);
-                  }}
-                  title="Click to read aloud from here"
-                >
-                  {p}
-                </p>
+                <div className="group flex items-start gap-1">
+                  <p
+                    className="reader-prose-text text-foreground/80 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 flex-1"
+                    onClick={() => {
+                      const ri = chapterIdxToReadableIdx[idx];
+                      if (ri >= 0) onParagraphJump(ri);
+                    }}
+                    title="Click to read aloud from here"
+                  >
+                    {p}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onTranslateParagraph(idx); }}
+                    className="shrink-0 mt-3 p-1.5 opacity-60 md:opacity-0 md:group-hover:opacity-60 hover:!opacity-100 text-muted-foreground hover:text-foreground transition-all rounded active:bg-foreground/10"
+                    title="Re-translate this paragraph"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" strokeWidth={1.8} />
+                  </button>
+                </div>
                 <div className="mt-3">
                   <p className={cn(
                     "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5",
@@ -1742,16 +1798,26 @@ function ChapterReader({
               )}
             >
               {showOriginal && (
-                <p
-                  className="reader-prose-text text-foreground/80 py-3 cursor-pointer hover:bg-foreground/5 px-1 -mx-1 rounded transition-colors duration-1000"
-                  onClick={() => {
-                    const ri = chapterIdxToReadableIdx[idx];
-                    if (ri >= 0) onParagraphJump(ri);
-                  }}
-                  title="Click to read aloud from here"
-                >
-                  {p}
-                </p>
+                <div className="group flex items-start gap-1">
+                  <p
+                    className="reader-prose-text text-foreground/80 py-3 cursor-pointer hover:bg-foreground/5 px-1 -mx-1 rounded transition-colors duration-1000 flex-1"
+                    onClick={() => {
+                      const ri = chapterIdxToReadableIdx[idx];
+                      if (ri >= 0) onParagraphJump(ri);
+                    }}
+                    title="Click to read aloud from here"
+                  >
+                    {p}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onTranslateParagraph(idx); }}
+                    className="shrink-0 mt-3 p-1.5 opacity-60 md:opacity-0 md:group-hover:opacity-60 hover:!opacity-100 text-muted-foreground hover:text-foreground transition-all rounded active:bg-foreground/10"
+                    title="Re-translate this paragraph"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" strokeWidth={1.8} />
+                  </button>
+                </div>
               )}
               <p className={cn(
                 "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5",
