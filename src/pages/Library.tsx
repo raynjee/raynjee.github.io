@@ -5,9 +5,11 @@
 // real word-level progress of the whole book rather than chapter 1 only.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import {
   ArrowDown,
   ArrowUp,
+  BookOpen,
   BookOpenCheck,
   Languages,
   Library as LibraryIcon,
@@ -43,7 +45,7 @@ import { TranslationManager } from "@/lib/translators/types";
 import { useSettings } from "@/hooks/use-settings";
 import type { Chapter } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { countWords, uid } from "@/lib/util";
+import { countWords, formatRelativeTime, getBookmark, uid } from "@/lib/util";
 import { splitIntoChapters } from "@/lib/text-import";
 
 type SortBy = "recent" | "title" | "progress";
@@ -143,6 +145,15 @@ export default function Library() {
 
   const isAllSelected = filteredBooks.length > 0 && selectedBooks.size === filteredBooks.length;
 
+  // Reading bookmark — persisted by BookReader so we can offer
+  // a "Continue Reading" shortcut on the library page.
+  const bookmark = useMemo(() => {
+    const bm = getBookmark();
+    if (!bm) return null;
+    const b = books.find((x) => x.id === bm.bookId);
+    return b ? { book: b, chapterId: bm.chapterId, savedAt: bm.savedAt } : null;
+  }, [books]);
+
   const totals = useMemo(() => {
     let chapters = 0;
     let words = 0;
@@ -231,6 +242,35 @@ export default function Library() {
             <option value="progress">Progress</option>
           </select>
         </div>
+
+        {/* ── Continue Reading ────────────────────────────────── */}
+        {bookmark && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-10 flex items-center justify-between gap-4 border border-foreground/10 bg-foreground/[0.03] rounded-lg px-5 py-4"
+          >
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-1">
+                Continue reading
+              </div>
+              <div className="font-display text-base sm:text-lg truncate">
+                {bookmark.book.title}
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                {bookmark.book.author} · Saved {formatRelativeTime(bookmark.savedAt)}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate(`/library/${bookmark.book.id}/${bookmark.chapterId}`)}
+              className="shrink-0 h-10 px-5 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 active:scale-[0.97] transition-transform rounded-md"
+            >
+              <BookOpen className="w-4 h-4" strokeWidth={1.4} />
+              <span className="text-xs uppercase tracking-[0.15em]">Resume</span>
+            </button>
+          </motion.div>
+        )}
 
         {/* ── § III · Wall ──────────────────────────────────────── */}
         <div className="mt-10">

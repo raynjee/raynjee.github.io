@@ -134,3 +134,38 @@ export function formatRelativeTime(ts: number): string {
 export function pluralize(n: number, singular: string, plural?: string): string {
   return n === 1 ? singular : plural ?? `${singular}s`;
 }
+
+// ── Reading bookmark ────────────────────────────────────────────────────
+// Persisted to localStorage so the Library can show a "Continue Reading"
+// card and the reader can resume exactly where the user left off.
+
+const BOOKMARK_KEY = "atelier.reader.bookmark";
+
+export interface ReadingBookmark {
+  bookId: string;
+  chapterId: string;
+  savedAt: number;
+}
+
+export function saveBookmark(bookId: string, chapterId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      BOOKMARK_KEY,
+      JSON.stringify({ bookId, chapterId, savedAt: Date.now() }),
+    );
+  } catch {}
+}
+
+export function getBookmark(): ReadingBookmark | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(BOOKMARK_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ReadingBookmark;
+    if (parsed.bookId && parsed.chapterId) return parsed;
+    return null;
+  } catch {
+    return null;
+  }
+}

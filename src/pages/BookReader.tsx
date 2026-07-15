@@ -37,7 +37,7 @@ import { buildTranslatedEpub } from "@/lib/epub";
 import { SCENE_BREAK } from "@/lib/text-import";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { formatRelativeTime } from "@/lib/util";
+import { formatRelativeTime, saveBookmark } from "@/lib/util";
 import {
   prefsToCssVars,
   ReaderSettingsControls,
@@ -202,6 +202,12 @@ export default function BookReader() {
     if (window.location.pathname !== wanted) {
       navigate(wanted, { replace: true });
     }
+  }, [activeId, book?.id]);
+
+  // Persist reading position so the Library can show "Continue Reading".
+  useEffect(() => {
+    if (!book || !activeId) return;
+    saveBookmark(book.id, activeId);
   }, [activeId, book?.id]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────
