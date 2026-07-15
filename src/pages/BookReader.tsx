@@ -1753,7 +1753,7 @@ function ChapterReader({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onTranslateParagraph(idx); }}
-                    className="shrink-0 mt-3 p-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 text-muted-foreground hover:text-foreground transition-all rounded"
+                    className="shrink-0 mt-3 p-1.5 opacity-60 md:opacity-0 md:group-hover:opacity-60 hover:!opacity-100 text-muted-foreground hover:text-foreground transition-all rounded active:bg-foreground/10"
                     title="Re-translate this paragraph"
                   >
                     <Undo2 className="w-3.5 h-3.5" strokeWidth={1.8} />
@@ -1806,7 +1806,7 @@ function ChapterReader({
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onTranslateParagraph(idx); }}
-                    className="shrink-0 mt-3 p-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 text-muted-foreground hover:text-foreground transition-all rounded"
+                    className="shrink-0 mt-3 p-1.5 opacity-60 md:opacity-0 md:group-hover:opacity-60 hover:!opacity-100 text-muted-foreground hover:text-foreground transition-all rounded active:bg-foreground/10"
                     title="Re-translate this paragraph"
                   >
                     <Undo2 className="w-3.5 h-3.5" strokeWidth={1.8} />
