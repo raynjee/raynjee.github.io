@@ -5,7 +5,7 @@ import { InstrumentationProvider } from "@/instrumentation.tsx";
 import { StrictMode, useEffect, lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  BrowserRouter,
+  HashRouter,
   Route,
   Routes,
   useLocation,
@@ -59,7 +59,7 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <VlyToolbar />
     <InstrumentationProvider>
-      <BrowserRouter>
+      <HashRouter>
         <RouteSyncer />
         <Suspense fallback={<RouteLoading />}>
           <Routes>
@@ -73,7 +73,7 @@ createRoot(document.getElementById("root")!).render(
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
-      </BrowserRouter>
+      </HashRouter>
       <Toaster />
     </InstrumentationProvider>
   </StrictMode>,

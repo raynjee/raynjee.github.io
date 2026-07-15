@@ -6,6 +6,8 @@ import { defineConfig } from "vite";
 
 // https://vite.dev/config/
 export default defineConfig({
+  // raynjee.github.io is a user site, served from the root path
+  base: "/",
   plugins: [vlyPlugin(), react(), tailwindcss()],
   resolve: {
     alias: {
