@@ -1,4 +1,3 @@
-````markdown
 # 📚 Atelier Translation Studio
 
 > *A quiet studio for translating novels between languages — EPUB to EPUB, fully on your device.*
@@ -150,7 +149,7 @@ Atelier includes a web app manifest, allowing installation on supported browsers
 
 ## 🌐 Deployment
 
-The project is designed for deployment as a static web application and can be hosted on:
+The project can be deployed to any static hosting provider, including:
 
 - GitHub Pages
 - Netlify
@@ -176,9 +175,7 @@ Future improvements include:
 
 ## 🤝 Contributing
 
-Contributions are welcome.
-
-If you'd like to improve Atelier, feel free to fork the repository, open an issue, or submit a pull request.
+Contributions are welcome! If you'd like to improve Atelier, feel free to fork the repository, open an issue, or submit a pull request.
 
 ---
 
@@ -197,5 +194,4 @@ This project is licensed under the MIT License.
 
 ---
 
-*"Where stories cross languages without losing their soul."*
-````
+> *Where stories cross languages without losing their soul.*
