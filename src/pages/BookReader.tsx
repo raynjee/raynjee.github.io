@@ -968,7 +968,6 @@ export default function BookReader() {
                   onTranslateParagraph={async (paragraphIdx) => {
                     if (!book || !activeChapter) return;
                     const tr = activeTranslation ?? makeEmptyTranslation(book.id, activeChapter.id, activeChapter.paragraphs.length);
-                    if (tr.paragraphs[paragraphIdx] && tr.paragraphs[paragraphIdx]?.trim()) return;
                     const mgr = makeManager();
                     const res = await mgr.translateChapter({
                       paragraphs: [activeChapter.paragraphs[paragraphIdx]],
@@ -1740,16 +1739,26 @@ function ChapterReader({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.22, delay: Math.min(idx, 6) * 0.02 }}
               >
-                <p
-                  className="reader-prose-text text-foreground/80 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5"
-                  onClick={() => {
-                    const ri = chapterIdxToReadableIdx[idx];
-                    if (ri >= 0) onParagraphJump(ri);
-                  }}
-                  title="Click to read aloud from here"
-                >
-                  {p}
-                </p>
+                <div className="group flex items-start gap-1">
+                  <p
+                    className="reader-prose-text text-foreground/80 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 flex-1"
+                    onClick={() => {
+                      const ri = chapterIdxToReadableIdx[idx];
+                      if (ri >= 0) onParagraphJump(ri);
+                    }}
+                    title="Click to read aloud from here"
+                  >
+                    {p}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onTranslateParagraph(idx); }}
+                    className="shrink-0 mt-3 p-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 text-muted-foreground hover:text-foreground transition-all rounded"
+                    title="Re-translate this paragraph"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" strokeWidth={1.8} />
+                  </button>
+                </div>
                 <div className="mt-3">
                   <p className={cn(
                     "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5",
@@ -1783,16 +1792,26 @@ function ChapterReader({
               )}
             >
               {showOriginal && (
-                <p
-                  className="reader-prose-text text-foreground/80 py-3 cursor-pointer hover:bg-foreground/5 px-1 -mx-1 rounded transition-colors duration-1000"
-                  onClick={() => {
-                    const ri = chapterIdxToReadableIdx[idx];
-                    if (ri >= 0) onParagraphJump(ri);
-                  }}
-                  title="Click to read aloud from here"
-                >
-                  {p}
-                </p>
+                <div className="group flex items-start gap-1">
+                  <p
+                    className="reader-prose-text text-foreground/80 py-3 cursor-pointer hover:bg-foreground/5 px-1 -mx-1 rounded transition-colors duration-1000 flex-1"
+                    onClick={() => {
+                      const ri = chapterIdxToReadableIdx[idx];
+                      if (ri >= 0) onParagraphJump(ri);
+                    }}
+                    title="Click to read aloud from here"
+                  >
+                    {p}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onTranslateParagraph(idx); }}
+                    className="shrink-0 mt-3 p-0.5 opacity-0 group-hover:opacity-60 hover:!opacity-100 text-muted-foreground hover:text-foreground transition-all rounded"
+                    title="Re-translate this paragraph"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" strokeWidth={1.8} />
+                  </button>
+                </div>
               )}
               <p className={cn(
                 "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5",
