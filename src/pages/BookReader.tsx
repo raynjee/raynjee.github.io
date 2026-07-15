@@ -77,6 +77,25 @@ export default function BookReader() {
       return next;
     });
   }, []);
+
+  // ── Edit translation mode ────────────────────────────────────────
+  const [editMode, setEditMode] = useState(false);
+  const onSaveEdits = useCallback(async (chapterId: string, editedParagraphs: (string | null)[]) => {
+    if (!book) return;
+    const tr = translations[chapterId];
+    if (!tr) return;
+    const updated: ChapterTranslation = {
+      ...tr,
+      paragraphs: editedParagraphs,
+      status: "completed",
+      completedAt: Date.now(),
+    };
+    await saveTranslation(updated);
+    setTranslations((m) => ({ ...m, [chapterId]: updated }));
+    setEditMode(false);
+    notifyLibraryChanged();
+    toast.success("Translation saved.");
+  }, [book, translations]);
   // Track whether the component is still mounted so long-running translates
   // (especially batch mode) don't setState after the user navigates away.
   const mountedRef = useRef(true);
@@ -942,6 +961,9 @@ export default function BookReader() {
                   autoAdvance={autoAdvance}
                   onToggleAutoAdvance={onToggleAutoAdvance}
                   isPaused={paused}
+                  editMode={editMode}
+                  onToggleEditMode={() => setEditMode((v) => !v)}
+                  onSaveEdits={onSaveEdits}
                   onTranslateParagraph={async (paragraphIdx) => {
                     if (!book || !activeChapter) return;
                     const tr = activeTranslation ?? makeEmptyTranslation(book.id, activeChapter.id, activeChapter.paragraphs.length);
@@ -1013,14 +1035,16 @@ export default function BookReader() {
                 bookId={book.id}
                 onTranslate={onTranslateActive}
                 onPause={onPause}
-                onResume={onResume}
-                onStop={onStop}
-                onDeleteTranslation={onDeleteTranslation}
-                autoAdvance={autoAdvance}
-                onToggleAutoAdvance={onToggleAutoAdvance}
-                isPaused={paused}
-                mobile
-                onTranslateParagraph={async () => {}}
+                onResume={onResume}                  onStop={onStop}
+                  onDeleteTranslation={onDeleteTranslation}
+                  autoAdvance={autoAdvance}
+                  onToggleAutoAdvance={onToggleAutoAdvance}
+                  isPaused={paused}
+                  editMode={editMode}
+                  onToggleEditMode={() => setEditMode((v) => !v)}
+                  onSaveEdits={onSaveEdits}
+                  mobile
+                  onTranslateParagraph={async () => {}}
                 onResetParagraph={() => {}}
                 busy={busy}
                 readAloudProps={{
