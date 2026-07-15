@@ -221,10 +221,12 @@ export class TranslationManager {
     rows: string[];
     provider: ProviderId | null;
     failed: boolean;
+    error?: string;
   }> {
     const total = args.paragraphs.length;
     const rows: (string | null)[] = Array(total).fill(null);
     let failed = false;
+    const errors: string[] = [];
     let providerUsed: ProviderId | null = null;
     args.onProgress?.({ done: 0, total, provider: null, index: 0 });
 
@@ -278,7 +280,10 @@ export class TranslationManager {
         const globalIdx = chunk.startIdx + k;
         rows[globalIdx] = translated.rows[k] ?? args.paragraphs[globalIdx];
       }
-      if (translated.failed) failed = true;
+      if (translated.failed) {
+        failed = true;
+        if (translated.error) errors.push(translated.error);
+      }
       if (!providerUsed && translated.provider) {
         providerUsed = translated.provider;
         this.currentProvider = translated.provider;
@@ -295,7 +300,12 @@ export class TranslationManager {
       args.onPartialRows?.([...rows]);
     }
 
-    return { rows: rows.map((r) => r ?? ""), provider: providerUsed, failed };
+    return {
+      rows: rows.map((r) => r ?? ""),
+      provider: providerUsed,
+      failed,
+      error: errors.length > 0 ? errors[errors.length - 1] : undefined,
+    };
   }
 
   private async runChunkWithFailover(
@@ -306,6 +316,7 @@ export class TranslationManager {
     rows: string[];
     provider: ProviderId | null;
     failed: boolean;
+    error?: string;
   }> {
     // Try preferred first, then walk through others.
     const order = orderProviders(this.opts.preferred, this.opts.providers);
@@ -337,6 +348,7 @@ export class TranslationManager {
       };
     }
 
+    let lastError: string | undefined;
     for (const cfg of order) {
       if (!cfg.enabled) continue;
       if (cfg.id === "gemini" && !cfg.apiKey) continue;
@@ -391,6 +403,7 @@ export class TranslationManager {
           failed: false,
         };
       } catch (err) {
+        lastError = `${client.name}: ${describeError(err)}`;
         const status = this.status.get(cfg.id);
         if (status) {
           status.ok = false;
@@ -410,7 +423,12 @@ export class TranslationManager {
         this.persist();
       }
     }
-    return { rows: cached.map((c, i) => c ?? chunk[i]), provider: null, failed: true };
+    return {
+      rows: cached.map((c, i) => c ?? chunk[i]),
+      provider: null,
+      failed: true,
+      error: lastError,
+    };
   }
 }
 

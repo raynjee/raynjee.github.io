@@ -422,7 +422,7 @@ export default function BookReader() {
         progress: result.failed
           ? result.rows.filter((r, i) => r.trim() && r.trim() !== ch.paragraphs[i].trim()).length / Math.max(1, ch.paragraphs.length)
           : 1,
-        error: result.failed ? "One or more providers failed. Verify API keys in Settings." : undefined,
+        error: result.failed ? result.error ?? "One or more providers failed. Verify API keys in Settings." : undefined,
       };
       await saveTranslation(tr);
       setTranslations((m) => ({ ...m, [ch.id]: tr }));
@@ -452,7 +452,9 @@ export default function BookReader() {
         }
       } else {
         toast.warning(
-          "Some paragraphs could not be translated — check provider status.",
+          result.error
+            ? `Translation incomplete: ${result.error.slice(0, 180)}`
+            : "Some paragraphs could not be translated. Check provider status.",
         );
       }
     } catch (err) {
@@ -605,7 +607,7 @@ export default function BookReader() {
             completedAt: Date.now(),
             provider: result.provider,
             progress: result.failed ? 0.6 : 1,
-            error: result.failed ? "Provider failures during batch translation." : undefined,
+            error: result.failed ? result.error ?? "Provider failures during batch translation." : undefined,
           };
           await saveTranslation(finalTr);
           if (!mountedRef.current) break;
