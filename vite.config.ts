@@ -75,7 +75,6 @@ export default defineConfig({
       'react',
       'react-dom',
       'react-router',
-      '@convex-dev/auth/react',
     ],
   },
   // Performance hints
