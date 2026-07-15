@@ -189,11 +189,20 @@ export async function deleteChapter(bookId: string, chapterId: string) {
   if (!book) return;
   const newOrder = book.chapterOrder.filter((x) => x !== chapterId);
   await reorderChapters(bookId, newOrder);
-  // Delete the translation AND clear the whole translation cache so a
-  // future retranslation with updated glossary entries reaches the AI
-  // instead of returning stale cached results.
-  const { deleteTranslation } = await import("@/lib/db");
-  await deleteTranslation(bookId, chapterId);
+  // Remove translation entry if present.
+  const { getTranslation, db } = await import("@/lib/db");
+  const tr = await getTranslation(bookId, chapterId);
+  if (tr) {
+    const d = await db();
+    await new Promise<void>((resolve, reject) => {
+      const t = d.transaction("translations", "readwrite");
+      const s = t.objectStore("translations");
+      const req = s.delete(`${bookId}:${chapterId}`);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+      t.oncomplete = () => resolve();
+    });
+  }
   notifyLibraryChanged();
 }
 

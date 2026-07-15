@@ -353,14 +353,6 @@ export async function putCachedTranslation(
   await tx(d, "cache", "readwrite", (s) => s.put(entry));
 }
 
-// Clear the entire translation cache. Called when a translation is deleted
-// so that retranslating with updated glossary entries actually reaches the
-// AI instead of returning stale cached results.
-export async function clearTranslationCache(): Promise<void> {
-  const d = await db();
-  await tx(d, "cache", "readwrite", (s) => s.clear());
-}
-
 // Maintain a soft cap on cache entries to avoid IDB bloat.
 const CACHE_CAP = 5000;
 
@@ -390,17 +382,6 @@ export async function trimCache(): Promise<void> {
     t.oncomplete = () => resolve();
     t.onerror = () => reject(t.error);
   });
-}
-
-// Delete a translation entry and wipe the cache so future retranslations
-// run fresh against the current glossary.
-export async function deleteTranslation(
-  bookId: string,
-  chapterId: string,
-): Promise<void> {
-  const d = await db();
-  await tx(d, "translations", "readwrite", (s) => s.delete(`${bookId}:${chapterId}`));
-  await clearTranslationCache();
 }
 
 // ── Original EPUB blobs (for re-export) ──────────────────────────────────
