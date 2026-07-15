@@ -17,12 +17,13 @@ export async function callDeepSeek(
   const systemPrompt = buildSystemPrompt(req);
   const userPrompt = buildUserPrompt(req);
 
+  const prompt = `${systemPrompt}\n\n${userPrompt}`;
   const body = {
     model: cfg.model || "deepseek-chat",
     messages: [
       {
         role: "user",
-        content: `${systemPrompt}\n\n${userPrompt}`,
+        content: prompt,
       },
     ],
     stream: false,
@@ -51,7 +52,8 @@ export async function callDeepSeek(
     }
     const data = (await res.json()) as DeepSeekCompletion;
     const text = pickMessage(data);
-    if (!text) {
+    const completion = text || await fetchStreamedCompletion(cfg, req, prompt);
+    if (!completion) {
       if (req.paragraphs.length > 1) {
         return {
           paragraphs: await retryMissingParagraphs(
@@ -67,7 +69,7 @@ export async function callDeepSeek(
         cachedCount: 0,
       };
     }
-    const paragraphs = parseNumberedResponse(text, req.paragraphs);
+    const paragraphs = parseNumberedResponse(completion, req.paragraphs);
     if (paragraphs.some((p) => !p.trim()) && req.paragraphs.length > 1) {
       return {
         paragraphs: await retryMissingParagraphs(cfg, req, paragraphs),
@@ -144,13 +146,14 @@ async function translateSingleParagraph(
     }
     const data = (await res.json()) as DeepSeekCompletion;
     const text = pickMessage(data);
-    if (!text) {
+    const completion = text || await fetchStreamedCompletion(cfg, req, prompt, model);
+    if (!completion) {
       if (model !== "deepseek-expert") {
         return translateSingleParagraph(cfg, req, paragraph, "deepseek-expert");
       }
       throw new Error("DeepSeek returned an empty single-paragraph completion.");
     }
-    return stripNumberPrefix(stripCodeFence(text));
+    return stripNumberPrefix(stripCodeFence(completion));
   } catch (err) {
     if ((err as Error).name === "AbortError") {
       const e = new Error("DeepSeek single-paragraph retry timed out after 90s.");
@@ -158,6 +161,41 @@ async function translateSingleParagraph(
       throw e;
     }
     throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchStreamedCompletion(
+  cfg: ProviderConfig,
+  req: TranslateRequest,
+  prompt: string,
+  modelOverride?: string,
+): Promise<string | null> {
+  const base = cfg.baseUrl?.replace(/\/$/, "") || DEFAULT_ENDPOINT;
+  const url = `${base}/chat/completions`;
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 90_000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "text/event-stream, application/json",
+      },
+      body: JSON.stringify({
+        model: modelOverride || cfg.model || "deepseek-chat",
+        messages: [{ role: "user", content: prompt }],
+        stream: true,
+        temperature: req.quality === "high" ? 0.35 : req.quality === "balanced" ? 0.5 : 0.7,
+      }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return null;
+    const raw = await safeText(res);
+    return parseSseCompletion(raw);
+  } catch {
+    return null;
   } finally {
     clearTimeout(timeout);
   }
@@ -204,6 +242,25 @@ function firstNonBlank(...values: Array<string | null>): string | null {
     if (value?.trim()) return value;
   }
   return null;
+}
+
+function parseSseCompletion(raw: string): string | null {
+  const parts: string[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("data:")) continue;
+    const payload = trimmed.slice(5).trim();
+    if (!payload || payload === "[DONE]") continue;
+    try {
+      const chunk = JSON.parse(payload) as DeepSeekCompletion;
+      const text = pickMessage(chunk);
+      if (text) parts.push(text);
+    } catch {
+      continue;
+    }
+  }
+  const joined = parts.join("");
+  return joined.trim() ? joined : null;
 }
 
 function buildSystemPrompt(req: TranslateRequest): string {
