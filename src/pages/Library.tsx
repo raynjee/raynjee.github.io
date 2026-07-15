@@ -1032,33 +1032,73 @@ export function BookEditor({ bookId }: { bookId: string }) {
                     source: book.language,
                     target: "en",
                   });
-                  const items: { kind: string; text: string }[] = [];
-                  if (title.trim()) items.push({ kind: "Book title", text: title.trim() });
-                  if (author.trim()) items.push({ kind: "Author name", text: author.trim() });
-                  if (description.trim()) items.push({ kind: "Book description", text: description.trim() });
-                  const chapterItems = chapters.map((c) => ({ kind: "Chapter title", text: c.title }));
+                  const items: {
+                    kind: string;
+                    text: string;
+                    apply: (translated: string) => Promise<boolean> | boolean;
+                  }[] = [];
+                  if (title.trim()) {
+                    items.push({
+                      kind: "Book title",
+                      text: title.trim(),
+                      apply: (translated) => {
+                        if (translated === title.trim()) return false;
+                        setTitle(translated);
+                        return true;
+                      },
+                    });
+                  }
+                  if (author.trim()) {
+                    items.push({
+                      kind: "Author name",
+                      text: author.trim(),
+                      apply: (translated) => {
+                        if (translated === author.trim()) return false;
+                        setAuthor(translated);
+                        return true;
+                      },
+                    });
+                  }
+                  if (description.trim()) {
+                    items.push({
+                      kind: "Book description",
+                      text: description.trim(),
+                      apply: (translated) => {
+                        if (translated === description.trim()) return false;
+                        setDescription(translated);
+                        return true;
+                      },
+                    });
+                  }
+                  const chapterItems = chapters.map((c) => ({
+                    kind: "Chapter title",
+                    text: c.title,
+                    apply: async (translated: string) => {
+                      if (!translated || translated === c.title) return false;
+                      await renameChapter(c.id, translated);
+                      setChapters((cs) => cs.map((ch) => (ch.id === c.id ? { ...ch, title: translated } : ch)));
+                      return true;
+                    },
+                  }));
                   items.push(...chapterItems);
                   if (items.length === 0) { setTranslatingMeta(false); return; }
                   const result = await mgr.translateChapter({
                     paragraphs: items.map((i) => i.text),
                     contextHint: `Translate these book metadata entries from "${book.title}" to natural English. Preserve the item kind context: book title, author name, description, and chapter titles. Return ONLY the translated entries, one per line, in the same order.`,
                   });
-                  let idx = 0;
-                  if (title.trim() && result.rows[idx] && result.rows[idx].trim() !== title.trim()) setTitle(result.rows[idx].trim());
-                  idx++;
-                  if (author.trim() && result.rows[idx] && result.rows[idx].trim() !== author.trim()) setAuthor(result.rows[idx].trim());
-                  idx++;
-                  if (description.trim() && result.rows[idx] && result.rows[idx].trim() !== description.trim()) setDescription(result.rows[idx].trim());
-                  idx++;
-                  for (const ch of chapters) {
-                    const translated = result.rows[idx];
-                    if (translated && translated.trim() && translated.trim() !== ch.title) {
-                      await renameChapter(ch.id, translated.trim());
-                      setChapters((cs) => cs.map((c) => (c.id === ch.id ? { ...c, title: translated.trim() } : c)));
-                    }
-                    idx++;
+                  let changed = 0;
+                  for (let idx = 0; idx < items.length; idx++) {
+                    const translated = result.rows[idx]?.trim();
+                    if (!translated) continue;
+                    if (await items[idx].apply(translated)) changed++;
                   }
-                  toast.success("Metadata and chapter titles translated. Save to persist.");
+                  if (result.failed) {
+                    toast.warning("Metadata translation had provider errors. Check Settings before saving.");
+                  } else if (changed > 0) {
+                    toast.success("Metadata and chapter titles translated. Save to persist.");
+                  } else {
+                    toast.message("Metadata was already English or unchanged.");
+                  }
                 } catch (e) {
                   const msg = e instanceof Error ? e.message : String(e);
                   toast.error(`Translation failed: ${msg.slice(0, 200)}`);

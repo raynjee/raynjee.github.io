@@ -72,11 +72,23 @@ async function safeText(res: Response): Promise<string> {
 }
 
 interface DeepSeekCompletion {
-  choices?: Array<{ message?: { content?: string } }>;
+  choices?: Array<{ message?: { content?: string }; text?: string }>;
+  message?: { content?: string };
+  content?: string;
+  response?: string;
+  text?: string;
 }
 
 function pickMessage(data: DeepSeekCompletion): string | null {
-  return data?.choices?.[0]?.message?.content ?? null;
+  return (
+    data?.choices?.[0]?.message?.content ??
+    data?.choices?.[0]?.text ??
+    data?.message?.content ??
+    data?.content ??
+    data?.response ??
+    data?.text ??
+    null
+  );
 }
 
 function buildSystemPrompt(req: TranslateRequest): string {
@@ -148,14 +160,15 @@ export function parseNumberedResponse(
   sourceParagraphs: string[],
 ): string[] {
   const out: string[] = Array(sourceParagraphs.length).fill("");
-  const lines = text.split(/\r?\n/);
-  const re = /^\s*\[(\d+)\]\s*(.*)$/;
+  const cleaned = stripCodeFence(text);
+  const lines = cleaned.split(/\r?\n/);
+  const re = /^\s*(?:\[(\d+)\]|(\d+)[.)：:])\s*(.*)$/;
   for (const ln of lines) {
     const m = re.exec(ln);
     if (!m) continue;
-    const idx = Number(m[1]) - 1;
+    const idx = Number(m[1] ?? m[2]) - 1;
     if (Number.isFinite(idx) && idx >= 0 && idx < sourceParagraphs.length) {
-      out[idx] = m[2].trim();
+      out[idx] = m[3].trim();
     }
   }
 
@@ -167,15 +180,17 @@ export function parseNumberedResponse(
   if (!anyNumbered) {
     const nonBlank = lines
       .map((l) => l.trim())
-      .filter((l) => l.length > 0);
+      .filter((l) => l.length > 0 && !/^(translation|translated|english)\b/i.test(l));
     for (let i = 0; i < Math.min(nonBlank.length, sourceParagraphs.length); i++) {
       out[i] = nonBlank[i];
     }
   }
 
-  // Backfill: any STILL-missing entries fall back to the source.
-  for (let i = 0; i < out.length; i++) {
-    if (!out[i]) out[i] = sourceParagraphs[i];
-  }
   return out;
+}
+
+function stripCodeFence(text: string): string {
+  const trimmed = text.trim();
+  const fenced = /^```(?:\w+)?\s*\n([\s\S]*?)\n```$/.exec(trimmed);
+  return fenced ? fenced[1].trim() : trimmed;
 }

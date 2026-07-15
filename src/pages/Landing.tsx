@@ -65,6 +65,10 @@ export default function Landing() {
               and the translation on the other, then binds the finished English
               version back into a single EPUB. Nothing leaves your machine.
             </p>
+            <div className="mt-6 inline-flex items-center gap-2 border border-border px-3 py-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+              <ShieldCheck className="w-3.5 h-3.5 text-foreground" strokeWidth={1.4} />
+              DeepSeek proxy validation now rejects untranslated source copies
+            </div>
 
             <div className="mt-10 flex flex-wrap items-center gap-3">
               <button

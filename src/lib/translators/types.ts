@@ -9,7 +9,7 @@ import type {
   Quality,
   SourceLanguage,
 } from "../types";
-import { sha256Hex } from "../util";
+import { detectLanguage, sha256Hex } from "../util";
 
 export interface TranslateRequest {
   paragraphs: string[];
@@ -345,18 +345,29 @@ export class TranslationManager {
       try {
         const req: TranslateRequest = {
           paragraphs: missingIndices.map((i) => chunk[i]),
-          source: this.opts.source,
+          source: resolveSourceLanguage(
+            this.opts.source,
+            missingIndices.map((i) => chunk[i]),
+          ),
           target: this.opts.target,
           quality: this.opts.quality,
           contextHint,
           glossary,
         };
         const res = await client.translate(cfg, req);
-        for (let k = 0; k < missingIndices.length; k++) {
-          const translated = res.paragraphs[k];
+        const invalid = res.paragraphs.findIndex((translated, k) => {
           const source = chunk[missingIndices[k]];
-          const finalText = translated ?? source;
-          cached[missingIndices[k]] = finalText;
+          return !isUsableTranslation(source, translated);
+        });
+        if (invalid >= 0) {
+          throw new Error(
+            `${client.name} returned missing or untranslated text for paragraph ${invalid + 1}.`,
+          );
+        }
+        for (let k = 0; k < missingIndices.length; k++) {
+          const translated = res.paragraphs[k].trim();
+          const source = chunk[missingIndices[k]];
+          cached[missingIndices[k]] = translated;
           const key = await TranslationMemory.cacheKey(
             source,
             this.opts.target,
@@ -364,7 +375,7 @@ export class TranslationManager {
             cfg.id,
             glossary,
           );
-          await this.mem.put(key, finalText, cfg.id);
+          await this.mem.put(key, translated, cfg.id);
         }
         const status = this.status.get(cfg.id);
         if (status) {
@@ -401,6 +412,41 @@ export class TranslationManager {
     }
     return { rows: cached.map((c, i) => c ?? chunk[i]), provider: null, failed: true };
   }
+}
+
+function resolveSourceLanguage(
+  configured: SourceLanguage,
+  paragraphs: string[],
+): SourceLanguage {
+  const detected = detectLanguage(paragraphs.join("\n\n").slice(0, 8000));
+  if (detected === "zh" || detected === "ja" || detected === "ko") return detected;
+  if (configured === "en" && detected !== "en") return "auto";
+  return configured;
+}
+
+function isUsableTranslation(source: string, translated: string | undefined): translated is string {
+  if (!translated?.trim()) return false;
+  const sourceTrimmed = normalizeForComparison(source);
+  const translatedTrimmed = normalizeForComparison(translated);
+  if (!sourceTrimmed || !translatedTrimmed) return false;
+  const sourceIsCjk = containsCjk(source);
+  if (!sourceIsCjk) return true;
+  if (translatedTrimmed === sourceTrimmed) return false;
+  const sourceCjk = countCjk(source);
+  const translatedCjk = countCjk(translated);
+  return translatedCjk <= Math.max(4, Math.floor(sourceCjk * 0.25));
+}
+
+function normalizeForComparison(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function containsCjk(text: string): boolean {
+  return /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/.test(text);
+}
+
+function countCjk(text: string): number {
+  return text.match(/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]/g)?.length ?? 0;
 }
 
 function orderProviders(

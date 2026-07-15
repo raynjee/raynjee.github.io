@@ -420,7 +420,7 @@ export default function BookReader() {
         completedAt: Date.now(),
         provider: result.provider,
         progress: result.failed
-          ? Math.min(1, (ch.paragraphs.filter((p) => p).length))
+          ? result.rows.filter((r, i) => r.trim() && r.trim() !== ch.paragraphs[i].trim()).length / Math.max(1, ch.paragraphs.length)
           : 1,
         error: result.failed ? "One or more providers failed. Verify API keys in Settings." : undefined,
       };
