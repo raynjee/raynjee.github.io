@@ -51,7 +51,22 @@ export async function callDeepSeek(
     }
     const data = (await res.json()) as DeepSeekCompletion;
     const text = pickMessage(data);
-    if (!text) throw new Error("DeepSeek returned an empty completion.");
+    if (!text) {
+      if (req.paragraphs.length > 1) {
+        return {
+          paragraphs: await retryMissingParagraphs(
+            cfg,
+            req,
+            Array(req.paragraphs.length).fill(""),
+          ),
+          cachedCount: 0,
+        };
+      }
+      return {
+        paragraphs: [await translateSingleParagraph(cfg, req, req.paragraphs[0])],
+        cachedCount: 0,
+      };
+    }
     const paragraphs = parseNumberedResponse(text, req.paragraphs);
     if (paragraphs.some((p) => !p.trim()) && req.paragraphs.length > 1) {
       return {
@@ -89,9 +104,11 @@ async function translateSingleParagraph(
   cfg: ProviderConfig,
   req: TranslateRequest,
   paragraph: string,
+  modelOverride?: string,
 ): Promise<string> {
   const base = cfg.baseUrl?.replace(/\/$/, "") || DEFAULT_ENDPOINT;
   const url = `${base}/chat/completions`;
+  const model = modelOverride || cfg.model || "deepseek-chat";
   const prompt = [
     buildSystemPrompt({ ...req, paragraphs: [paragraph] }),
     "",
@@ -110,7 +127,7 @@ async function translateSingleParagraph(
         Accept: "application/json",
       },
       body: JSON.stringify({
-        model: cfg.model || "deepseek-chat",
+        model,
         messages: [{ role: "user", content: prompt }],
         stream: false,
         temperature: req.quality === "high" ? 0.35 : req.quality === "balanced" ? 0.5 : 0.7,
@@ -127,7 +144,12 @@ async function translateSingleParagraph(
     }
     const data = (await res.json()) as DeepSeekCompletion;
     const text = pickMessage(data);
-    if (!text) throw new Error("DeepSeek returned an empty single-paragraph completion.");
+    if (!text) {
+      if (model !== "deepseek-expert") {
+        return translateSingleParagraph(cfg, req, paragraph, "deepseek-expert");
+      }
+      throw new Error("DeepSeek returned an empty single-paragraph completion.");
+    }
     return stripNumberPrefix(stripCodeFence(text));
   } catch (err) {
     if ((err as Error).name === "AbortError") {
@@ -150,23 +172,38 @@ async function safeText(res: Response): Promise<string> {
 }
 
 interface DeepSeekCompletion {
-  choices?: Array<{ message?: { content?: string }; text?: string }>;
+  choices?: Array<{
+    delta?: { content?: string };
+    message?: { content?: string; reasoning_content?: string };
+    text?: string;
+  }>;
   message?: { content?: string };
   content?: string;
+  output?: string;
   response?: string;
   text?: string;
 }
 
 function pickMessage(data: DeepSeekCompletion): string | null {
-  return (
+  return firstNonBlank(
     data?.choices?.[0]?.message?.content ??
-    data?.choices?.[0]?.text ??
-    data?.message?.content ??
-    data?.content ??
-    data?.response ??
-    data?.text ??
-    null
+      null,
+    data?.choices?.[0]?.message?.reasoning_content ?? null,
+    data?.choices?.[0]?.delta?.content ?? null,
+    data?.choices?.[0]?.text ?? null,
+    data?.message?.content ?? null,
+    data?.content ?? null,
+    data?.output ?? null,
+    data?.response ?? null,
+    data?.text ?? null,
   );
+}
+
+function firstNonBlank(...values: Array<string | null>): string | null {
+  for (const value of values) {
+    if (value?.trim()) return value;
+  }
+  return null;
 }
 
 function buildSystemPrompt(req: TranslateRequest): string {
