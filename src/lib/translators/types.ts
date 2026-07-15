@@ -517,6 +517,7 @@ async function testDeepSeek(cfg: ProviderConfig) {
         Accept: "application/json",
       },
       body: JSON.stringify({
+        model: cfg.model || "deepseek-chat",
         messages: [{ role: "user", content: "Hello" }],
         stream: false,
       }),
