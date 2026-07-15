@@ -139,8 +139,15 @@ class TranslationMemory {
     target: string,
     quality: Quality,
     provider: ProviderId,
+    glossary?: GlossaryEntry[],
   ): Promise<string> {
-    return sha256Hex(`${provider}|${quality}|${target}|${text}`);
+    // Include a glossary fingerprint so that adding/removing glossary
+    // entries produces a different cache key — old cached translations
+    // won't match when the glossary has changed.
+    const gHash = glossary && glossary.length > 0
+      ? glossary.map((e) => `${e.term}=${e.translation}`).sort().join(",")
+      : "";
+    return sha256Hex(`${provider}|${quality}|${target}|${gHash}|${text}`);
   }
 }
 
@@ -306,7 +313,7 @@ export class TranslationManager {
     const cached: (string | null)[] = [];
     for (const p of chunk) {
       const keyFor = (id: ProviderId) =>
-        TranslationMemory.cacheKey(p, this.opts.target, this.opts.quality, id);
+        TranslationMemory.cacheKey(p, this.opts.target, this.opts.quality, id, glossary);
       let hit: string | null = null;
       for (const cfg of order) {
         if (!cfg.enabled) continue;
@@ -355,6 +362,7 @@ export class TranslationManager {
             this.opts.target,
             this.opts.quality,
             cfg.id,
+            glossary,
           );
           await this.mem.put(key, finalText, cfg.id);
         }
