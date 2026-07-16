@@ -341,6 +341,15 @@ export default function BookReader() {
   }, [activeChapter]);
 
   const readAloudControllerRef = useRef<ReadAloudController | null>(null);
+  const [speakingReadableIdx, setSpeakingReadableIdx] = useState<number>(-1);
+  // Map the ReadAloud-readable index back to a chapter paragraph index
+  // so we can highlight the paragraph currently being spoken.
+  const speakingChapterIdx = useMemo(() => {
+    if (speakingReadableIdx < 0) return -1;
+    const idx = chapterIdxToReadableIdx.indexOf(speakingReadableIdx);
+    return idx >= 0 ? idx : -1;
+  }, [speakingReadableIdx, chapterIdxToReadableIdx]);
+
   const onParagraphJump = useCallback((readableIdx: number) => {
     readAloudControllerRef.current?.jumpTo(readableIdx);
   }, []);
@@ -1022,9 +1031,11 @@ export default function BookReader() {
                       !!activeTranslation &&
                       activeTranslation.status === "completed",
                   controllerRef: readAloudControllerRef,
+                    onParagraphChange: setSpeakingReadableIdx,
                 }}
                 chapterIdxToReadableIdx={chapterIdxToReadableIdx}
                 onParagraphJump={onParagraphJump}
+                speakingParagraphIdx={speakingChapterIdx}
               />
               ) : (
                 <div className="p-12 text-center">
@@ -1074,9 +1085,11 @@ export default function BookReader() {
                     !!activeTranslation &&
                     activeTranslation.status === "completed",
                   controllerRef: readAloudControllerRef,
+                    onParagraphChange: setSpeakingReadableIdx,
                 }}
                 chapterIdxToReadableIdx={chapterIdxToReadableIdx}
                 onParagraphJump={onParagraphJump}
+                speakingParagraphIdx={speakingChapterIdx}
               />
             ) : (
               <div className="p-12 text-center">
@@ -1474,6 +1487,7 @@ type ReadAloudHandlerProps = {
   onAdvanceNext: () => void;
   isTranslation: boolean;
   controllerRef?: React.MutableRefObject<ReadAloudController | null>;
+  onParagraphChange?: (readableIdx: number) => void;
 };
 
 function ChapterReader({
@@ -1499,6 +1513,7 @@ function ChapterReader({
   readAloudProps,
   chapterIdxToReadableIdx,
   onParagraphJump,
+  speakingParagraphIdx,
 }: {
   chapter: Chapter;
   translation: ChapterTranslation | null;
@@ -1524,6 +1539,7 @@ function ChapterReader({
   readAloudProps: ReadAloudHandlerProps;
   chapterIdxToReadableIdx: number[];
   onParagraphJump: (readableIdx: number) => void;
+  speakingParagraphIdx: number;
 }) {
   const showOriginal = prefs.showOriginal;
   const showToc = prefs.showToc;
@@ -1545,6 +1561,10 @@ function ChapterReader({
 
   // Track freshly-translated paragraphs for a brief highlight animation.
   // Only triggers when busy (streaming), not on initial load of an already-completed chapter.
+  // Long-press timer map for paragraph-jump (read aloud).  Each paragraph
+  // that is held for 500ms jumps the reader to that position.
+  const longPressRef = useRef<Map<number, number>>(new Map());
+
   const [freshIndices, setFreshIndices] = useState<Set<number>>(new Set());
   const prevTranslatedRef = useRef<(string | null)[]>(translated);
 
@@ -1755,12 +1775,25 @@ function ChapterReader({
               >
                 <div className="group flex items-start gap-1">
                   <p
-                    className="reader-prose-text text-foreground/80 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 flex-1"
-                    onClick={() => {
-                      const ri = chapterIdxToReadableIdx[idx];
-                      if (ri >= 0) onParagraphJump(ri);
+                    className={`reader-prose-text text-foreground/80 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 flex-1 ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`}
+onPointerDown={() => {
+                      const timer = window.setTimeout(() => {
+                        const ri = chapterIdxToReadableIdx[idx];
+                        if (ri >= 0) onParagraphJump(ri);
+                        longPressRef.current?.delete(idx);
+                      }, 500);
+                      longPressRef.current.set(idx, timer);
                     }}
-                    title="Click to read aloud from here"
+                    onPointerUp={() => {
+                      const timer = longPressRef.current.get(idx);
+                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+                    }}
+                    onPointerLeave={() => {
+                      const timer = longPressRef.current.get(idx);
+                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+                    }}
+                    onContextMenu={(e) => e.preventDefault()}
+                    title="Hold to read aloud from here"
                   >
                     {p}
                   </p>
@@ -1775,14 +1808,27 @@ function ChapterReader({
                 </div>
                 <div className="mt-3">
                   <p className={cn(
-                    "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5",
+                    `reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 ${freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent"} ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`,
                     freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent",
                   )}
-                    onClick={() => {
-                      const ri = chapterIdxToReadableIdx[idx];
-                      if (ri >= 0) onParagraphJump(ri);
+onPointerDown={() => {
+                      const timer = window.setTimeout(() => {
+                        const ri = chapterIdxToReadableIdx[idx];
+                        if (ri >= 0) onParagraphJump(ri);
+                        longPressRef.current?.delete(idx);
+                      }, 500);
+                      longPressRef.current.set(idx, timer);
                     }}
-                    title="Click to jump read aloud here"
+                    onPointerUp={() => {
+                      const timer = longPressRef.current.get(idx);
+                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+                    }}
+                    onPointerLeave={() => {
+                      const timer = longPressRef.current.get(idx);
+                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+                    }}
+                    onContextMenu={(e) => e.preventDefault()}
+                    title="Hold to jump read aloud here"
                   >
                     {t && t.trim() ? t : (
                       <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
@@ -1808,12 +1854,25 @@ function ChapterReader({
               {showOriginal && (
                 <div className="group flex items-start gap-1">
                   <p
-                    className="reader-prose-text text-foreground/80 py-3 cursor-pointer hover:bg-foreground/5 px-1 -mx-1 rounded transition-colors duration-1000 flex-1"
-                    onClick={() => {
-                      const ri = chapterIdxToReadableIdx[idx];
-                      if (ri >= 0) onParagraphJump(ri);
+                    className={`reader-prose-text text-foreground/80 py-3 cursor-pointer hover:bg-foreground/5 px-1 -mx-1 rounded transition-colors duration-1000 flex-1 ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`}
+onPointerDown={() => {
+                      const timer = window.setTimeout(() => {
+                        const ri = chapterIdxToReadableIdx[idx];
+                        if (ri >= 0) onParagraphJump(ri);
+                        longPressRef.current?.delete(idx);
+                      }, 500);
+                      longPressRef.current.set(idx, timer);
                     }}
-                    title="Click to read aloud from here"
+                    onPointerUp={() => {
+                      const timer = longPressRef.current.get(idx);
+                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+                    }}
+                    onPointerLeave={() => {
+                      const timer = longPressRef.current.get(idx);
+                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+                    }}
+                    onContextMenu={(e) => e.preventDefault()}
+                    title="Hold to read aloud from here"
                   >
                     {p}
                   </p>
@@ -1828,7 +1887,7 @@ function ChapterReader({
                 </div>
               )}
               <p className={cn(
-                "reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5",
+                `reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 ${freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent"} ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`,
                 freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent",
               )}
                 onClick={() => {

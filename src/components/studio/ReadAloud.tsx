@@ -78,6 +78,8 @@ interface ReadAloudProps {
   onAdvanceNext: () => void;
   isTranslation: boolean;
   controllerRef?: React.MutableRefObject<ReadAloudController | null>;
+  /** Fires when reading advances to a new paragraph (passes readable-paragraph index). */
+  onParagraphChange?: (readableIdx: number) => void;
 }
 
 export function ReadAloud({
@@ -87,6 +89,7 @@ export function ReadAloud({
   onAdvanceNext,
   isTranslation,
   controllerRef,
+  onParagraphChange,
 }: ReadAloudProps) {
   // ── Voices ────────────────────────────────────────────────────────────
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -154,6 +157,9 @@ export function ReadAloud({
     [paragraphs],
   );
 
+  const onParagraphChangeRef = useRef(onParagraphChange);
+  onParagraphChangeRef.current = onParagraphChange;
+
   const ctxRef = useRef({
     readable: [] as string[],
     voices: [] as SpeechSynthesisVoice[],
@@ -202,6 +208,7 @@ export function ReadAloud({
       utterance.onstart = () => {
         if (!isMountedRef.current) return;
         setCurrentIdx(idx);
+        onParagraphChangeRef.current?.(idx);
       };
       utterance.onend = () => {
         if (!isMountedRef.current) return;
