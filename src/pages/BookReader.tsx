@@ -1886,15 +1886,25 @@ onPointerDown={() => {
                   </button>
                 </div>
               )}
-              <p className={cn(
-                `reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 ${freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent"} ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`,
-                freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent",
-              )}
-                onClick={() => {
-                  const ri = chapterIdxToReadableIdx[idx];
-                  if (ri >= 0) onParagraphJump(ri);
+              <p className={`reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 ${freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent"} ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`}
+                onPointerDown={() => {
+                  const timer = window.setTimeout(() => {
+                    const ri = chapterIdxToReadableIdx[idx];
+                    if (ri >= 0) onParagraphJump(ri);
+                    longPressRef.current.delete(idx);
+                  }, 3000);
+                  longPressRef.current.set(idx, timer);
                 }}
-                title="Click to jump read aloud here"
+                onPointerUp={() => {
+                  const timer = longPressRef.current.get(idx);
+                  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+                }}
+                onPointerLeave={() => {
+                  const timer = longPressRef.current.get(idx);
+                  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+                }}
+                onContextMenu={(e) => e.preventDefault()}
+                title="Hold to jump read aloud here"
               >
                 {t && t.trim() ? t : (
                   <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
