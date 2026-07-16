@@ -37,7 +37,7 @@ import { buildTranslatedEpub } from "@/lib/epub";
 import { SCENE_BREAK } from "@/lib/text-import";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { formatRelativeTime, saveBookmark } from "@/lib/util";
+import { formatRelativeTime, getBookmark, saveBookmark } from "@/lib/util";
 import {
   prefsToCssVars,
   ReaderSettingsControls,
@@ -187,7 +187,13 @@ export default function BookReader() {
       // Load glossary entries for AI reference during translation.
       void listGlossaryEntries(book.id).then(setGlossaryEntries);
       if (!activeId && inOrder.length) {
-        setActiveId(inOrder[0].id);
+        // Restore saved reading position (so returning to a book
+        // opens the last-read chapter, not chapter 1).
+        const bookmark = getBookmark();
+        const saved = bookmark && bookmark.bookId === book.id
+          ? inOrder.find((c) => c.id === bookmark.chapterId)
+          : null;
+        setActiveId(saved ? saved.id : inOrder[0].id);
       }
     })();
     return () => {
