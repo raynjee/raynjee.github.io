@@ -95,29 +95,24 @@ export default function Glossary() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Enabled provider IDs — recomputed whenever settings change.
+  // Glossary extraction is intentionally Gemini-only. DeepSeek is reserved for
+  // translation so it does not burn local proxy chat requests on analysis.
   const enabledProviderIds = useMemo(
-    () => settings.providers.filter((p) => p.enabled).map((p) => p.id),
+    () => settings.providers.filter((p) => p.enabled && p.id === "gemini").map((p) => p.id),
     [settings.providers],
   );
 
-  // Provider to use for extraction — defaults to active provider, but can be
-  // overridden by the dropdown. Auto-falls back to the first enabled provider
-  // if the current selection becomes disabled.
+  // Provider to use for extraction. Kept as state so existing checkpoint logic
+  // remains stable, but the only allowed value is Gemini.
   const [extractProvider, setExtractProvider] = useState<string>(
-    () => enabledProviderIds.includes(settings.activeProvider)
-      ? settings.activeProvider
-      : (enabledProviderIds[0] ?? "deepseek"),
+    () => enabledProviderIds[0] ?? "gemini",
   );
 
-  // Keep extractProvider in sync when settings change: prefer the active
-  // provider if enabled, otherwise fall back to the first enabled one.
+  // Keep extractProvider in sync when settings change.
   useEffect(() => {
-    const next = enabledProviderIds.includes(settings.activeProvider)
-      ? settings.activeProvider
-      : (enabledProviderIds[0] ?? "deepseek");
+    const next = enabledProviderIds[0] ?? "gemini";
     setExtractProvider(next);
-  }, [settings.activeProvider, enabledProviderIds]);
+  }, [enabledProviderIds]);
 
   // Draft state for new & edited rows.
   const [draft, setDraft] = useState<{
@@ -340,18 +335,13 @@ export default function Glossary() {
         return;
       }
 
-      // 2. Build the provider config. Auto-fallback if needed.
-      let cfg = settings.providers.find((p) => p.id === extractProvider);
-      if (!cfg || !cfg.enabled) {
-        const fallback = settings.providers.find((p) => p.enabled);
-        if (!fallback) {
-          toast.error("No enabled provider. Enable a provider in Settings first.");
-          return;
-        }
-        cfg = fallback;
-        setExtractProvider(fallback.id);
-        toast.message(`Switched to ${fallback.id === "gemini" ? "Gemini" : "DeepSeek"} for extraction.`);
+      // 2. Build the provider config. Glossary extraction is Gemini-only.
+      const cfg = settings.providers.find((p) => p.id === "gemini" && p.enabled);
+      if (!cfg) {
+        toast.error("Glossary extraction requires Gemini. Enable Gemini and add an API key in Settings.");
+        return;
       }
+      setExtractProvider("gemini");
 
       // 3. Split paragraphs into chunks of ~CHUNK_CHARS, never cutting mid-paragraph.
       const chunks: string[] = [];
@@ -599,11 +589,11 @@ export default function Glossary() {
               className="h-10 px-3 bg-transparent border border-border text-xs uppercase tracking-[0.18em] outline-none cursor-pointer disabled:opacity-50"
               aria-label="Provider for glossary extraction"
             >
-              {settings.providers.filter((p) => p.enabled).map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.id === "gemini" ? "Gemini" : "DeepSeek"}
-                </option>
-              ))}
+              {settings.providers.some((p) => p.enabled && p.id === "gemini") ? (
+                <option value="gemini">Gemini</option>
+              ) : (
+                <option value="gemini">Gemini required</option>
+              )}
             </select>
             {/* Resume button — shown when a previous extraction was interrupted */}
             {savedCheckpoint && !extracting && (
@@ -1228,6 +1218,9 @@ async function callProviderForExtraction(
     notes?: string;
   }>
 > {
+  if (provider !== "gemini") {
+    throw new Error("Glossary extraction is Gemini-only.");
+  }
   if (provider === "gemini") {
     if (!cfg.apiKey) throw new Error("Gemini API key is missing.");
     const model = cfg.model || "gemini-1.5-flash";

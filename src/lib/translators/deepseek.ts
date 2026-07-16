@@ -18,162 +18,7 @@ export async function callDeepSeek(
   const userPrompt = buildUserPrompt(req);
 
   const prompt = `${systemPrompt}\n\n${userPrompt}`;
-  const body = {
-    model: cfg.model || "deepseek-chat",
-    messages: [
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-    stream: false,
-    temperature: req.quality === "high" ? 0.35 : req.quality === "balanced" ? 0.5 : 0.7,
-  };
 
-  const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 90_000);
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) {
-      const text = await safeText(res);
-      const err = new Error(
-        `DeepSeek error ${res.status}: ${text.slice(0, 200)}`,
-      );
-      (err as Error & { status?: number }).status = res.status;
-      throw err;
-    }
-    const data = (await res.json()) as DeepSeekCompletion;
-    const text = pickMessage(data);
-    const completion = text || await fetchStreamedCompletion(cfg, req, prompt);
-    if (!completion) {
-      if (req.paragraphs.length > 1) {
-        return {
-          paragraphs: await retryMissingParagraphs(
-            cfg,
-            req,
-            Array(req.paragraphs.length).fill(""),
-          ),
-          cachedCount: 0,
-        };
-      }
-      return {
-        paragraphs: [await translateSingleParagraph(cfg, req, req.paragraphs[0])],
-        cachedCount: 0,
-      };
-    }
-    const paragraphs = parseNumberedResponse(completion, req.paragraphs);
-    if (paragraphs.some((p) => !p.trim()) && req.paragraphs.length > 1) {
-      return {
-        paragraphs: await retryMissingParagraphs(cfg, req, paragraphs),
-        cachedCount: 0,
-      };
-    }
-    return { paragraphs, cachedCount: 0 };
-  } catch (err) {
-    if ((err as Error).name === "AbortError") {
-      const e = new Error("DeepSeek request timed out after 90s.");
-      (e as Error & { status?: number }).status = 408;
-      throw e;
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function retryMissingParagraphs(
-  cfg: ProviderConfig,
-  req: TranslateRequest,
-  parsed: string[],
-): Promise<string[]> {
-  const out = [...parsed];
-  for (let i = 0; i < out.length; i++) {
-    if (out[i]?.trim()) continue;
-    out[i] = await translateSingleParagraph(cfg, req, req.paragraphs[i]);
-  }
-  return out;
-}
-
-async function translateSingleParagraph(
-  cfg: ProviderConfig,
-  req: TranslateRequest,
-  paragraph: string,
-  modelOverride?: string,
-): Promise<string> {
-  const base = cfg.baseUrl?.replace(/\/$/, "") || DEFAULT_ENDPOINT;
-  const url = `${base}/chat/completions`;
-  const model = modelOverride || cfg.model || "deepseek-chat";
-  const prompt = [
-    buildSystemPrompt({ ...req, paragraphs: [paragraph] }),
-    "",
-    "Translate this paragraph into natural English.",
-    "Return only the English translation. Do not include numbering, labels, notes, markdown, or commentary.",
-    "",
-    paragraph,
-  ].join("\n");
-  const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 90_000);
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: prompt }],
-        stream: false,
-        temperature: req.quality === "high" ? 0.35 : req.quality === "balanced" ? 0.5 : 0.7,
-      }),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) {
-      const text = await safeText(res);
-      const err = new Error(
-        `DeepSeek error ${res.status}: ${text.slice(0, 200)}`,
-      );
-      (err as Error & { status?: number }).status = res.status;
-      throw err;
-    }
-    const data = (await res.json()) as DeepSeekCompletion;
-    const text = pickMessage(data);
-    const completion = text || await fetchStreamedCompletion(cfg, req, prompt, model);
-    if (!completion) {
-      if (model !== "deepseek-expert") {
-        return translateSingleParagraph(cfg, req, paragraph, "deepseek-expert");
-      }
-      throw new Error("DeepSeek returned an empty single-paragraph completion.");
-    }
-    return stripNumberPrefix(stripCodeFence(completion));
-  } catch (err) {
-    if ((err as Error).name === "AbortError") {
-      const e = new Error("DeepSeek single-paragraph retry timed out after 90s.");
-      (e as Error & { status?: number }).status = 408;
-      throw e;
-    }
-    throw err;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function fetchStreamedCompletion(
-  cfg: ProviderConfig,
-  req: TranslateRequest,
-  prompt: string,
-  modelOverride?: string,
-): Promise<string | null> {
-  const base = cfg.baseUrl?.replace(/\/$/, "") || DEFAULT_ENDPOINT;
-  const url = `${base}/chat/completions`;
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 90_000);
   try {
@@ -184,18 +29,35 @@ async function fetchStreamedCompletion(
         Accept: "text/event-stream, application/json",
       },
       body: JSON.stringify({
-        model: modelOverride || cfg.model || "deepseek-chat",
+        model: cfg.model || "deepseek-chat",
         messages: [{ role: "user", content: prompt }],
         stream: true,
         temperature: req.quality === "high" ? 0.35 : req.quality === "balanced" ? 0.5 : 0.7,
       }),
       signal: ctrl.signal,
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const text = await safeText(res);
+      const err = new Error(
+        `DeepSeek error ${res.status}: ${text.slice(0, 200)}`,
+      );
+      (err as Error & { status?: number }).status = res.status;
+      throw err;
+    }
     const raw = await safeText(res);
-    return parseSseCompletion(raw);
-  } catch {
-    return null;
+    const completion = parseCompletion(raw);
+    if (!completion) {
+      throw new Error("DeepSeek returned an empty streamed completion.");
+    }
+    const paragraphs = parseNumberedResponse(completion, req.paragraphs);
+    return { paragraphs, cachedCount: 0 };
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      const e = new Error("DeepSeek request timed out after 90s.");
+      (e as Error & { status?: number }).status = 408;
+      throw e;
+    }
+    throw err;
   } finally {
     clearTimeout(timeout);
   }
@@ -261,6 +123,16 @@ function parseSseCompletion(raw: string): string | null {
   }
   const joined = parts.join("");
   return joined.trim() ? joined : null;
+}
+
+function parseCompletion(raw: string): string | null {
+  const streamed = parseSseCompletion(raw);
+  if (streamed) return streamed;
+  try {
+    return pickMessage(JSON.parse(raw) as DeepSeekCompletion);
+  } catch {
+    return raw.trim() ? raw.trim() : null;
+  }
 }
 
 function buildSystemPrompt(req: TranslateRequest): string {
@@ -365,8 +237,4 @@ function stripCodeFence(text: string): string {
   const trimmed = text.trim();
   const fenced = /^```(?:\w+)?\s*\n([\s\S]*?)\n```$/.exec(trimmed);
   return fenced ? fenced[1].trim() : trimmed;
-}
-
-function stripNumberPrefix(text: string): string {
-  return text.replace(/^\s*(?:\[\d+\]|\d+[.)：:])\s*/, "").trim();
 }

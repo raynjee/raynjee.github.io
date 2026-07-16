@@ -44,6 +44,11 @@ export interface ProviderClient {
 import { callDeepSeek } from "./deepseek";
 import { callGemini } from "./gemini";
 
+const DEEPSEEK_CHUNK_CHARS = 12_000;
+const DEFAULT_CHUNK_CHARS = 3_000;
+const DEEPSEEK_MIN_REQUEST_INTERVAL_MS = 12_000;
+let lastDeepSeekRequestStartedAt = 0;
+
 export const PROVIDERS: Record<ProviderId, ProviderClient> = {
   deepseek: {
     id: "deepseek",
@@ -237,11 +242,12 @@ export class TranslationManager {
       );
     }
 
-    // "Semi-whole" chunking: group paragraphs into batches of ~3000 chars
-    // each. This avoids both the per-paragraph API overhead (wastes tokens)
-    // and the whole-chapter dump (overwhelms the model, loses focus). Each
-    // chunk gets its own API roundtrip with the full glossary + context.
-    const CHUNK_CHARS = 3000;
+    // DeepSeek is a local proxy over the web chat, so keep request count low:
+    // larger chunks plus pacing between request starts. Gemini keeps smaller
+    // chunks because it handles API-style calls more predictably.
+    const CHUNK_CHARS = this.opts.preferred === "deepseek"
+      ? DEEPSEEK_CHUNK_CHARS
+      : DEFAULT_CHUNK_CHARS;
     const chunks: { startIdx: number; paragraphs: string[] }[] = [];
     let buf: string[] = [];
     let bufStart = 0;
@@ -355,6 +361,9 @@ export class TranslationManager {
       if (this.rl.isSuspended(cfg.id)) continue;
       const client = PROVIDERS[cfg.id];
       try {
+        if (cfg.id === "deepseek") {
+          await waitForDeepSeekRequestSlot();
+        }
         const req: TranslateRequest = {
           paragraphs: missingIndices.map((i) => chunk[i]),
           source: resolveSourceLanguage(
@@ -430,6 +439,15 @@ export class TranslationManager {
       error: lastError,
     };
   }
+}
+
+async function waitForDeepSeekRequestSlot(): Promise<void> {
+  const elapsed = Date.now() - lastDeepSeekRequestStartedAt;
+  const waitMs = Math.max(0, DEEPSEEK_MIN_REQUEST_INTERVAL_MS - elapsed);
+  if (waitMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+  lastDeepSeekRequestStartedAt = Date.now();
 }
 
 function resolveSourceLanguage(
