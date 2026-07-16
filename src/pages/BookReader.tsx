@@ -279,8 +279,7 @@ export default function BookReader() {
             updateBookPrefs(book.id, { showToc: !prefs.showToc });
           } else {
             setTocDrawerOpen((v) => !v);
-          }
-        }
+          }}
         return;
       }
       if (key === "o") {
@@ -335,8 +334,7 @@ export default function BookReader() {
         result.push(-1);
       } else {
         result.push(r++);
-      }
-    }
+      }}
     return result;
   }, [activeChapter]);
 
@@ -366,8 +364,7 @@ export default function BookReader() {
       for (let i = 0; i < tr.paragraphs.length; i++) {
         const translated = tr.paragraphs[i];
         if (translated && translated.trim()) sum += countWords(translated);
-      }
-    }
+      }}
     return sum;
   }, [chapters, translations]);
 
@@ -463,8 +460,7 @@ export default function BookReader() {
           } else {
             setAutoAdvance(false);
             toast.success("All chapters translated! 🎉");
-          }
-        }
+          }}
       } else {
         toast.warning(
           result.error
@@ -480,8 +476,7 @@ export default function BookReader() {
         setBusy(false);
         setPaused(false);
         setProgress(null);
-      }
-    }
+      }}
   };
 
   const onPause = useCallback(() => {
@@ -647,8 +642,7 @@ export default function BookReader() {
           setTranslations((m) => ({ ...m, [c.id]: failedTr }));
           toast.error(`Failed translating "${c.title}": ${msg.slice(0, 200)}`);
           if (settings.pauseOnError) break;
-        }
-      }
+        }}
       notifyLibraryChanged();
       if (mountedRef.current) toast.success("Batch translation complete.");
     } catch (err) {
@@ -660,8 +654,7 @@ export default function BookReader() {
       if (mountedRef.current) {
         setBusy(false);
         setProgress(null);
-      }
-    }
+      }}
   };
 
   const onExport = async () => {
@@ -1776,6 +1769,13 @@ function ChapterReader({
                 <div className="group flex items-start gap-1">
                   <p
                     className={`reader-prose-text text-foreground/80 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 flex-1 ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`}
+onClick={() => {
+  const timer = longPressRef.current.get(idx);
+  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+  const ri = chapterIdxToReadableIdx[idx];
+  if (ri >= 0) onParagraphJump(ri);
+}
+}
 onPointerDown={() => {
                       const timer = window.setTimeout(() => {
                         const ri = chapterIdxToReadableIdx[idx];
@@ -1807,6 +1807,13 @@ onPointerDown={() => {
                     `reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 ${freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent"} ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`,
                     freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent",
                   )}
+onClick={() => {
+  const timer = longPressRef.current.get(idx);
+  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+  const ri = chapterIdxToReadableIdx[idx];
+  if (ri >= 0) onParagraphJump(ri);
+}
+}
 onPointerDown={() => {
                       const timer = window.setTimeout(() => {
                         const ri = chapterIdxToReadableIdx[idx];
@@ -1847,6 +1854,13 @@ onPointerDown={() => {
                 <div className="group flex items-start gap-1">
                   <p
                     className={`reader-prose-text text-foreground/80 py-3 cursor-pointer hover:bg-foreground/5 px-1 -mx-1 rounded transition-colors duration-1000 flex-1 ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`}
+onClick={() => {
+  const timer = longPressRef.current.get(idx);
+  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+  const ri = chapterIdxToReadableIdx[idx];
+  if (ri >= 0) onParagraphJump(ri);
+}
+}
 onPointerDown={() => {
                       const timer = window.setTimeout(() => {
                         const ri = chapterIdxToReadableIdx[idx];
@@ -1875,6 +1889,12 @@ onPointerDown={() => {
                 </div>
               )}
               <p className={`reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 ${freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent"} ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`}
+                onClick={() => {
+                  const timer = longPressRef.current.get(idx);
+                  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+                  const ri = chapterIdxToReadableIdx[idx];
+                  if (ri >= 0) onParagraphJump(ri);
+                }}
                 onPointerDown={() => {
                   const timer = window.setTimeout(() => {
                     const ri = chapterIdxToReadableIdx[idx];
