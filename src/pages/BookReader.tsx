@@ -1788,10 +1788,6 @@ onPointerDown={() => {
                       const timer = longPressRef.current.get(idx);
                       if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
                     }}
-                    onPointerLeave={() => {
-                      const timer = longPressRef.current.get(idx);
-                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
-                    }}
                     onContextMenu={(e) => e.preventDefault()}
                     title="Hold to read aloud from here"
                   >
@@ -1820,10 +1816,6 @@ onPointerDown={() => {
                       longPressRef.current.set(idx, timer);
                     }}
                     onPointerUp={() => {
-                      const timer = longPressRef.current.get(idx);
-                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
-                    }}
-                    onPointerLeave={() => {
                       const timer = longPressRef.current.get(idx);
                       if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
                     }}
@@ -1867,10 +1859,6 @@ onPointerDown={() => {
                       const timer = longPressRef.current.get(idx);
                       if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
                     }}
-                    onPointerLeave={() => {
-                      const timer = longPressRef.current.get(idx);
-                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
-                    }}
                     onContextMenu={(e) => e.preventDefault()}
                     title="Hold to read aloud from here"
                   >
@@ -1896,10 +1884,6 @@ onPointerDown={() => {
                   longPressRef.current.set(idx, timer);
                 }}
                 onPointerUp={() => {
-                  const timer = longPressRef.current.get(idx);
-                  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
-                }}
-                onPointerLeave={() => {
                   const timer = longPressRef.current.get(idx);
                   if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
                 }}
