@@ -1562,7 +1562,7 @@ function ChapterReader({
   // Track freshly-translated paragraphs for a brief highlight animation.
   // Only triggers when busy (streaming), not on initial load of an already-completed chapter.
   // Long-press timer map for paragraph-jump (read aloud).  Each paragraph
-  // that is held for 3s jumps the reader to that position.
+  // that is held for 1.5s jumps the reader to that position.
   const longPressRef = useRef<Map<number, number>>(new Map());
 
   const [freshIndices, setFreshIndices] = useState<Set<number>>(new Set());
@@ -1781,7 +1781,7 @@ onPointerDown={() => {
                         const ri = chapterIdxToReadableIdx[idx];
                         if (ri >= 0) onParagraphJump(ri);
                         longPressRef.current?.delete(idx);
-                      }, 3000);
+                      }, 1500);
                       longPressRef.current.set(idx, timer);
                     }}
                     onPointerUp={() => {
@@ -1812,7 +1812,7 @@ onPointerDown={() => {
                         const ri = chapterIdxToReadableIdx[idx];
                         if (ri >= 0) onParagraphJump(ri);
                         longPressRef.current?.delete(idx);
-                      }, 3000);
+                      }, 1500);
                       longPressRef.current.set(idx, timer);
                     }}
                     onPointerUp={() => {
@@ -1852,7 +1852,7 @@ onPointerDown={() => {
                         const ri = chapterIdxToReadableIdx[idx];
                         if (ri >= 0) onParagraphJump(ri);
                         longPressRef.current?.delete(idx);
-                      }, 3000);
+                      }, 1500);
                       longPressRef.current.set(idx, timer);
                     }}
                     onPointerUp={() => {
@@ -1880,7 +1880,7 @@ onPointerDown={() => {
                     const ri = chapterIdxToReadableIdx[idx];
                     if (ri >= 0) onParagraphJump(ri);
                     longPressRef.current.delete(idx);
-                  }, 3000);
+                  }, 1500);
                   longPressRef.current.set(idx, timer);
                 }}
                 onPointerUp={() => {
