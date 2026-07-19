@@ -10,6 +10,7 @@ import {
   BookOpen,
   Check,
   Download,
+  Globe,
   Languages,
   List,
   Loader2,
@@ -44,6 +45,7 @@ import {
   ReaderSettingsMenu,
 } from "@/components/studio/ReaderSettingsMenu";
 import { ReadAloud, type ReadAloudController } from "@/components/studio/ReadAloud";
+import { openSafariReader } from "@/lib/safari-reader";
 import { Kbd } from "@/components/ui/kbd";
 
 export default function BookReader() {
@@ -669,6 +671,25 @@ export default function BookReader() {
       }}
   };
 
+  // ── Safari Reader Mode — open blob page for native TTS + auto-advance ──
+  const onOpenSafariReader = useCallback(() => {
+    if (!book || chapters.length === 0) return;
+    // Build chapter data: prefer translated paragraphs when available,
+    // fall back to original text. Scene breaks are preserved.
+    const readerChapters = chapters.map((ch) => {
+      const tr = translations[ch.id];
+      const paragraphs = ch.paragraphs.map((p, i) => {
+        if (p === SCENE_BREAK) return p;
+        const t = tr?.paragraphs[i];
+        return t && t.trim() ? t : p;
+      });
+      return { title: ch.title, paragraphs };
+    });
+    const idx = Math.max(0, chapters.findIndex((c) => c.id === activeId));
+    openSafariReader(book.title, readerChapters, idx);
+    toast("Opening in Safari Reader…", { icon: "📖" });
+  }, [book, chapters, translations, activeId]);
+
   const onExport = async () => {
     if (!book) return;
     if (chapters.length === 0) return;
@@ -780,6 +801,15 @@ export default function BookReader() {
             >
               <Download className="w-4 h-4" strokeWidth={1.25} />
               <span className="text-sm">Export EPUB</span>
+            </button>
+            <button
+              type="button"
+              onClick={onOpenSafariReader}
+              title="Open in Safari Reader — use Siri voices & auto-advance"
+              className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 active:scale-[0.97] transition-all"
+            >
+              <Globe className="w-4 h-4" strokeWidth={1.25} />
+              <span className="text-sm">Safari Reader</span>
             </button>
           </div>
         </header>
@@ -1389,6 +1419,16 @@ export default function BookReader() {
                 >
                   <Settings2 className="w-4 h-4" strokeWidth={1.4} />
                   <span className="hidden sm:inline">Tools</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onOpenSafariReader}
+                  aria-label="Open in Safari Reader"
+                  title="Safari Reader — Siri voices & auto-advance"
+                  className="h-11 px-3 sm:px-4 inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-foreground/40 active:scale-95 transition-all text-sm font-medium"
+                >
+                  <Globe className="w-4 h-4" strokeWidth={1.4} />
+                  <span className="hidden sm:inline">Safari</span>
                 </button>
 
                 {activeChapter && (

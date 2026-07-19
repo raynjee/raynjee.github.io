@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Pause,
   Play,
+  RefreshCw,
   Repeat,
   Square,
   Volume2,
@@ -53,7 +54,14 @@ function savePrefs(p: ReadPrefs) {
   }
 }
 
+// Detect high-quality voices — Siri, Google, Neural, Natural, Premium, Enhanced.
+// On iOS Safari the best voices are Siri voices; on Edge they're "Natural".
+// We also include voices marked as "default" on some platforms (Safari's
+// high-quality defaults) and exclude known-low-quality names like "Zarvox".
+const LOW_QUALITY_PATTERNS = /\b(zarvox|bells|boing|bubbles|cellos|deranged|good news|hysterical|junior|organ|pipe|trinoids|whisper|bad news|bahh|albert|fred)\b/i;
+
 function isNaturalVoice(name: string): boolean {
+  if (LOW_QUALITY_PATTERNS.test(name)) return false;
   const n = name.toLowerCase();
   return (
     n.includes("natural") ||
@@ -61,8 +69,13 @@ function isNaturalVoice(name: string): boolean {
     n.includes("online") ||
     n.includes("premium") ||
     n.includes("enhanced") ||
+    n.includes("siri") ||
     n.includes("google") ||
-    n.includes("siri")
+    // iOS 17+ marks Siri voices as just the name without "Siri" in some regions
+    (n.includes("samantha") && !n.includes("compact")) ||
+    (n.includes("daniel") && n.includes("gb")) ||
+    n.includes("aurelie") ||
+    n.includes("karen") && n.includes("au")
   );
 }
 
@@ -93,19 +106,69 @@ export function ReadAloud({
 }: ReadAloudProps) {
   // ── Voices ────────────────────────────────────────────────────────────
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [voicesRefreshing, setVoicesRefreshing] = useState(false);
+
+  // Load voices — on iOS Safari voices may load asynchronously after first
+  // user interaction. We poll `voiceschanged` and also attempt a warm-up
+  // utterance that forces the OS voice registry to populate.
+  const refreshVoices = useCallback(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    setVoicesRefreshing(true);
+
+    const collect = () => {
+      try {
+        const v = synth.getVoices?.() ?? [];
+        setVoices(v);
+      } catch { /* noop */ }
+      setVoicesRefreshing(false);
+    };
+
+    // On iOS, getVoices() may return [] on the first call. Speak a silent
+    // utterance to force the voice registry to load.
+    const current = synth.getVoices?.() ?? [];
+    if (current.length === 0) {
+      try {
+        const wu = new SpeechSynthesisUtterance("");
+        wu.volume = 0;
+        wu.rate = 2;
+        let done = false;
+        const finish = () => {
+          if (done) return;
+          done = true;
+          try { synth.cancel(); } catch { /* noop */ }
+          collect();
+        };
+        wu.onstart = finish;
+        wu.onend = finish;
+        wu.onerror = finish;
+        synth.speak(wu);
+        setTimeout(finish, 600);
+      } catch {
+        collect();
+      }
+    } else {
+      collect();
+    }
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     const synth = window.speechSynthesis;
     if (!synth) return;
-    const load = () => {
-      try { setVoices(synth.getVoices?.() ?? []); } catch { setVoices([]); }
-    };
-    try { load(); } catch { /* noop */ }
-    try { synth.addEventListener?.("voiceschanged", load); } catch { /* noop */ }
+
+    // Initial load
+    refreshVoices();
+
+    // Listen for async voice loading (critical on iOS / Safari)
+    const onVoicesChanged = () => refreshVoices();
+    try { synth.addEventListener?.("voiceschanged", onVoicesChanged); } catch { /* noop */ }
+
     return () => {
-      try { synth.removeEventListener?.("voiceschanged", load); } catch { /* noop */ }
+      try { synth.removeEventListener?.("voiceschanged", onVoicesChanged); } catch { /* noop */ }
     };
-  }, []);
+  }, [refreshVoices]);
 
   const englishVoices = useMemo(
     () => voices.filter((v) => v.lang.startsWith("en") || /english/i.test(v.name)),
@@ -516,6 +579,15 @@ export function ReadAloud({
                           className="absolute bottom-full left-0 mb-1.5 w-[260px] max-h-[220px] overflow-y-auto rounded-md border border-border bg-background shadow-lg z-40"
                         >
                           <div className="p-1">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); refreshVoices(); }}
+                              disabled={voicesRefreshing}
+                              className="w-full text-left px-2.5 py-1.5 text-[10px] uppercase tracking-[0.1em] text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors flex items-center gap-1.5"
+                            >
+                              <RefreshCw className={cn("w-3 h-3", voicesRefreshing && "animate-spin")} strokeWidth={1.6} />
+                              {voicesRefreshing ? "Refreshing…" : "Refresh voices"}
+                            </button>
                             {voiceOptions.map(({ v, kind }) => (
                               <button
                                 key={v.name}
