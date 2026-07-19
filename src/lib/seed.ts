@@ -13,7 +13,7 @@ interface SampleChapter {
 
 const SAMPLE_BOOK = {
   title: "The Studio Reader — Sample",
-  author: "Atelier Editions",
+  author: "Ἀνέκδοτα Editions",
   description:
     "A short multilingual travel essay that walks you through the studio. " +
     "Chapter 1 sets out from Kyoto in Japanese; Chapter 2 continues at a Seoul " +

@@ -46,8 +46,8 @@ export default function SettingsPage() {
   return (
     <StudioShell>
       <div className="mx-auto max-w-[1100px] px-6 lg:px-10 pt-10 pb-20">
-        <div className="studio-caps text-muted-foreground">The Back Room</div>
-        <h1 className="font-display text-2xl sm:text-3xl lg:text-5xl mt-2 tracking-tight">Settings</h1>
+        <div className="text-xs text-muted-foreground">The Back Room</div>
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl mt-2 tracking-tight font-semibold">Settings</h1>
         <p className="text-muted-foreground mt-3 max-w-[58ch]">
           API keys, proxy configuration, translation preferences, and the
           studio's housekeeping. Everything lives on your machine.
@@ -250,25 +250,25 @@ function DeepSeekTutorial() {
   };
 
   return (
-    <section className="studio-card p-4 sm:p-6">
+    <section className="rounded-xl border border-border/50 p-4 sm:p-6">
       <div className="flex items-start gap-3">
         <Terminal className="w-5 h-5 text-foreground mt-0.5" strokeWidth={1.4} />
         <div className="flex-1">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 sm:gap-4">
             <div>
-              <div className="studio-caps text-muted-foreground">Setup Guide</div>
-              <h2 className="font-display text-xl sm:text-2xl mt-0.5">Run the DeepSeek proxy</h2>
+              <div className="text-xs text-muted-foreground">Setup Guide</div>
+              <h2 className="text-lg sm:text-xl font-semibold mt-0.5">Run the DeepSeek proxy</h2>
             </div>
             <button
               onClick={onCopy}
-              className="h-9 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
+              className="h-9 px-3 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20"
             >
               {copied ? (
                 <Check className="w-4 h-4" strokeWidth={1.4} />
               ) : (
                 <Copy className="w-4 h-4" strokeWidth={1.4} />
               )}
-              <span className="text-xs uppercase tracking-[0.18em]">
+              <span className="text-sm">
                 {copied ? "Copied" : "Copy"}
               </span>
             </button>
@@ -281,8 +281,8 @@ function DeepSeekTutorial() {
             translate button in the studio talks to it automatically.
           </p>
 
-          <div className="mt-4 bg-muted/50 border border-border p-3 sm:p-4 font-mono text-[11px] sm:text-xs leading-relaxed text-foreground/85 overflow-x-auto">
-            <div className="text-muted-foreground mb-2 uppercase tracking-[0.18em]">
+          <div className="mt-4 bg-muted/50 border border-border/50 p-3 sm:p-4 font-mono text-[11px] sm:text-xs leading-relaxed text-foreground/85 overflow-x-auto">
+            <div className="text-muted-foreground mb-2 text-xs font-medium">
               Terminal — run these once
             </div>
             {commands.split("\n").map((line, i) => (
@@ -295,30 +295,30 @@ function DeepSeekTutorial() {
 
           {/* Download buttons */}
           <div className="mt-4">
-            <div className="text-muted-foreground text-xs uppercase tracking-[0.18em] mb-3">
+            <div className="text-muted-foreground text-xs mb-3">
               Helper files — download these into your Deepseek-API folder
             </div>
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => downloadFile("cors_shim.py", CORS_SHIM_PY, "cors_shim.py")}
-                className="h-9 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 text-xs"
+                className="h-9 px-3 inline-flex items-center gap-2 border border-border/50 hover:border-foreground/40 text-xs"
               >
                 <FileDown className="w-3.5 h-3.5" strokeWidth={1.4} />
-                <span className="uppercase tracking-[0.18em]">cors_shim.py</span>
+                <span className="text-sm">cors_shim.py</span>
               </button>
               <button
                 onClick={() => downloadFile("run.bat", RUN_BAT, "run.bat")}
-                className="h-9 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 text-xs"
+                className="h-9 px-3 inline-flex items-center gap-2 border border-border/50 hover:border-foreground/40 text-xs"
               >
                 <FileDown className="w-3.5 h-3.5" strokeWidth={1.4} />
-                <span className="uppercase tracking-[0.18em]">run.bat</span>
+                <span className="text-sm">run.bat</span>
               </button>
             </div>
           </div>
 
           <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="border border-border p-3">
-              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            <div className="border border-border/50 p-3">
+              <div className="text-xs text-muted-foreground font-medium">
                 DeepSeek port
               </div>
               <div className="font-mono text-lg mt-1">8000</div>
@@ -326,8 +326,8 @@ function DeepSeekTutorial() {
                 The raw proxy served by <code className="font-mono">app.py</code>.
               </div>
             </div>
-            <div className="border border-border p-3">
-              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            <div className="border border-border/50 p-3">
+              <div className="text-xs text-muted-foreground font-medium">
                 CORS shim port
               </div>
               <div className="font-mono text-lg mt-1">8001</div>
@@ -336,8 +336,8 @@ function DeepSeekTutorial() {
                 Set your endpoint to this port.
               </div>
             </div>
-            <div className="border border-border p-3">
-              <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            <div className="border border-border/50 p-3">
+              <div className="text-xs text-muted-foreground font-medium">
                 Endpoint
               </div>
               <div className="font-mono text-xs mt-1 break-all">
@@ -349,7 +349,7 @@ function DeepSeekTutorial() {
             </div>
           </div>
 
-          <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 p-3 border border-border">
+          <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 p-3 border border-border/50">
             <HelpCircle className="w-4 h-4 text-foreground mt-0.5 shrink-0" strokeWidth={1.4} />
             <div>
               <span className="font-semibold text-foreground">Note:</span> The
@@ -423,11 +423,11 @@ function ProviderSettings({
           const result = results[cfg.id];
           const isDS = cfg.id === "deepseek";
           return (
-            <div key={cfg.id} className="studio-card p-4 sm:p-5">
+            <div key={cfg.id} className="rounded-xl border border-border/50 p-4 sm:p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="studio-caps text-muted-foreground">{cfg.id}</div>
-                  <div className="font-display text-xl mt-1">
+                  <div className="text-xs text-muted-foreground">{cfg.id}</div>
+                  <div className="text-lg font-semibold mt-1">
                     {isDS ? "DeepSeek" : "Gemini"}
                   </div>
                 </div>
@@ -444,7 +444,7 @@ function ProviderSettings({
                       })
                     }
                   />
-                  <span className="uppercase tracking-[0.18em]">Enabled</span>
+                  <span className="text-sm">Enabled</span>
                 </label>
               </div>
 
@@ -463,7 +463,7 @@ function ProviderSettings({
                           ),
                         })
                       }
-                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 font-mono text-base"
+                      className="w-full bg-transparent border-b border-border/50 focus:border-foreground outline-none py-3 font-mono text-base"
                     />
                   </Field>
                   <Field label="Model">
@@ -478,10 +478,10 @@ function ProviderSettings({
                           ),
                         })
                       }
-                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2"
+                      className="w-full bg-transparent border-b border-border/50 focus:border-foreground outline-none py-2"
                     />
                   </Field>
-                  <div className="border border-border p-3 mt-1 text-xs text-muted-foreground leading-relaxed">
+                  <div className="border border-border/50 p-3 mt-1 text-xs text-muted-foreground leading-relaxed">
                     <span className="text-foreground font-medium">No API key required.</span>{" "}
                     The proxy authenticates via your browser sign-in (see the setup
                     guide above). Make sure the proxy is running before
@@ -504,7 +504,7 @@ function ProviderSettings({
                           ),
                         })
                       }
-                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 font-mono text-base"
+                      className="w-full bg-transparent border-b border-border/50 focus:border-foreground outline-none py-3 font-mono text-base"
                     />
                   </Field>
 
@@ -531,7 +531,7 @@ function ProviderSettings({
                               ),
                             })
                           }
-                          className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 font-mono text-base"
+                          className="w-full bg-transparent border-b border-border/50 focus:border-foreground outline-none py-3 font-mono text-base"
                         />
                         <button
                           type="button"
@@ -569,10 +569,10 @@ function ProviderSettings({
                         ),
                       })
                     }
-                    className="h-8 px-3 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    className="h-8 px-3 inline-flex items-center gap-1.5 border border-border/50 hover:border-foreground/40 text-xs text-muted-foreground hover:text-foreground transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" strokeWidth={1.4} />
-                    <span className="uppercase tracking-[0.18em]">Add rotation key</span>
+                    <span className="text-sm">Add rotation key</span>
                   </button>
 
                   {((cfg.apiKeys ?? []).length > 0) && (
@@ -594,7 +594,7 @@ function ProviderSettings({
                           ),
                         })
                       }
-                      className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 text-base"
+                      className="w-full bg-transparent border-b border-border/50 focus:border-foreground outline-none py-3 text-base"
                     >
                       {GEMINI_MODELS.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -618,14 +618,14 @@ function ProviderSettings({
                 <button
                   disabled={testing[cfg.id]}
                   onClick={() => runTest(cfg.id)}
-                  className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 disabled:opacity-50 active:scale-[0.97] transition-transform"
+                  className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 disabled:opacity-50 active:scale-[0.97] transition-transform"
                 >
                   {testing[cfg.id] ? (
                     <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
                   ) : (
                     <KeyRound className="w-4 h-4" strokeWidth={1.4} />
                   )}
-                  <span className="text-xs uppercase tracking-[0.18em]">
+                  <span className="text-sm">
                     {testing[cfg.id] ? "Testing…" : "Test connection"}
                   </span>
                 </button>
@@ -647,7 +647,7 @@ function ProviderSettings({
             onChange={(e) =>
               update({ activeProvider: e.target.value as ProviderId })
             }
-            className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 text-base"
+            className="w-full bg-transparent border-b border-border/50 focus:border-foreground outline-none py-3 text-base"
           >
             {settings.providers.filter((p) => p.enabled).map((p) => (
               <option key={p.id} value={p.id}>
@@ -664,7 +664,7 @@ function ProviderSettings({
             max={5}
             value={settings.parallelRequests}
             onChange={(e) => update({ parallelRequests: Number(e.target.value) || 1 })}
-            className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 text-base"
+            className="w-full bg-transparent border-b border-border/50 focus:border-foreground outline-none py-3 text-base"
           />
         </Field>
       </div>
@@ -697,7 +697,7 @@ function TranslationPreferences({
             onChange={(e) =>
               update({ sourceLanguage: e.target.value as SourceLanguage })
             }
-            className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-2"
+            className="w-full bg-transparent border-b border-border/50 focus:border-foreground outline-none py-2"
           >
             <option value="auto">Auto-detect (recommended)</option>
             <option value="zh">Chinese (中文)</option>
@@ -717,7 +717,7 @@ function TranslationPreferences({
                 disabled={!canEdit}
                 onClick={() => update({ quality: q })}
                 className={
-                  "h-9 text-xs uppercase tracking-[0.18em] border " +
+                  "h-9 text-sm rounded-lg border " +
                   (settings.quality === q
                     ? "bg-foreground text-background border-foreground"
                     : "border-border hover:border-foreground/40")
@@ -807,7 +807,7 @@ function LogsView({ logs }: { logs: ApiCallLog[] }) {
     return (
       <section>
         <SectionHeader eyebrow="Logs" title="Translate something to populate the log" />
-        <div className="studio-card p-6 text-sm text-muted-foreground">
+        <div className="rounded-xl border border-border/50 p-6 text-sm text-muted-foreground">
           No translation calls have been logged yet. Press <em>Test connection</em> above
           or translate any paragraph to begin building a trail.
         </div>
@@ -816,13 +816,13 @@ function LogsView({ logs }: { logs: ApiCallLog[] }) {
   }
   return (
     <section>
-      <SectionHeader eyebrow="Logs" title="Recent provider activity" />        <div className="studio-card divide-y divide-border max-h-[320px] overflow-auto thin-scrollbar">
+      <SectionHeader eyebrow="Logs" title="Recent provider activity" />        <div className="rounded-xl border border-border/50 divide-y divide-border max-h-[320px] overflow-auto thin-scrollbar">
         {logs.map((l) => (
           <div key={l.id} className="p-3 sm:p-4 flex flex-col sm:grid sm:grid-cols-12 sm:items-center gap-1 sm:gap-3 text-sm">
             <span className="sm:col-span-3 text-xs text-muted-foreground order-1">
               {formatRelativeTime(l.at)}
             </span>
-            <span className="sm:col-span-2 uppercase tracking-[0.18em] text-xs order-2">
+            <span className="sm:col-span-2 text-xs order-2">
               {l.provider}
             </span>
             <span
@@ -844,14 +844,14 @@ function DriveSetupInstructions() {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border border-border bg-muted/20">
+    <div className="border border-border/50 bg-muted/20">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-muted/30 transition-colors"
       >
         <div className="flex items-center gap-2">
           <HelpCircle className="w-4 h-4 text-muted-foreground" strokeWidth={1.4} />
-          <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+          <span className="text-sm text-muted-foreground">
             How to set up Google Drive sync
           </span>
         </div>
@@ -1046,14 +1046,14 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
             setTimeout(() => URL.revokeObjectURL(url), 5000);
             toast.success("Backup downloaded.");
           }}
-          className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40"
+          className="h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20"
         >
           <Download className="w-4 h-4" strokeWidth={1.4} />
-          <span className="text-xs uppercase tracking-[0.18em]">Download backup</span>
+          <span className="text-sm">Download backup</span>
         </button>
-        <label className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 cursor-pointer">
+        <label className="h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 cursor-pointer">
           <Upload className="w-4 h-4" strokeWidth={1.4} />
-          <span className="text-xs uppercase tracking-[0.18em]">Restore backup</span>
+          <span className="text-sm">Restore backup</span>
           <input
             type="file"
             accept="application/json"
@@ -1083,9 +1083,9 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
       <div className="mt-8 pt-8 border-t border-border">
         <div className="flex items-center gap-2 mb-4">
           <Cloud className="w-4 h-4 text-muted-foreground" strokeWidth={1.4} />
-          <h3 className="font-display text-lg">Google Drive Sync</h3>
+          <h3 className="text-base font-semibold">Google Drive Sync</h3>
           {connected && (
-            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground ml-1">
+            <span className="text-xs text-muted-foreground ml-1">
               — {settings.driveEmail || "Connected"}
             </span>
           )}
@@ -1107,21 +1107,21 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
                 placeholder="123456789-abc.apps.googleusercontent.com"
                 value={settings.driveClientId}
                 onChange={(e) => update({ driveClientId: e.target.value })}
-                className="w-full bg-transparent border-b border-border focus:border-foreground outline-none py-3 font-mono text-sm"
+                className="w-full bg-transparent border-b border-border/50 focus:border-foreground outline-none py-3 font-mono text-sm"
               />
               {!connected ? (
                 <button
                   type="button"
                   disabled={!canEdit || syncing || !settings.driveClientId}
                   onClick={handleConnect}
-                  className="shrink-0 h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 disabled:opacity-40 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  className="shrink-0 h-10 px-4 inline-flex items-center gap-2 border border-border/50 hover:border-foreground/40 disabled:opacity-40 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   {syncState === "connecting" ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
                   ) : (
                     <Link className="w-3.5 h-3.5" strokeWidth={1.4} />
                   )}
-                  <span className="uppercase tracking-[0.18em]">
+                  <span className="text-sm">
                     {syncState === "connecting" ? "Connecting…" : "Connect"}
                   </span>
                 </button>
@@ -1130,11 +1130,11 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
                   type="button"
                   disabled={!canEdit}
                   onClick={handleDisconnect}
-                  className="shrink-0 h-10 px-3 inline-flex items-center gap-1.5 border border-border hover:border-destructive/40 text-xs text-muted-foreground hover:text-destructive transition-colors"
+                  className="shrink-0 h-10 px-3 inline-flex items-center gap-1.5 border border-border/50 hover:border-destructive/40 text-xs text-muted-foreground hover:text-destructive transition-colors"
                   title="Disconnect from Google Drive"
                 >
                   <X className="w-3.5 h-3.5" strokeWidth={1.4} />
-                  <span className="uppercase tracking-[0.18em]">Disconnect</span>
+                  <span className="text-sm">Disconnect</span>
                 </button>
               )}
             </div>
@@ -1153,28 +1153,28 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
           <button
             disabled={syncing || !settings.driveClientId}
             onClick={handlePush}
-            className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 disabled:opacity-40 active:scale-[0.97] transition-transform"
+            className="h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 disabled:opacity-40 active:scale-[0.97] transition-transform"
           >
             {syncState === "pushing" ? (
               <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
             ) : (
               <CloudUpload className="w-4 h-4" strokeWidth={1.4} />
             )}
-            <span className="text-xs uppercase tracking-[0.18em]">
+            <span className="text-sm">
               {syncState === "pushing" ? "Pushing…" : "Push to Drive"}
             </span>
           </button>
           <button
             disabled={syncing || !settings.driveClientId}
             onClick={handlePull}
-            className="h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 disabled:opacity-40 active:scale-[0.97] transition-transform"
+            className="h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 disabled:opacity-40 active:scale-[0.97] transition-transform"
           >
             {syncState === "pulling" ? (
               <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
             ) : (
               <CloudDownload className="w-4 h-4" strokeWidth={1.4} />
             )}
-            <span className="text-xs uppercase tracking-[0.18em]">
+            <span className="text-sm">
               {syncState === "pulling" ? "Pulling…" : "Pull from Drive"}
             </span>
           </button>
@@ -1188,10 +1188,10 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
 
 function SectionHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
-    <header className="border-b border-border pb-3 mb-5 flex items-end justify-between">
+    <header className="border-b border-border/50 pb-3 mb-5 flex items-end justify-between">
       <div>
-        <div className="studio-caps text-muted-foreground">{eyebrow}</div>
-        <h2 className="font-display text-2xl mt-1">{title}</h2>
+        <div className="text-xs text-muted-foreground">{eyebrow}</div>
+        <h2 className="text-xl font-semibold mt-1">{title}</h2>
       </div>
     </header>
   );
@@ -1200,7 +1200,7 @@ function SectionHeader({ eyebrow, title }: { eyebrow: string; title: string }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="studio-caps text-muted-foreground">{label}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
       <div className="mt-1">{children}</div>
     </label>
   );
@@ -1216,8 +1216,8 @@ function PreferenceCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="studio-card p-5">
-      <div className="studio-caps text-muted-foreground">{title}</div>
+    <div className="rounded-xl border border-border/50 p-5">
+      <div className="text-xs text-muted-foreground">{title}</div>
       <div className="mt-3">{children}</div>
       <p className="text-xs text-muted-foreground mt-3 leading-relaxed">{help}</p>
     </div>
@@ -1248,11 +1248,11 @@ function RpmControl({
   const atLimit = usage.used >= rpmLimit;
 
   return (
-    <div className="border border-border p-3 space-y-2">
+    <div className="border border-border/50 p-3 space-y-2">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Gauge className="w-4 h-4 text-muted-foreground" strokeWidth={1.4} />
-          <span className="studio-caps text-muted-foreground">RPM limit</span>
+          <span className="text-xs text-muted-foreground">RPM limit</span>
         </div>
         <div className="flex items-center gap-2">
           <span

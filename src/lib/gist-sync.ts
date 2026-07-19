@@ -243,7 +243,7 @@ async function createSyncGist(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        description: `${marker} — Atelier Studio backup (encrypted)`,
+        description: `${marker} — Ἀνέκδοτα backup (encrypted)`,
         public: false,
         files: { [GIST_FILENAME]: { content: encrypted } },
       }),

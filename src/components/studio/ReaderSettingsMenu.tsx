@@ -105,9 +105,9 @@ export function ReaderSettingsControls({ bookId }: { bookId: string }) {
         displayValue={GAP_LABELS[gapIdx]}
       />
 
-      <div className="border-t border-border pt-4 space-y-3">
+      <div className="border-t border-border/50 pt-4 space-y-3">
         <Toggle
-          label="Original column"
+          label="Show original"
           checked={prefs.showOriginal}
           onChange={(v) => updateBookPrefs(bookId, { showOriginal: v })}
         />
@@ -127,30 +127,28 @@ export function ReaderSettingsMenu({ bookId }: { bookId: string }) {
         <button
           type="button"
           aria-label="Reader settings"
-          className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors"
+          className="h-9 px-3 inline-flex items-center gap-2 rounded-lg hover:bg-muted transition-colors text-sm text-muted-foreground hover:text-foreground"
         >
-          <Settings2 className="w-4 h-4" strokeWidth={1.4} />
-          <span className="text-xs uppercase tracking-[0.18em]">
-            Reader
-          </span>
+          <Settings2 className="w-4 h-4" strokeWidth={1.25} />
+          <span>Reader</span>
         </button>
       </PopoverTrigger>
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-[320px] p-0 rounded-none border border-border bg-popover"
+        className="w-[300px] p-0 rounded-xl border border-border/50 bg-popover shadow-lg"
       >
-        <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-          <span className="studio-caps text-foreground">Reader</span>
+        <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between">
+          <span className="text-sm font-medium text-foreground">Reader settings</span>
           {hasOverride && (
             <button
               type="button"
               onClick={() => resetBookPrefs(bookId)}
-              className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5"
+              className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 transition-colors"
               aria-label="Reset reader settings to default"
             >
-              <RotateCcw className="w-3 h-3" strokeWidth={1.4} />
-              Reset to default
+              <RotateCcw className="w-3 h-3" strokeWidth={1.25} />
+              Reset
             </button>
           )}
         </div>
@@ -177,7 +175,7 @@ function Segment<T extends string>({
 }) {
   return (
     <div>
-      <div className="studio-caps text-muted-foreground mb-2">{label}</div>
+      <div className="text-xs text-muted-foreground mb-2">{label}</div>
       <div className="grid grid-cols-2 gap-2">
         {options.map((opt) => {
           const active = opt.value === value;
@@ -188,13 +186,13 @@ function Segment<T extends string>({
               type="button"
               onClick={() => onChange(opt.value)}
               className={cn(
-                "h-9 px-3 inline-flex items-center justify-center gap-2 border text-xs uppercase tracking-[0.16em] transition-colors",
+                "h-9 px-3 inline-flex items-center justify-center gap-2 rounded-lg text-sm transition-all",
                 active
-                  ? "bg-foreground text-background border-foreground"
-                  : "bg-background text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground",
+                  ? "bg-foreground text-background"
+                  : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground",
               )}
             >
-              {Icon && <Icon className="w-3.5 h-3.5" strokeWidth={1.4} />}
+              {Icon && <Icon className="w-3.5 h-3.5" strokeWidth={1.25} />}
               {opt.label}
             </button>
           );
@@ -229,7 +227,7 @@ function SizeControl({
   return (
     <div>
       <div className="flex items-baseline justify-between mb-2">
-        <span className="studio-caps text-muted-foreground">{label}</span>
+        <span className="text-xs text-muted-foreground">{label}</span>
         <div className="flex items-center gap-1.5">
           <input
             type="number"
@@ -250,12 +248,10 @@ function SizeControl({
                 (e.currentTarget as HTMLInputElement).blur();
               }
             }}
-            className="h-7 w-14 bg-transparent text-right text-[12px] tabular-nums tracking-[0.04em] text-foreground/85 border-b border-border hover:border-foreground/40 focus:border-foreground focus:outline-none"
+            className="h-7 w-14 bg-transparent text-right text-sm tabular-nums text-foreground/85 border-b border-border/50 hover:border-foreground/40 focus:border-foreground focus:outline-none rounded-none"
             aria-label={`${label} in pixels`}
           />
-          <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-            px
-          </span>
+          <span className="text-[10px] text-muted-foreground">px</span>
         </div>
       </div>
       <Slider
@@ -275,7 +271,7 @@ function SizeControl({
       {/* Mini tick row under the slider — shows min/default/max anchors so
           the user knows where the slider sits at a glance without crowding
           the control with five labels. */}
-      <div className="mt-1.5 grid text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70 grid-cols-3">
+      <div className="mt-1.5 grid text-[10px] text-muted-foreground/50 grid-cols-3">
         <span className="text-left">{FONT_SIZE_MIN}</span>
         <span className="text-center">{FONT_SIZE_DEFAULT}</span>
         <span className="text-right">{FONT_SIZE_MAX}</span>
@@ -302,10 +298,8 @@ function SteppedSlider({
   return (
     <div>
       <div className="flex items-baseline justify-between mb-2">
-        <span className="studio-caps text-muted-foreground">{label}</span>
-        <span className="text-[11px] uppercase tracking-[0.18em] text-foreground/80">
-          {displayValue}
-        </span>
+        <span className="text-xs text-muted-foreground">{label}</span>
+        <span className="text-xs text-foreground/70">{displayValue}</span>
       </div>
       <Slider
         value={[idx]}
@@ -316,7 +310,7 @@ function SteppedSlider({
         aria-label={`${label} (${displayValue})`}
       />
       <div
-        className="mt-1.5 grid text-[9px] uppercase tracking-[0.16em] text-muted-foreground/70"
+        className="mt-1.5 grid text-[10px] text-muted-foreground/60"
         style={{ gridTemplateColumns: `repeat(${total}, minmax(0, 1fr))` }}
       >
         {labels.map((l, i) => (

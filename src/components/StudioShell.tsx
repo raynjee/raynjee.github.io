@@ -4,8 +4,6 @@
 import { Link, NavLink, useLocation } from "react-router";
 import { motion } from "framer-motion";
 import {
-  BookOpen,
-  Coffee,
   Library,
   Menu,
   Settings as SettingsIcon,
@@ -13,6 +11,7 @@ import {
   Moon,
   LaptopMinimal,
   X,
+  Coffee,
 } from "lucide-react";
 import { useSettings } from "@/hooks/use-settings";
 import { cn } from "@/lib/utils";
@@ -84,60 +83,44 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
       {!hideChrome && (
         <header className="border-b border-border sticky top-0 z-30 bg-background/90 backdrop-blur-sm">
           <div className="mx-auto max-w-[1400px] px-6 lg:px-10 h-16 flex items-center justify-between gap-6">
-            <Link
-              to="/"
-              className="flex items-center gap-3 group"
-              aria-label="Atelier home"
-            >
-              <div className="relative w-9 h-9 grid place-items-center border border-foreground/40">
-                <div className="absolute inset-1.5 border border-foreground/15" />
-                <BookOpen className="w-4 h-4 text-foreground" strokeWidth={1.4} />
-              </div>
-              <div className="leading-tight">
-                <div className="font-display text-[15px] tracking-wide">
-                  Atelier
-                </div>
-                <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-                  Translation Studio
-                </div>
-              </div>
+            <Link to="/" className="flex items-center gap-2 text-base font-semibold tracking-tight" aria-label="Ἀνέκδοτα home">
+              <img src="/logo.svg" alt="" className="w-5 h-5 dark:hidden" />
+              <img src="/logo-dark.svg" alt="" className="w-5 h-5 hidden dark:block" />
+              Ἀνέκδοτα
             </Link>
 
-            <nav className="hidden md:flex items-center gap-2">
-              <StudioTab to="/library" label="Library" icon={Library} active={location.pathname.startsWith("/library")} />
-              <StudioTab to="/settings" label="Settings" icon={SettingsIcon} active={location.pathname.startsWith("/settings")} />
+            <nav className="hidden md:flex items-center gap-6">
+              <StudioTab to="/library" label="Library" active={location.pathname.startsWith("/library")} />
+              <StudioTab to="/settings" label="Settings" active={location.pathname.startsWith("/settings")} />
             </nav>
 
-            {/* ── Mobile hamburger ──────────────────────────── */}
-            <button
-              onClick={() => setMobileMenuOpen((v) => !v)}
-              aria-label="Toggle menu"
-              className="md:hidden w-9 h-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors"
-            >
-              {mobileMenuOpen ? (
-                <X className="w-4 h-4" strokeWidth={1.4} />
-              ) : (
-                <Menu className="w-4 h-4" strokeWidth={1.4} />
-              )}
-            </button>
+            <div className="flex items-center gap-0.5">
+              {/* ── Mobile hamburger ──────────────────────────── */}
+              <button
+                onClick={() => setMobileMenuOpen((v) => !v)}
+                aria-label="Toggle menu"
+                className="md:hidden w-9 h-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors"
+              >
+                {mobileMenuOpen ? (
+                  <X className="w-4 h-4" strokeWidth={1.4} />
+                ) : (
+                  <Menu className="w-4 h-4" strokeWidth={1.4} />
+                )}
+              </button>
 
-            <div className="flex items-center gap-2">
               <a
                 href="https://ko-fi.com/raynjee"
                 target="_blank"
                 rel="noreferrer noopener"
-                aria-label="Buy me a coffee on Ko-fi"
-                className="group inline-flex items-center gap-2 h-9 px-3 border border-border hover:border-foreground/40 transition-colors text-xs uppercase tracking-[0.18em] text-foreground/80 hover:text-foreground"
+                aria-label="Support on Ko-fi"
+                className="w-8 h-8 grid place-items-center hover:bg-muted rounded-md transition-colors text-muted-foreground hover:text-foreground"
               >
-                <Coffee className="w-3.5 h-3.5" strokeWidth={1.4} />
-                <span className="hidden sm:inline">Ko-fi</span>
+                <Coffee className="w-4 h-4" strokeWidth={1.4} />
               </a>
               <button
-                onClick={() =>
-                  update({ themePref: nextTheme(settings.themePref) })
-                }
+                onClick={() => update({ themePref: nextTheme(settings.themePref) })}
                 aria-label="Toggle theme"
-                className="w-9 h-9 grid place-items-center border border-border hover:border-foreground/40 transition-colors"
+                className="w-8 h-8 grid place-items-center hover:bg-muted rounded-md transition-colors"
               >
                 <ThemeIcon className="w-4 h-4" strokeWidth={1.4} />
               </button>
@@ -194,40 +177,7 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
         {children}
       </motion.main>
 
-      {!hideChrome && (
-        <footer className="border-t border-border mt-16">
-          <div className="mx-auto max-w-[1400px] px-6 lg:px-10 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-xs text-muted-foreground">
-            <div className="col-span-2">
-              <div className="font-display text-base text-foreground">Atelier</div>
-              <p className="leading-relaxed mt-2 max-w-[34ch]">
-                A quiet studio for translating novels between languages. Your
-                library lives on your machine — nothing leaves the room.
-              </p>
-            </div>
-            <div>
-              <div className="studio-caps text-foreground mb-3">Studio</div>
-              <ul className="space-y-1.5">
-                <li><Link to="/library" className="hover:text-foreground transition-colors">Library</Link></li>
-                <li><Link to="/settings" className="hover:text-foreground transition-colors">Settings</Link></li>
-              </ul>
-            </div>
-            <div>
-              <div className="studio-caps text-foreground mb-3">Practice</div>
-              <ul className="space-y-1.5">
-                <li>EPUB in, EPUB out</li>
-                <li>Multi-provider failover</li>
-                <li>Curated by saberyyang09@gmail.com</li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-border">
-            <div className="mx-auto max-w-[1400px] px-6 lg:px-10 py-4 text-[11px] uppercase tracking-[0.2em] text-muted-foreground flex justify-between">
-              <span>Atelier — Edition 01</span>
-              <span>© {new Date().getFullYear()}</span>
-            </div>
-          </div>
-        </footer>
-      )}
+
     </div>
   );
 }
@@ -235,26 +185,23 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
 function StudioTab({
   to,
   label,
-  icon: Icon,
   active,
 }: {
   to: string;
   label: string;
-  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
   active: boolean;
 }) {
   return (
     <NavLink
       to={to}
       className={cn(
-        "h-9 px-3 inline-flex items-center gap-2 border border-border transition-colors text-sm",
+        "text-sm transition-colors",
         active
-          ? "bg-foreground text-background border-foreground"
-          : "bg-background text-foreground/80 hover:border-foreground/40 hover:text-foreground",
+          ? "text-foreground font-medium"
+          : "text-muted-foreground hover:text-foreground",
       )}
     >
-      <Icon className="w-4 h-4" strokeWidth={1.4} />
-      <span>{label}</span>
+      {label}
     </NavLink>
   );
 }

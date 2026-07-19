@@ -705,12 +705,12 @@ export default function BookReader() {
     return (
       <StudioShell>
         <div className="mx-auto max-w-[900px] px-6 lg:px-10 pt-24 text-center">
-          <div className="font-display text-2xl">That volume is not in the library.</div>
+          <div className="text-xl font-semibold">That volume is not in the library.</div>
           <button
-            className="mt-6 h-11 px-5 inline-flex items-center gap-2 border border-border"
+            className="mt-6 h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:bg-muted transition-colors text-sm"
             onClick={() => navigate("/library")}
           >
-            <ArrowLeft className="w-4 h-4" strokeWidth={1.4} /> Back to library
+            <ArrowLeft className="w-4 h-4" strokeWidth={1.25} /> Back to library
           </button>
         </div>
       </StudioShell>
@@ -731,14 +731,13 @@ export default function BookReader() {
         <header className="hidden lg:flex flex-col lg:flex-row lg:items-end justify-between gap-4 sm:gap-6">
           <div>
             <button
-              className="text-xs uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-2"
+              className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 transition-colors"
               onClick={() => navigate("/library")}
             >
-              ← Back to library
+              <ArrowLeft className="w-3.5 h-3.5" strokeWidth={1.25} /> Back to library
             </button>
-            <div className="mt-3 studio-caps text-muted-foreground">The Deskside</div>
-            <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl mt-2 tracking-tight leading-tight">{book.title}</h1>
-            <p className="text-muted-foreground mt-1">{book.author}</p>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl mt-2 tracking-tight leading-tight font-semibold">{book.title}</h1>
+            <p className="text-muted-foreground mt-1 text-sm">{book.author}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <ApiLender settings={settings} />
@@ -746,15 +745,15 @@ export default function BookReader() {
               <button
                 type="button"
                 onClick={paused ? onResume : onPause}
-                className="h-11 sm:h-10 px-3 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 active:scale-[0.97] transition-transform"
+                className="h-11 sm:h-10 px-3 inline-flex items-center gap-1.5 rounded-lg border border-border/50 hover:border-foreground/20 active:scale-[0.97] transition-all"
                 title={paused ? "Resume translation" : "Pause translation"}
               >
                 {paused ? (
-                  <Play className="w-4 h-4" strokeWidth={1.4} />
+                  <Play className="w-4 h-4" strokeWidth={1.25} />
                 ) : (
-                  <Pause className="w-4 h-4" strokeWidth={1.4} />
+                  <Pause className="w-4 h-4" strokeWidth={1.25} />
                 )}
-                <span className="text-xs uppercase tracking-[0.18em] hidden sm:inline">
+                <span className="text-sm hidden sm:inline">
                   {paused ? "Resume" : "Pause"}
                 </span>
               </button>
@@ -763,24 +762,24 @@ export default function BookReader() {
               type="button"
               disabled={busy}
               onClick={onBatchTranslate}
-              className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 active:scale-[0.97] transition-transform"
+              className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 rounded-lg bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 active:scale-[0.97] transition-all"
             >
               {busy ? (
                 <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
               ) : (
                 <Sparkles className="w-4 h-4" strokeWidth={1.4} />
               )}
-              <span className="text-xs uppercase tracking-[0.18em]">
+              <span className="text-sm">
                 {busy ? "Translating…" : "Translate all"}
               </span>
             </button>
             <button
               type="button"
               onClick={onExport}
-              className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 border border-border hover:border-foreground/40 active:scale-[0.97] transition-transform"
+              className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 active:scale-[0.97] transition-all"
             >
-              <Download className="w-4 h-4" strokeWidth={1.4} />
-              <span className="text-xs uppercase tracking-[0.18em]">Export EPUB</span>
+              <Download className="w-4 h-4" strokeWidth={1.25} />
+              <span className="text-sm">Export EPUB</span>
             </button>
           </div>
         </header>
@@ -789,13 +788,13 @@ export default function BookReader() {
         <div className="md:hidden flex items-center gap-3 mb-6">
           <button
             onClick={() => navigate("/library")}
-            className="shrink-0 w-9 h-9 grid place-items-center border border-border hover:border-foreground/40 rounded"
+            className="shrink-0 w-9 h-9 grid place-items-center rounded-lg hover:bg-muted transition-colors"
             aria-label="Back to library"
           >
-            <ArrowLeft className="w-4 h-4" strokeWidth={1.4} />
+            <ArrowLeft className="w-4 h-4" strokeWidth={1.25} />
           </button>
           <div className="min-w-0">
-            <h1 className="font-display text-lg leading-tight truncate">{book.title}</h1>
+            <h1 className="text-base leading-tight font-semibold truncate">{book.title}</h1>
             <p className="text-xs text-muted-foreground truncate">{book.author}</p>
           </div>
           {busy && (
@@ -807,23 +806,29 @@ export default function BookReader() {
         </div>
 
         {/* Progress strip — desktop only */}
-        <div className="hidden lg:grid mt-8 grid-cols-12 gap-4">
-          <ProgressCell label="Chapter" value={`${chapters.findIndex((c) => c.id === activeId) + 1} / ${chapters.length}`} />
-          <ProgressCell label="Words translated" value={`${translatedWordCount.toLocaleString()} / ${totalWordCount.toLocaleString()}`} />
-          <ProgressCell
-            label="Active provider"
-            value={progress?.provider ?? activeTranslation?.provider ?? settings.activeProvider}
-          />
-          <ProgressCell
-            label="Status"
-            value={busy ? "Translating" : managerRef.current?.isPaused() ? "Paused" : "Ready"}
-          />
+        <div className="hidden lg:grid mt-8 grid-cols-4 gap-4 text-sm">
+          <div>
+            <div className="text-xs text-muted-foreground">Chapter</div>
+            <div className="mt-0.5">{`${chapters.findIndex((c) => c.id === activeId) + 1} / ${chapters.length}`}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Words translated</div>
+            <div className="mt-0.5">{`${translatedWordCount.toLocaleString()} / ${totalWordCount.toLocaleString()}`}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Provider</div>
+            <div className="mt-0.5">{progress?.provider ?? activeTranslation?.provider ?? settings.activeProvider}</div>
+          </div>
+          <div>
+            <div className="text-xs text-muted-foreground">Status</div>
+            <div className="mt-0.5">{busy ? "Translating" : managerRef.current?.isPaused() ? "Paused" : "Ready"}</div>
+          </div>
         </div>
 
         {/* Translate-in-progress bar */}
         {progress && (
           <div className="mt-4">
-            <div className="studio-caps text-muted-foreground">
+            <div className="text-sm text-muted-foreground">
               Translating — {progress.done} / {progress.total} paragraphs
             </div>
             <div className="mt-2 h-1 w-full bg-border overflow-hidden">
@@ -858,7 +863,7 @@ export default function BookReader() {
               className="shrink-0 text-orange-400/60 hover:text-orange-300 transition-colors cursor-pointer"
               aria-label="Dismiss"
             >
-              <span className="text-xs uppercase tracking-[0.2em]">Dismiss</span>
+              <span className="text-xs text-muted-foreground hover:text-foreground transition-colors">Dismiss</span>
             </button>
           </motion.div>
         )}
@@ -866,8 +871,8 @@ export default function BookReader() {
         {/* Keyboard shortcuts hint bar — desktop only */}
         {showShortcuts && (
           <div className="hidden lg:block mt-6">
-          <div className="flex items-center gap-5 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50 border-b border-border/50 pb-4 overflow-x-auto">
-            <span className="text-muted-foreground/70">Shortcuts</span>
+          <div className="flex items-center gap-5 text-[11px] text-muted-foreground/50 border-b border-border/50 pb-4 overflow-x-auto">
+            <span className="text-muted-foreground/70 font-medium">Shortcuts</span>
             <span className="inline-flex items-center gap-1"><Kbd>←</Kbd><Kbd>→</Kbd> or <Kbd>J</Kbd><Kbd>K</Kbd> prev/next chapter</span>
             <span className="w-px h-3 bg-border/50" />
             <span className="inline-flex items-center gap-1"><Kbd>Space</Kbd> scroll page · <Kbd>↑</Kbd><Kbd>↓</Kbd> scroll line</span>
@@ -876,7 +881,7 @@ export default function BookReader() {
             {activeIdx >= 0 && (
               <>
                 <span className="w-px h-3 bg-border/50" />
-                <span className="studio-num text-muted-foreground/50">
+                <span className="text-muted-foreground/50">
                   Ch {activeIdx + 1}/{chapters.length}
                 </span>
               </>
@@ -887,7 +892,7 @@ export default function BookReader() {
               onClick={toggleShortcuts}
               aria-label="Hide keyboard shortcuts"
               title="Hide shortcuts bar"
-              className="ml-auto shrink-0 px-2 py-0.5 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
+              className="ml-auto shrink-0 px-2 py-0.5 text-[10px] text-muted-foreground/30 hover:text-muted-foreground/70 transition-colors"
             >
               Hide
             </button>
@@ -900,7 +905,7 @@ export default function BookReader() {
           <button
             type="button"
             onClick={toggleShortcuts}
-            className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors border-b border-transparent hover:border-border/30 pb-1"
+            className="text-[11px] text-muted-foreground/20 hover:text-muted-foreground/60 transition-colors border-b border-transparent hover:border-border/30 pb-1"
           >
             Show shortcuts
           </button>
@@ -913,18 +918,18 @@ export default function BookReader() {
           <div className="hidden lg:grid grid-cols-12 gap-8">
             {prefs.showToc && (
               <aside className="col-span-3 sticky top-24 self-start">
-                <div className="border border-border">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                    <span className="studio-caps text-muted-foreground text-xs">Contents</span>
+                <div className="rounded-xl border border-border/50 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+                    <span className="text-xs text-muted-foreground font-medium">Contents</span>
                     <button
                       onClick={() => updateBookPrefs(book.id, { showToc: false })}
-                      className="w-7 h-7 grid place-items-center border border-border hover:border-foreground/40 rounded"
+                      className="w-7 h-7 grid place-items-center rounded-lg hover:bg-muted transition-colors"
                       aria-label="Hide contents"
                     >
                       <PanelLeftClose className="w-3.5 h-3.5" strokeWidth={1.4} />
                     </button>
                   </div>
-                  <ol className="divide-y divide-border max-h-[60vh] overflow-y-auto thin-scrollbar">
+                  <ol className="divide-y divide-border/50 max-h-[60vh] overflow-y-auto thin-scrollbar">
                     {chapters.map((c, idx) => {
                       const tr = translations[c.id];
                       const isDone = tr?.status === "completed" && tr.paragraphs.every((p: string | null) => p && p.trim());
@@ -934,14 +939,14 @@ export default function BookReader() {
                           <button
                             onClick={() => setActiveId(c.id)}
                             className={cn(
-                              "w-full text-left px-4 py-3 grid grid-cols-12 gap-3 items-center transition-colors hover:bg-muted",
+                              "w-full text-left px-4 py-3 grid grid-cols-12 gap-3 items-center transition-colors hover:bg-muted rounded-lg",
                               isActive && "bg-foreground text-background hover:bg-foreground",
                             )}
                           >
-                            <span className="col-span-1 studio-num text-xs opacity-70">
+                            <span className="col-span-1 text-xs text-muted-foreground tabular-nums">
                               {String(idx + 1).padStart(2, "0")}
                             </span>
-                            <span className="col-span-9 text-sm font-display line-clamp-2">
+                            <span className="col-span-9 text-sm line-clamp-2">
                               {c.title}
                             </span>
                             <span className="col-span-2 flex justify-end">
@@ -950,14 +955,14 @@ export default function BookReader() {
                               ) : tr ? (
                                 <span
                                   className={cn(
-                                    "studio-num text-[10px]",
+                                    "text-[10px]",
                                     isActive ? "opacity-80" : "text-muted-foreground",
                                   )}
                                 >
                                   {Math.round((tr.progress ?? 0) * 100)}%
                                 </span>
                               ) : (
-                                <span className="studio-num text-[10px] opacity-50">·</span>
+                                <span className="text-[10px] opacity-50">·</span>
                               )}
                             </span>
                           </button>
@@ -1045,11 +1050,10 @@ export default function BookReader() {
               />
               ) : (
                 <div className="p-12 text-center">
-                  <BookOpen className="w-10 h-10 mx-auto text-muted-foreground" strokeWidth={1.2} />
-                  <div className="mt-4 font-display text-2xl">Pick a chapter</div>
-                  <p className="text-muted-foreground mt-2 max-w-[40ch] mx-auto">
-                    The reading desk opens whatever you choose from the table of
-                    contents on the left.
+                  <BookOpen className="w-10 h-10 mx-auto text-muted-foreground/40" strokeWidth={1} />
+                  <div className="mt-4 text-xl font-semibold">Pick a chapter</div>
+                  <p className="text-muted-foreground mt-2 max-w-[40ch] mx-auto text-sm">
+                    Choose from the table of contents on the left.
                   </p>
                 </div>
               )}
@@ -1099,10 +1103,10 @@ export default function BookReader() {
               />
             ) : (
               <div className="p-12 text-center">
-                <BookOpen className="w-10 h-10 mx-auto text-muted-foreground" strokeWidth={1.2} />
-                <div className="mt-4 font-display text-2xl">Pick a chapter</div>
-                <p className="text-muted-foreground mt-2 max-w-[40ch] mx-auto">
-                  Tap the chapters button below to open the table of contents.
+                <BookOpen className="w-10 h-10 mx-auto text-muted-foreground/40" strokeWidth={1} />
+                <div className="mt-4 text-xl font-semibold">Pick a chapter</div>
+                <p className="text-muted-foreground mt-2 max-w-[40ch] mx-auto text-sm">
+                  Tap the chapters button below.
                 </p>
               </div>
             )}
@@ -1130,18 +1134,18 @@ export default function BookReader() {
                   className="md:hidden fixed inset-y-0 left-0 z-50 w-80 max-w-[85vw] bg-background border-r border-border shadow-xl flex flex-col"
                 >
                   {/* Drawer header */}
-                  <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
                     <div>
-                      <span className="studio-caps text-muted-foreground text-xs">
+                      <span className="text-sm font-medium">
                         Table of contents
                       </span>
-                      <span className="studio-num text-[10px] text-muted-foreground ml-2">
-                        {chapters.length.toString().padStart(2, "0")}
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {chapters.length} chapters
                       </span>
                     </div>
                     <button
                       onClick={closeTocDrawer}
-                      className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40 rounded"
+                      className="w-8 h-8 grid place-items-center rounded-lg hover:bg-muted transition-colors"
                       aria-label="Close chapters"
                     >
                       <X className="w-4 h-4" strokeWidth={1.4} />
@@ -1162,10 +1166,10 @@ export default function BookReader() {
                               isActive && "bg-foreground text-background hover:bg-foreground",
                             )}
                           >
-                            <span className="col-span-1 studio-num text-xs opacity-70">
+                            <span className="col-span-1 text-xs text-muted-foreground tabular-nums">
                               {String(idx + 1).padStart(2, "0")}
                             </span>
-                            <span className="col-span-9 text-sm font-display line-clamp-2">
+                            <span className="col-span-9 text-sm line-clamp-2">
                               {c.title}
                             </span>
                             <span className="col-span-2 flex justify-end">
@@ -1174,14 +1178,14 @@ export default function BookReader() {
                               ) : tr ? (
                                 <span
                                   className={cn(
-                                    "studio-num text-[10px]",
+                                    "text-[10px]",
                                     isActive ? "opacity-80" : "text-muted-foreground",
                                   )}
                                 >
                                   {Math.round((tr.progress ?? 0) * 100)}%
                                 </span>
                               ) : (
-                                <span className="studio-num text-[10px] opacity-50">·</span>
+                                <span className="text-[10px] opacity-50">·</span>
                               )}
                             </span>
                           </button>
@@ -1218,13 +1222,13 @@ export default function BookReader() {
                   transition={{ type: "spring", damping: 30, stiffness: 300 }}
                   className="md:hidden fixed inset-y-0 right-0 z-50 w-80 max-w-[85vw] bg-background border-l border-border shadow-xl flex flex-col"
                 >
-                  <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-                    <span className="studio-caps text-muted-foreground text-xs">
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
+                    <span className="text-sm font-medium">
                       Tools
                     </span>
                     <button
                       onClick={closeToolsDrawer}
-                      className="w-8 h-8 grid place-items-center border border-border hover:border-foreground/40 rounded"
+                      className="w-8 h-8 grid place-items-center rounded-lg hover:bg-muted transition-colors"
                       aria-label="Close tools"
                     >
                       <X className="w-4 h-4" strokeWidth={1.4} />
@@ -1232,7 +1236,7 @@ export default function BookReader() {
                   </div>
                   <div className="flex-1 overflow-y-auto thin-scrollbar px-5 py-5 space-y-7">
                     <section className="space-y-3">
-                      <h3 className="studio-caps text-muted-foreground text-xs">
+                      <h3 className="text-xs text-muted-foreground font-medium">
                         Translate
                       </h3>
                       {busy ? (
@@ -1243,26 +1247,22 @@ export default function BookReader() {
                               onStop();
                               closeToolsDrawer();
                             }}
-                            className="h-10 px-3 inline-flex items-center justify-center gap-2 border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors"
+                            className="h-10 px-3 inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors text-sm"
                           >
                             <Square className="w-3.5 h-3.5" strokeWidth={1.6} />
-                            <span className="text-xs uppercase tracking-[0.18em]">
-                              Stop translation
-                            </span>
+                            <span className="text-sm">Stop translation</span>
                           </button>
                           <button
                             type="button"
                             onClick={paused ? onResume : onPause}
-                            className="h-10 px-3 inline-flex items-center justify-center gap-2 border border-border hover:border-foreground/40 transition-colors"
+                            className="h-10 px-3 inline-flex items-center justify-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 transition-colors"
                           >
                             {paused ? (
-                              <Play className="w-4 h-4" strokeWidth={1.4} />
+                              <Play className="w-4 h-4" strokeWidth={1.25} />
                             ) : (
-                              <Pause className="w-4 h-4" strokeWidth={1.4} />
+                              <Pause className="w-4 h-4" strokeWidth={1.25} />
                             )}
-                            <span className="text-xs uppercase tracking-[0.18em]">
-                              {paused ? "Resume" : "Pause"}
-                            </span>
+                            <span className="text-sm">{paused ? "Resume" : "Pause"}</span>
                           </button>
                         </div>
                       ) : (
@@ -1271,7 +1271,7 @@ export default function BookReader() {
                             type="button"
                             onClick={onToggleAutoAdvance}
                             className={cn(
-                              "h-10 px-3 inline-flex items-center justify-center gap-2 border transition-colors",
+                              "h-10 px-3 inline-flex items-center justify-center gap-2 rounded-lg border transition-colors",
                               autoAdvance
                                 ? "bg-foreground text-background border-foreground"
                                 : "border-border hover:border-foreground/40 text-foreground",
@@ -1286,9 +1286,7 @@ export default function BookReader() {
                               className={cn("w-3.5 h-3.5", autoAdvance ? "" : "opacity-50")}
                               strokeWidth={1.4}
                             />
-                            <span className="text-xs uppercase tracking-[0.18em]">
-                              Auto-advance: {autoAdvance ? "on" : "off"}
-                            </span>
+                            <span className="text-sm">Auto-advance: {autoAdvance ? "on" : "off"}</span>
                           </button>
                           {activeTranslation &&
                             activeTranslation.paragraphs.some((p) => p && p.trim()) && (
@@ -1298,12 +1296,10 @@ export default function BookReader() {
                                   onDeleteTranslation();
                                   closeToolsDrawer();
                                 }}
-                                className="h-10 px-3 inline-flex items-center justify-center gap-2 border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors"
+                                className="h-10 px-3 inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors text-sm"
                               >
                                 <Trash2 className="w-4 h-4" strokeWidth={1.4} />
-                                <span className="text-xs uppercase tracking-[0.18em]">
-                                  Delete translation
-                                </span>
+                                <span className="text-sm">Delete translation</span>
                               </button>
                             )}
                         </div>
@@ -1311,7 +1307,7 @@ export default function BookReader() {
                     </section>
 
                     <section className="space-y-3">
-                      <h3 className="studio-caps text-muted-foreground text-xs">
+                      <h3 className="text-xs text-muted-foreground font-medium">
                         Navigation
                       </h3>
                       <button
@@ -1321,17 +1317,15 @@ export default function BookReader() {
                           closeToolsDrawer();
                           navigate(`/library/${book.id}/glossary`);
                         }}
-                        className="h-10 px-3 w-full inline-flex items-center justify-center gap-2 border border-border hover:border-foreground/40 transition-colors"
+                        className="h-10 px-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 transition-colors text-sm"
                       >
                         <BookOpen className="w-4 h-4" strokeWidth={1.4} />
-                        <span className="text-xs uppercase tracking-[0.18em]">
-                          Glossary
-                        </span>
+                        <span className="text-sm">Glossary</span>
                       </button>
                     </section>
 
                     <section className="space-y-3">
-                      <h3 className="studio-caps text-muted-foreground text-xs">
+                      <h3 className="text-xs text-muted-foreground font-medium">
                         Reader
                       </h3>
                       <ReaderSettingsControls bookId={book.id} />
@@ -1469,8 +1463,8 @@ export default function BookReader() {
 function ProgressCell({ label, value }: { label: string; value: string | React.ReactNode }) {
   return (
     <div className="col-span-6 lg:col-span-3">
-      <div className="studio-caps text-muted-foreground">{label}</div>
-      <div className="mt-1 font-display text-lg truncate">{value || "—"}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-0.5 text-base">{value || "—"}</div>
     </div>
   );
 }
@@ -1628,8 +1622,8 @@ function ChapterReader({
     <article>
       <header className={cn("flex flex-col sm:flex-row items-start sm:justify-between gap-3 sm:gap-6 flex-wrap", mobile && "gap-3")}>
         <div>
-          {!mobile && <div className="studio-caps text-muted-foreground">Chapter</div>}
-          <h2 className={cn("font-display mt-1 tracking-tight", mobile ? "text-xl" : "text-2xl sm:text-3xl")}>{chapter.title}</h2>
+          {!mobile && <div className="text-xs text-muted-foreground">Chapter</div>}
+          <h2 className={cn("mt-1 tracking-tight font-semibold", mobile ? "text-lg" : "text-xl sm:text-2xl")}>{chapter.title}</h2>
           <div className="text-muted-foreground mt-1 text-sm">
             {chapter.wordCount.toLocaleString()} words ·{" "}
               {translation?.status === "completed" ? (
@@ -1663,7 +1657,7 @@ function ChapterReader({
               className="h-10 sm:h-10 px-2.5 sm:px-3 inline-flex items-center gap-1.5 sm:gap-2 border border-border hover:border-foreground/40 active:scale-[0.97] transition-all"
             >
               <PanelLeftOpen className="w-4 h-4" strokeWidth={1.4} />
-              <span className="hidden xs:inline text-xs uppercase tracking-[0.18em]">Contents</span>
+              <span className="hidden xs:inline text-sm">Contents</span>
             </button>
           )}
           <button
@@ -1672,7 +1666,7 @@ function ChapterReader({
             className="h-10 sm:h-10 px-2.5 sm:px-3 inline-flex items-center gap-1.5 sm:gap-2 border border-border hover:border-foreground/40 active:scale-[0.97] transition-all"
           >
             <BookOpen className="w-4 h-4" strokeWidth={1.4} />
-            <span className="hidden xs:inline text-xs uppercase tracking-[0.18em]">Glossary</span>
+            <span className="hidden xs:inline text-sm">Glossary</span>
           </button>
           <ReaderSettingsMenu bookId={bookId} />
           <ReadAloud {...readAloudProps} />
@@ -1684,7 +1678,7 @@ function ChapterReader({
                 className="h-10 px-3 inline-flex items-center gap-2 border border-red-500/50 text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
               >
                 <Square className="w-3.5 h-3.5" strokeWidth={1.6} />
-                <span className="text-xs uppercase tracking-[0.18em]">Stop</span>
+                <span className="text-sm">Stop</span>
               </button>
               {isPaused ? (
                 <button
@@ -1693,7 +1687,7 @@ function ChapterReader({
                   className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors cursor-pointer"
                 >
                   <Play className="w-4 h-4" strokeWidth={1.4} />
-                  <span className="text-xs uppercase tracking-[0.18em]">Resume</span>
+                  <span className="text-sm">Resume</span>
                 </button>
               ) : (
                 <button
@@ -1702,7 +1696,7 @@ function ChapterReader({
                   className="h-10 px-3 inline-flex items-center gap-2 border border-border hover:border-foreground/40 transition-colors cursor-pointer"
                 >
                   <Pause className="w-4 h-4" strokeWidth={1.4} />
-                  <span className="text-xs uppercase tracking-[0.18em]">Pause</span>
+                  <span className="text-sm">Pause</span>
                 </button>
               )}
               <span className="inline-flex items-center gap-2 text-xs text-muted-foreground px-1">
@@ -1719,7 +1713,7 @@ function ChapterReader({
                 className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 cursor-pointer active:scale-[0.97] transition-transform"
               >
                 <Sparkles className="w-4 h-4" strokeWidth={1.4} />
-                <span className="text-xs uppercase tracking-[0.18em]">
+                <span className="text-sm">
                   {translation?.status === "completed" ? "Re-translate" : "Translate chapter"}
                 </span>
               </button>
@@ -1735,7 +1729,7 @@ function ChapterReader({
                 title={autoAdvance ? "Auto-advance is on — disable" : "Auto-advance: translate next chapter after this one"}
               >
                 <Sparkles className={cn("w-3.5 h-3.5", autoAdvance ? "" : "opacity-50")} strokeWidth={1.4} />
-                <span className="text-xs uppercase tracking-[0.18em]">Auto</span>
+                <span className="text-sm">Auto</span>
               </button>
               {translation && translation.paragraphs.some((p) => p && p.trim()) && (
                 <button
@@ -1745,7 +1739,7 @@ function ChapterReader({
                   title="Delete this chapter's translation"
                 >
                   <Trash2 className="w-4 h-4" strokeWidth={1.4} />
-                  <span className="text-xs uppercase tracking-[0.18em]">Delete</span>
+                  <span className="text-sm">Delete</span>
                 </button>
               )}
             </>
@@ -1762,16 +1756,16 @@ function ChapterReader({
         )}
       >
         {showOriginal && layout === "split" && (
-          <div className="studio-caps text-muted-foreground">Original</div>
+          <div className="text-xs text-muted-foreground">Original</div>
         )}
         {showOriginal && layout === "stack" && (
           <>
-            <div className="studio-caps text-muted-foreground">Original</div>
-            <div className="studio-caps text-muted-foreground">English</div>
+            <div className="text-xs text-muted-foreground">Original</div>
+            <div className="text-xs text-muted-foreground">English</div>
           </>
         )}
         {!showOriginal && (
-          <div className="studio-caps text-muted-foreground">English</div>
+          <div className="text-xs text-muted-foreground">English</div>
         )}
       </div>
 
