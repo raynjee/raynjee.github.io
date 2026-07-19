@@ -70,6 +70,9 @@ const DEFAULT_SETTINGS: StudioSettings = {
   themePref: "light",
   defaultReaderPrefs: { ...DEFAULT_READER_PREFS },
   bookReaderPrefs: {},
+  driveClientId: "",
+  driveEmail: "",
+  lastSyncAt: 0,
 };
 
 function isBrowser(): boolean {
@@ -184,6 +187,10 @@ export function loadSettings(): StudioSettings {
       apiKey: p.apiKey ? decryptApiKey(p.apiKey) : "",
       apiKeys: p.apiKeys ? p.apiKeys.map((k) => (k ? decryptApiKey(k) : "")) : undefined,
     }));
+    // Decrypt Drive client ID same as API keys.
+    if (result.driveClientId) {
+      result.driveClientId = decryptApiKey(result.driveClientId);
+    }
     // Sync the RPM rate limiter with the loaded setting.
     setGeminiRpmLimit(result.geminiRpmLimit ?? 8);
     return result;
@@ -203,6 +210,7 @@ export function saveSettings(settings: StudioSettings): void {
       apiKey: p.apiKey ? encryptApiKey(p.apiKey) : "",
       apiKeys: p.apiKeys ? p.apiKeys.map((k) => (k ? encryptApiKey(k) : "")) : undefined,
     })),
+    driveClientId: settings.driveClientId ? encryptApiKey(settings.driveClientId) : "",
   };
   window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(safe));
 }

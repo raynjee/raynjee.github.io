@@ -222,6 +222,7 @@ export class TranslationManager {
     onPartialRows?: (rows: (string | null)[]) => void;
     checkPause?: () => Promise<void>;
     glossary?: GlossaryEntry[];
+    skipCache?: boolean;
   }): Promise<{
     rows: string[];
     provider: ProviderId | null;
@@ -281,6 +282,7 @@ export class TranslationManager {
         chunk.paragraphs,
         args.contextHint,
         args.glossary,
+        args.skipCache,
       );
       for (let k = 0; k < chunk.paragraphs.length; k++) {
         const globalIdx = chunk.startIdx + k;
@@ -318,6 +320,7 @@ export class TranslationManager {
     chunk: string[],
     contextHint?: string,
     glossary?: GlossaryEntry[],
+    skipCache?: boolean,
   ): Promise<{
     rows: string[];
     provider: ProviderId | null;
@@ -326,21 +329,25 @@ export class TranslationManager {
   }> {
     // Try preferred first, then walk through others.
     const order = orderProviders(this.opts.preferred, this.opts.providers);
-    // Consult cache for each paragraph first.
+    // Consult cache for each paragraph first (unless skipCache is set).
     const cached: (string | null)[] = [];
-    for (const p of chunk) {
-      const keyFor = (id: ProviderId) =>
-        TranslationMemory.cacheKey(p, this.opts.target, this.opts.quality, id, glossary);
-      let hit: string | null = null;
-      for (const cfg of order) {
-        if (!cfg.enabled) continue;
-        const v = await this.mem.get(await keyFor(cfg.id));
-        if (v) {
-          hit = v;
-          break;
+    if (!skipCache) {
+      for (const p of chunk) {
+        const keyFor = (id: ProviderId) =>
+          TranslationMemory.cacheKey(p, this.opts.target, this.opts.quality, id, glossary);
+        let hit: string | null = null;
+        for (const cfg of order) {
+          if (!cfg.enabled) continue;
+          const v = await this.mem.get(await keyFor(cfg.id));
+          if (v) {
+            hit = v;
+            break;
+          }
         }
+        cached.push(hit);
       }
-      cached.push(hit);
+    } else {
+      for (let i = 0; i < chunk.length; i++) cached.push(null);
     }
     const missingIndices = chunk
       .map((_, i) => i)
@@ -470,7 +477,11 @@ function isUsableTranslation(source: string, translated: string | undefined): tr
   if (translatedTrimmed === sourceTrimmed) return false;
   const sourceCjk = countCjk(source);
   const translatedCjk = countCjk(translated);
-  return translatedCjk <= Math.max(4, Math.floor(sourceCjk * 0.25));
+  // Near-zero tolerance for CJK in English output.
+  // Allow at most 2 CJK chars (could be a romanization edge case)
+  // AND they must represent ≤5% of the source's CJK density.
+  const maxAllowed = Math.min(2, Math.ceil(sourceCjk * 0.05));
+  return translatedCjk <= maxAllowed;
 }
 
 function normalizeForComparison(text: string): string {

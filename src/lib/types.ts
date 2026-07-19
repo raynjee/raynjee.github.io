@@ -169,6 +169,9 @@ export interface StudioSettings {
   themePref: "light" | "dark" | "system";
   defaultReaderPrefs: ReaderPrefs;
   bookReaderPrefs: Record<string, Partial<ReaderPrefs>>;
+  driveClientId: string;   // Google Cloud OAuth 2.0 Client ID for Drive sync
+  driveEmail: string;      // email of the connected Google account (for display)
+  lastSyncAt: number;      // timestamp of last successful push/pull
 }
 
 export interface Book {

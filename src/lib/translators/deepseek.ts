@@ -17,8 +17,6 @@ export async function callDeepSeek(
   const systemPrompt = buildSystemPrompt(req);
   const userPrompt = buildUserPrompt(req);
 
-  const prompt = `${systemPrompt}\n\n${userPrompt}`;
-
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(), 90_000);
   try {
@@ -30,7 +28,10 @@ export async function callDeepSeek(
       },
       body: JSON.stringify({
         model: cfg.model || "deepseek-chat",
-        messages: [{ role: "user", content: prompt }],
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
         stream: true,
         temperature: req.quality === "high" ? 0.35 : req.quality === "balanced" ? 0.5 : 0.7,
       }),
@@ -142,6 +143,7 @@ function buildSystemPrompt(req: TranslateRequest): string {
       : sourceLabel(req.source);
   const base = [
     `You are a literary translator working from ${source} into English.`,
+    `CRITICAL: Output ONLY English text. NEVER leave any ${source === "Chinese" ? "Chinese" : source === "Japanese" ? "Japanese" : source === "Korean" ? "Korean" : "CJK"} characters in your translation. Every word, name, and phrase must be in English. If you encounter a proper name, romanize it — do NOT keep the original script.`,
     `Preserve narration, tone, character voice, idioms (adapted), and onomatopoeia.`,
     `Treat honorifics and archaic terms by keeping them and adding a brief English gloss in parentheses when natural.`,
     `Do NOT add explanations, chapter commentary, or translator's notes.`,
@@ -161,8 +163,8 @@ function buildGlossaryBlock(entries?: GlossaryEntry[]): string | null {
     `${e.term} → ${e.translation}${e.gender === "F" || e.gender === "M" ? ` (${e.gender})` : ""}`,
   );
   return [
-    "=== GLOSSARY ===",
-    "Use these canonical translations EXACTLY for specific characters, locations, and defined terms. You may adapt them slightly only if the immediate context requires it (e.g., nickname variants).",
+    "=== GLOSSARY (RECENTLY UPDATED — RECHECK ALL ENTRIES) ===",
+    "These are the canonical translations for this book. They OVERRIDE any other translations you may know. Use them EXACTLY as specified for characters, locations, and defined terms. Only adapt for obvious nickname variants (e.g., adding -chan/-san suffixes). If a term appears in the source and has a glossary entry, you MUST use the glossary translation — do NOT invent your own.",
     "",
     ...lines,
   ].join("\n");

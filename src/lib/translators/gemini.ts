@@ -207,6 +207,7 @@ function buildSystemPrompt(req: TranslateRequest): string {
       : sourceLabel(req.source);
   const base = [
     `You are a literary translator working from ${source} into English.`,
+    `CRITICAL: Output ONLY English text. NEVER leave any ${source === "Chinese" ? "Chinese" : source === "Japanese" ? "Japanese" : source === "Korean" ? "Korean" : "CJK"} characters in your translation. Every word, name, and phrase must be in English. If you encounter a proper name, romanize it — do NOT keep the original script.`,
     `Preserve narration, tone, character voice, idioms (adapted), and onomatopoeia.`,
     `Honorifics and archaic terms stay — add a brief English gloss in parentheses if natural.`,
     `Do NOT add commentary or translator's notes.`,
@@ -226,8 +227,8 @@ function buildGlossaryBlock(entries?: GlossaryEntry[]): string | null {
     `${e.term} → ${e.translation}${e.gender === "F" || e.gender === "M" ? ` (${e.gender})` : ""}`,
   );
   return [
-    "=== GLOSSARY ===",
-    "Use these canonical translations EXACTLY for specific characters, locations, and defined terms. You may adapt them slightly only if the immediate context requires it (e.g., nickname variants).",
+    "=== GLOSSARY (RECENTLY UPDATED — RECHECK ALL ENTRIES) ===",
+    "These are the canonical translations for this book. They OVERRIDE any other translations you may know. Use them EXACTLY as specified for characters, locations, and defined terms. Only adapt for obvious nickname variants (e.g., adding -chan/-san suffixes). If a term appears in the source and has a glossary entry, you MUST use the glossary translation — do NOT invent your own.",
     "",
     ...lines,
   ].join("\n");

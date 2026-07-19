@@ -340,6 +340,18 @@ export default function BookReader() {
 
   const readAloudControllerRef = useRef<ReadAloudController | null>(null);
   const [speakingReadableIdx, setSpeakingReadableIdx] = useState<number>(-1);
+
+  // ── Scroll-to-top button ─────────────────────────────────────────
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 500);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  const scrollToTop = useCallback(
+    () => window.scrollTo({ top: 0, behavior: "smooth" }),
+    [],
+  );
   // Map the ReadAloud-readable index back to a chapter paragraph index
   // so we can highlight the paragraph currently being spoken.
   const speakingChapterIdx = useMemo(() => {
@@ -989,6 +1001,7 @@ export default function BookReader() {
                       paragraphs: [activeChapter.paragraphs[paragraphIdx]],
                       contextHint: `Single paragraph from "${activeChapter.title}".`,
                       glossary: glossaryEntries.length ? glossaryEntries : undefined,
+                      skipCache: true,
                     });
                     const txt = res.rows[0];
                     const updated = { ...tr, paragraphs: [...tr.paragraphs], provider: res.provider };
@@ -1425,6 +1438,30 @@ export default function BookReader() {
           </div>
         </div>
       </div>
+      {/* ── Floating scroll-to-top ────────────────────────── */}
+      <AnimatePresence>
+        {showScrollTop && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.2 }}
+            onClick={scrollToTop}
+            aria-label="Scroll to top"
+            className="fixed bottom-28 lg:bottom-10 right-4 lg:right-10 z-40 w-10 h-10 rounded-full border border-border bg-background/90 backdrop-blur-sm shadow-lg hover:border-foreground/40 active:scale-90 transition-all flex items-center justify-center"
+          >
+            <svg
+              className="w-4 h-4 text-foreground"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18 15l-6-6-6 6" />
+            </svg>
+          </motion.button>
+        )}
+      </AnimatePresence>
     </StudioShell>
   );
 }

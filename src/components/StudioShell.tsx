@@ -16,7 +16,9 @@ import {
 } from "lucide-react";
 import { useSettings } from "@/hooks/use-settings";
 import { cn } from "@/lib/utils";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { pullFromDrive } from "@/lib/drive-sync";
+import { notifyLibraryChanged } from "@/hooks/use-library";
 
 interface StudioShellProps {
   children: React.ReactNode;
@@ -30,6 +32,27 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
 
   // Close mobile menu on route change
   useEffect(() => { setMobileMenuOpen(false); }, [location.pathname]);
+
+  // Auto-pull from Google Drive on app open if sync is configured.
+  const autoPullRan = useRef(false);
+  useEffect(() => {
+    if (autoPullRan.current) return;
+    if (!settings.driveClientId || !settings.driveEmail) return;
+    autoPullRan.current = true;
+    const t = setTimeout(async () => {
+      try {
+        const result = await pullFromDrive(settings.driveClientId);
+        if (result.ok) {
+          update({ lastSyncAt: result.syncedAt });
+          notifyLibraryChanged();
+        }
+      } catch {
+        /* quiet */
+      }
+    }, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const pref = settings.themePref;
