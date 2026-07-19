@@ -1,5 +1,6 @@
 import "@vly-ai/integrations";
 import { Toaster } from "@/components/ui/sonner";
+import { ConfirmProvider } from "@/components/ConfirmDialog";
 import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
 import { InstrumentationProvider } from "@/instrumentation.tsx";
 import { StrictMode, useEffect, lazy, Suspense } from "react";
@@ -62,16 +63,18 @@ createRoot(document.getElementById("root")!).render(
       <HashRouter>
         <RouteSyncer />
         <Suspense fallback={<RouteLoading />}>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/library" element={<Library />} />
-            <Route path="/library/:bookId/edit" element={<BookEditorRoute />} />
-            <Route path="/library/:bookId" element={<BookReader />} />
-            <Route path="/library/:bookId/glossary" element={<Glossary />} />
-            <Route path="/library/:bookId/:chapterId" element={<BookReader />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <ConfirmProvider>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/library" element={<Library />} />
+              <Route path="/library/:bookId/edit" element={<BookEditorRoute />} />
+              <Route path="/library/:bookId" element={<BookReader />} />
+              <Route path="/library/:bookId/glossary" element={<Glossary />} />
+              <Route path="/library/:bookId/:chapterId" element={<BookReader />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </ConfirmProvider>
         </Suspense>
       </HashRouter>
       <Toaster />

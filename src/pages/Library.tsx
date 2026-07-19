@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { StudioShell } from "@/components/StudioShell";
 import { BookGalleryTile } from "@/components/studio/BookGallery";
 import {
@@ -51,6 +52,7 @@ import { splitIntoChapters } from "@/lib/text-import";
 type SortBy = "recent" | "title" | "progress";
 
 export default function Library() {
+  const askConfirm = useConfirm();
   const { books, refresh, loading } = useLibrary();
   const { statsById, loading: statsLoading } = useAllBookStats();
   const navigate = useNavigate();
@@ -83,12 +85,13 @@ export default function Library() {
 
   const onBatchDelete = async () => {
     if (selectedBooks.size === 0) return;
-    if (
-      !confirm(
-        `Delete ${selectedBooks.size} book${selectedBooks.size !== 1 ? "s" : ""}? This will remove all translations too.`,
-      )
-    )
-      return;
+    const batchOk = await askConfirm({
+      title: `Delete ${selectedBooks.size} book${selectedBooks.size !== 1 ? "s" : ""}?`,
+      description: "This will remove all translations too.",
+      actionLabel: "Delete all",
+      destructive: true,
+    });
+    if (!batchOk) return;
     setBatchDeleting(true);
     let deleted = 0;
     for (const id of selectedBooks) {
@@ -295,12 +298,13 @@ export default function Library() {
                   onOpen={() => navigate(`/library/${b.id}`)}
                   onEdit={() => navigate(`/library/${b.id}/edit`)}
                   onDelete={async () => {
-                    if (
-                      !confirm(
-                        `Delete "${b.title}"? This will remove all translations too.`,
-                      )
-                    )
-                      return;
+                    const delOk = await askConfirm({
+                      title: `Delete "${b.title}"?`,
+                      description: "This will remove all translations too.",
+                      actionLabel: "Delete",
+                      destructive: true,
+                    });
+                    if (!delOk) return;
                     await deleteBook(b.id);
                     toast.success("Book removed from library.");
                   }}
@@ -719,6 +723,7 @@ function NoMatch({
 // ─── BookEditor (admin only) ───────────────────────────────────────────
 
 export function BookEditor({ bookId }: { bookId: string }) {
+  const askConfirm = useConfirm();
   const { books } = useLibrary();
   const book = books.find((b) => b.id === bookId);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -833,7 +838,8 @@ export function BookEditor({ bookId }: { bookId: string }) {
   };
 
   const onDelete = async (id: string) => {
-    if (!confirm("Delete this chapter and its translation?")) return;
+    const chDelOk = await askConfirm({ title: "Delete chapter?", description: "The chapter and its translation will be removed.", actionLabel: "Delete", destructive: true });
+        if (!chDelOk) return;
     await deleteChapter(book.id, id);
     void listChapters(book.id).then(setChapters);
   };
@@ -929,7 +935,12 @@ export function BookEditor({ bookId }: { bookId: string }) {
     const current = chapters[idx];
     const nextChap = chapters[idx + 1];
 
-    if (!confirm(`Merge "${current.title}" with "${nextChap.title}"?`)) return;
+    const mergeOk = await askConfirm({
+      title: "Merge chapters?",
+      description: `"${current.title}" will be merged with "${nextChap.title}".`,
+      actionLabel: "Merge",
+    });
+    if (!mergeOk) return;
 
     const mergedTitle = current.title;
     const mergedParas = [...current.paragraphs, ...nextChap.paragraphs];
@@ -961,12 +972,13 @@ export function BookEditor({ bookId }: { bookId: string }) {
 
   const onReSplit = async () => {
     if (chapters.length === 0) return;
-    if (
-      !confirm(
-        "Re-detect chapter boundaries? This will flatten all chapters into paragraphs and re-split them using chapter markers (e.g. 'Chapter 1', '第1章', etc.). Any custom chapter titles will be replaced.",
-      )
-    )
-      return;
+    const reSplitOk = await askConfirm({
+      title: "Re-detect chapters?",
+      description: "This will flatten all chapters into paragraphs and re-split them using chapter markers. Any custom chapter titles will be replaced.",
+      actionLabel: "Re-split",
+      destructive: true,
+    });
+    if (!reSplitOk) return;
 
     const allParagraphs = chapters.flatMap((c) => c.paragraphs);
     const reSplitChapters = splitIntoChapters(allParagraphs, book.title || "Untitled");

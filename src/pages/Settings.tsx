@@ -27,6 +27,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { PROVIDERS } from "@/lib/translators/types";
 import { buildBackup, restoreBackup, listLogs, appendLog } from "@/lib/db";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { formatRelativeTime } from "@/lib/util";
 import { setGeminiRpmLimit, geminiRpmUsage } from "@/lib/translators/gemini";
 import { pushToDrive, pullFromDrive, connectDrive, disconnectDrive } from "@/lib/drive-sync";
@@ -41,6 +42,7 @@ const GEMINI_MODELS = [
 ];
 
 export default function SettingsPage() {
+  const askConfirm = useConfirm();
   const { settings, update } = useSettings();
 
   return (
@@ -951,6 +953,7 @@ function DriveSetupInstructions() {
 // ── Backup / Restore + Google Drive Sync ──────────────────────────────
 
 function BackupPanel({ canEdit }: { canEdit: boolean }) {
+  const askConfirm = useConfirm();
   const { settings, update } = useSettings();
   const [syncState, setSyncState] = useState<"idle" | "pushing" | "pulling" | "connecting">("idle");
   const [connected, setConnected] = useState(!!settings.driveEmail);
@@ -976,8 +979,8 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
       toast.error("Enter your Google Client ID first.");
       return;
     }
-    if (!confirm("Pull will replace ALL local books and translations with the Drive backup. Continue?"))
-      return;
+    const pullOk = await askConfirm({ title: "Pull from Drive?", description: "This will replace ALL local books and translations with the Drive backup.", actionLabel: "Pull", destructive: true });
+      if (!pullOk) return;
     setSyncState("pulling");
     const result = await pullFromDrive(settings.driveClientId);
     setSyncState("idle");
@@ -1013,7 +1016,8 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
   };
 
   const handleDisconnect = async () => {
-    if (!confirm("Disconnect from Google Drive? You can reconnect anytime.")) return;
+    const dcOk = await askConfirm({ title: "Disconnect Drive?", description: "You can reconnect anytime.", actionLabel: "Disconnect" });
+      if (!dcOk) return;
     const result = await disconnectDrive();
     setConnected(false);
     update({ driveEmail: "" });
@@ -1066,8 +1070,8 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
                 const raw = await file.text();
                 const data = JSON.parse(raw);
                 if (!data.version) throw new Error("Missing version field");
-                if (!confirm("Restore will replace all books and translations. Continue?"))
-                  return;
+                const restoreOk = await askConfirm({ title: "Restore backup?", description: "This will replace all current books and translations.", actionLabel: "Restore", destructive: true });
+                if (!restoreOk) return;
                 await restoreBackup(data);
                 toast.success("Backup restored. Reloading…");
                 setTimeout(() => window.location.reload(), 600);

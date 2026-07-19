@@ -37,6 +37,7 @@ import { ApiStatusPill } from "@/components/studio/ApiStatusPill";
 import { buildTranslatedEpub } from "@/lib/epub";
 import { SCENE_BREAK } from "@/lib/text-import";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime, getBookmark, saveBookmark } from "@/lib/util";
 import {
@@ -49,6 +50,7 @@ import { openSafariReader } from "@/lib/safari-reader";
 import { Kbd } from "@/components/ui/kbd";
 
 export default function BookReader() {
+  const askConfirm = useConfirm();
   const { bookId, chapterId } = useParams();
   const { books } = useLibrary();
   const navigate = useNavigate();
@@ -698,9 +700,11 @@ export default function BookReader() {
       return tr && tr.paragraphs.length === c.paragraphs.length && tr.paragraphs.every((x) => x && x.trim());
     });
     if (!allTranslated) {
-      const ok = confirm(
-        "Not every chapter has a complete translation. Export anyway? Untranslated paragraphs will keep their original text.",
-      );
+      const ok = await askConfirm({
+        title: "Export anyway?",
+        description: "Not every chapter has a complete translation. Untranslated paragraphs will keep their original text.",
+        actionLabel: "Export",
+      });
       if (!ok) return;
     }
     const map = new Map<string, (string | null)[]>();
