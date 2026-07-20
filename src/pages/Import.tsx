@@ -62,7 +62,14 @@ export default function ImportTranslationsPage() {
         setLoading(false);
         return;
       }
-      const json = decodeURIComponent(escape(atob(raw)));
+      // Decode: bookmarklet encodes as btoa(bytes) where bytes = encodeURIComponent(JSON).replace(/%XX/g, chr)
+      const bytes = atob(raw);
+      let pct = '';
+      for (let i = 0; i < bytes.length; i++) {
+        const hex = bytes.charCodeAt(i).toString(16).padStart(2, '0');
+        pct += '%' + hex;
+      }
+      const json = decodeURIComponent(pct);
       const parsed = JSON.parse(json) as ImportData;
       if (!parsed.chapters?.length) {
         setError("No chapters found in the import data.");
@@ -226,6 +233,28 @@ export default function ImportTranslationsPage() {
     setPasteParsing(false);
     toast.success(`Detected ${chapters.length} chapter${chapters.length !== 1 ? "s" : ""}.`);
   }, [pasteText, parsePastedChapters]);
+
+  // Clipboard helper — falls back from async API to legacy execCommand for iOS Safari
+  const copyText = useCallback(async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copied!`);
+    } catch {
+      // Fallback for iOS Safari / older browsers
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.cssText = "position:fixed;left:-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        toast.success(`${label} copied!`);
+      } catch {
+        toast.error("Failed to copy — select the text manually.");
+      }
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -582,18 +611,11 @@ export default function ImportTranslationsPage() {
                     <span className="text-xs text-muted-foreground font-mono">Full version — Safari / Firefox / Desktop</span>
                     <button
                       type="button"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(BOOKMARKLET_FULL);
-                          toast.success("Full version copied!");
-                        } catch {
-                          toast.error("Failed to copy — select the text manually.");
-                        }
-                      }}
+                      onClick={() => copyText(BOOKMARKLET_FULL, "Full version")}
                       className="h-7 px-2.5 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 transition-colors text-xs rounded"
                     >
                       <Copy className="w-3 h-3" strokeWidth={1.4} />
-                      Copy (9 KB)
+                      Copy (6 KB)
                     </button>
                   </div>
                   <div className="p-4 bg-muted/20">
@@ -609,14 +631,7 @@ export default function ImportTranslationsPage() {
                     <span className="text-xs text-muted-foreground font-mono">Short bootstrap — Edge / Chrome mobile</span>
                     <button
                       type="button"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(BOOKMARKLET_BOOTSTRAP);
-                          toast.success("Bootstrap version copied!");
-                        } catch {
-                          toast.error("Failed to copy — select the text manually.");
-                        }
-                      }}
+                      onClick={() => copyText(BOOKMARKLET_BOOTSTRAP, "Bootstrap version")}
                       className="h-7 px-2.5 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 transition-colors text-xs rounded"
                     >
                       <Copy className="w-3 h-3" strokeWidth={1.4} />

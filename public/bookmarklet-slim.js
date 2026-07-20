@@ -12,16 +12,17 @@ var status=d.createElement('span');status.id='__as';status.textContent='Scanning
 var prog=d.createElement('span');prog.id='__ap';prog.style.cssText='font-size:11px;color:#999';
 var right=d.createElement('span');right.style.cssText='margin-left:auto;display:flex;gap:6px;align-items:center';
 var pauseBtn=d.createElement('button');pauseBtn.id='__apa';pauseBtn.textContent='Pause';pauseBtn.style.cssText='background:#333;color:#f5f5f5;border:1px solid#555;padding:4px 10px;border-radius:4px;font:11px system-ui;cursor:pointer;display:none';
+var stopBtn=d.createElement('button');stopBtn.id='__ast';stopBtn.textContent='Stop';stopBtn.style.cssText='background:#522;color:#f99;border:1px solid#844;padding:4px 10px;border-radius:4px;font:11px system-ui;cursor:pointer;display:none';
 var startInp=d.createElement('input');startInp.id='__asi';startInp.type='number';startInp.min='1';startInp.placeholder='Start ch';startInp.style.cssText='width:52px;background:#222;color:#f5f5f5;border:1px solid#444;border-radius:4px;padding:3px 5px;font:11px system-ui;display:none';
 var goBtn=d.createElement('button');goBtn.id='__ag';goBtn.disabled=true;goBtn.textContent='Send';goBtn.style.cssText='background:#f5f5f5;color:#0a0a0a;border:none;padding:5px 12px;border-radius:4px;font:600 11px system-ui;cursor:pointer';
 var closeBtn=d.createElement('button');closeBtn.id='__ax';closeBtn.textContent='✕';closeBtn.style.cssText='background:none;color:#888;border:1px solid#555;padding:4px 8px;border-radius:4px;font:12px system-ui;cursor:pointer';
 
-right.appendChild(pauseBtn);right.appendChild(startInp);right.appendChild(goBtn);right.appendChild(closeBtn);
+right.appendChild(pauseBtn);right.appendChild(stopBtn);right.appendChild(startInp);right.appendChild(goBtn);right.appendChild(closeBtn);
 bar.appendChild(status);bar.appendChild(prog);bar.appendChild(right);
 b.appendChild(bar);
 
 var m=d.getElementById('__as'),p=d.getElementById('__ap'),g=d.getElementById('__ag'),x=d.getElementById('__ax'),
-    pa=d.getElementById('__apa'),si=d.getElementById('__asi');
+    pa=d.getElementById('__apa'),st=d.getElementById('__ast'),si=d.getElementById('__asi');
 x.onclick=function(){bar.remove();window.__ak=0};
 
 function msg(t,c){m.textContent=t;if(c!=null)p.textContent=c+'/'+total}
@@ -53,8 +54,9 @@ if(!links.length){
 
 /* ── Scraping loop ──────────────────────────────────────── */
 var ch=[],ok=0,fail=0,i=0,paused=false,stopped=false;
-pa.style.display='inline-block';
+pa.style.display='inline-block';st.style.display='inline-block';
 pa.onclick=function(){paused=!paused;pa.textContent=paused?'Resume':'Pause';if(!paused)next()};
+st.onclick=function(){stopped=true;msg(ok+' chapters · '+fail+' failed');pa.style.display='none';st.style.display='none';si.style.display='none';if(!ch.length){msg('No chapters scraped yet.');return}showResult(ch)};
 
 function next(){
   if(stopped||paused)return;
@@ -63,7 +65,7 @@ function next(){
   if(i>=links.length){
     msg(ok+' chapters · '+fail+' failed');
     if(!ch.length){msg('All failed.');return}
-    pa.style.display='none';si.style.display='none';
+    pa.style.display='none';st.style.display='none';si.style.display='none';
     showResult(ch);return;
   }
   msg('Ch '+(i+1-startAt+1)+'/'+total+' ('+ok+' ok)');
