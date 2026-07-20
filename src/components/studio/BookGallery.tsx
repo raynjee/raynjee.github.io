@@ -97,7 +97,7 @@ export function BookGalleryTile({
       </button>
 
       {/* Actions */}
-      <div className="mt-2 px-0.5 pb-1 flex gap-2 opacity-0 md:group-hover:opacity-100 transition-opacity">
+      <div className="mt-2 px-0.5 pb-1 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         {onEdit && (
           <button
             onClick={(e) => { e.preventDefault(); onEdit(); }}

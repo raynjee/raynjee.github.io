@@ -738,10 +738,20 @@ export function BookEditor({ bookId }: { bookId: string }) {
   const [translatingAuthor, setTranslatingAuthor] = useState(false);
   const [translatingDesc, setTranslatingDesc] = useState(false);
 
+  // Book metadata — used by translators as style/tone reference
+  const [genre, setGenre] = useState(book?.genre ?? "");
+  const [tone, setTone] = useState(book?.tone ?? "");
+  const [style, setStyle] = useState(book?.style ?? "");
+  const [targetAudience, setTargetAudience] = useState(book?.targetAudience ?? "");
+
   // Keep original values to enable per-field revert
   const origTitleRef = useRef(book?.title ?? "");
   const origAuthorRef = useRef(book?.author ?? "");
   const origDescRef = useRef(book?.description ?? "");
+  const origGenreRef = useRef(book?.genre ?? "");
+  const origToneRef = useRef(book?.tone ?? "");
+  const origStyleRef = useRef(book?.style ?? "");
+  const origAudienceRef = useRef(book?.targetAudience ?? "");
 
   // Chapter split UI state
   const [splittingChapterId, setSplittingChapterId] = useState<string | null>(null);
@@ -752,6 +762,10 @@ export function BookEditor({ bookId }: { bookId: string }) {
     title !== (book?.title ?? "") ||
     author !== (book?.author ?? "") ||
     description !== (book?.description ?? "") ||
+    genre !== (book?.genre ?? "") ||
+    tone !== (book?.tone ?? "") ||
+    style !== (book?.style ?? "") ||
+    targetAudience !== (book?.targetAudience ?? "") ||
     cover !== (book?.coverDataUrl ?? null);
 
   const translateField = async (
@@ -804,6 +818,14 @@ export function BookEditor({ bookId }: { bookId: string }) {
     origTitleRef.current = book?.title ?? "";
     origAuthorRef.current = book?.author ?? "";
     origDescRef.current = book?.description ?? "";
+    setGenre(book?.genre ?? "");
+    setTone(book?.tone ?? "");
+    setStyle(book?.style ?? "");
+    setTargetAudience(book?.targetAudience ?? "");
+    origGenreRef.current = book?.genre ?? "";
+    origToneRef.current = book?.tone ?? "";
+    origStyleRef.current = book?.style ?? "";
+    origAudienceRef.current = book?.targetAudience ?? "";
   }, [book?.id]);
 
   if (!book) {
@@ -860,7 +882,7 @@ export function BookEditor({ bookId }: { bookId: string }) {
   };
 
   const onSaveMeta = async () => {
-    await updateBook(book.id, { title, author, description, coverDataUrl: cover });
+    await updateBook(book.id, { title, author, description, coverDataUrl: cover, genre, tone, style, targetAudience });
     toast.success("Book details saved.");
   };
 
@@ -1307,6 +1329,60 @@ export function BookEditor({ bookId }: { bookId: string }) {
                   className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none p-3 text-sm leading-relaxed resize-none rounded transition-colors"
                   placeholder="A short note for readers."
                 />
+              </div>
+
+              {/* Book metadata — genre, tone, style, audience */}
+              <div className="studio-card p-4 sm:p-5">
+                <div className="studio-caps text-muted-foreground mb-3">Translation hints</div>
+                <p className="text-[11px] text-muted-foreground mb-4 leading-relaxed">
+                  Tell the translator AI about this book's character. Leave blank for the AI to use its own judgment.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+                      Genre
+                    </label>
+                    <input
+                      value={genre}
+                      onChange={(e) => setGenre(e.target.value)}
+                      placeholder="e.g. fantasy, xianxia, romance"
+                      className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-2 text-sm rounded transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+                      Tone
+                    </label>
+                    <input
+                      value={tone}
+                      onChange={(e) => setTone(e.target.value)}
+                      placeholder="e.g. dark, comedic, serious"
+                      className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-2 text-sm rounded transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+                      Style
+                    </label>
+                    <input
+                      value={style}
+                      onChange={(e) => setStyle(e.target.value)}
+                      placeholder="e.g. web novel, light novel, literary"
+                      className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-2 text-sm rounded transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-[0.12em] text-muted-foreground mb-1.5">
+                      Audience
+                    </label>
+                    <input
+                      value={targetAudience}
+                      onChange={(e) => setTargetAudience(e.target.value)}
+                      placeholder="e.g. young adult, adult, all ages"
+                      className="w-full bg-muted/50 border border-border focus:border-foreground focus:bg-background outline-none px-3 py-2 text-sm rounded transition-colors"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </section>

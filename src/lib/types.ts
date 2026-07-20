@@ -14,7 +14,7 @@ export type SourceLanguage =
 
 export type Quality = "fast" | "balanced" | "high";
 
-export type ProviderId = "deepseek" | "gemini";
+export type ProviderId = "deepseek" | "gemini" | "manual";
 
 export interface ProviderConfig {
   id: ProviderId;
@@ -185,6 +185,12 @@ export interface Book {
   createdAt: number;
   updatedAt: number;
   chapterOrder: string[]; // Chapter ids in display order
+  // Book-level metadata used by translators as style/tone reference.
+  // All optional — leave blank and the AI uses its own judgment.
+  genre: string;           // e.g. "fantasy", "romance", "xianxia", "sci-fi"
+  tone: string;            // e.g. "dark", "comedic", "serious", "lighthearted"
+  style: string;           // e.g. "web novel", "light novel", "literary", "poetic"
+  targetAudience: string;  // e.g. "young adult", "adult", "all ages"
 }
 
 export interface Chapter {

@@ -49,6 +49,20 @@ import { ReadAloud, type ReadAloudController } from "@/components/studio/ReadAlo
 import { openSafariReader } from "@/lib/safari-reader";
 import { Kbd } from "@/components/ui/kbd";
 
+/** Build a book-profile suffix for the translator contextHint.
+ *  When the user fills in genre/tone/style/audience on the Edit page,
+ *  these tags give both DeepSeek and Gemini a much clearer picture of
+ *  the source material they're translating. */
+function buildBookMetaHint(book: Book): string {
+  const parts: string[] = [];
+  if (book.genre) parts.push(`Genre: ${book.genre}`);
+  if (book.tone) parts.push(`Tone: ${book.tone}`);
+  if (book.style) parts.push(`Style: ${book.style}`);
+  if (book.targetAudience) parts.push(`Audience: ${book.targetAudience}`);
+  if (parts.length === 0) return "";
+  return ` Book profile — ${parts.join(", ")}.`;
+}
+
 export default function BookReader() {
   const askConfirm = useConfirm();
   const { bookId, chapterId } = useParams();
@@ -365,6 +379,7 @@ export default function BookReader() {
   }, [speakingReadableIdx, chapterIdxToReadableIdx]);
 
   const onParagraphJump = useCallback((readableIdx: number) => {
+    if (!readAloudControllerRef.current?.isActive()) return;
     readAloudControllerRef.current?.jumpTo(readableIdx);
   }, []);
 
@@ -415,7 +430,7 @@ export default function BookReader() {
       (window as unknown as { __translationManager?: TranslationManager | null }).__translationManager = mgr;
       const result = await mgr.translateChapter({
         paragraphs: ch.paragraphs,
-        contextHint: `Chapter: ${ch.title}. From ${book.title}.`,
+        contextHint: `Chapter: ${ch.title}. From ${book.title}.${buildBookMetaHint(book)}`,
         glossary: glossaryEntries.length ? glossaryEntries : undefined,
         onProgress: (p) => setProgress({ done: p.done, total: p.total, provider: p.provider }),
         onPartialRows: (partialRows) => {
@@ -589,7 +604,7 @@ export default function BookReader() {
         }
         try {              const result = await mgr.translateChapter({
                 paragraphs: c.paragraphs,
-                contextHint: `Chapter: ${c.title}. From ${book.title}.`,
+                contextHint: `Chapter: ${c.title}. From ${book.title}.${buildBookMetaHint(book)}`,
                 glossary: glossaryEntries.length ? glossaryEntries : undefined,
                 onProgress: (p) => {
                   if (!mountedRef.current) return;
@@ -689,7 +704,7 @@ export default function BookReader() {
     });
     const idx = Math.max(0, chapters.findIndex((c) => c.id === activeId));
     openSafariReader(book.title, readerChapters, idx);
-    toast("Opening in Safari Reader…", { icon: "📖" });
+    toast("Opening all chapters…", { icon: "📖" });
   }, [book, chapters, translations, activeId]);
 
   const onExport = async () => {
@@ -809,11 +824,11 @@ export default function BookReader() {
             <button
               type="button"
               onClick={onOpenSafariReader}
-              title="Open in Safari Reader — use Siri voices & auto-advance"
+              title="Open all chapters in one scrollable page"
               className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 active:scale-[0.97] transition-all"
             >
               <Globe className="w-4 h-4" strokeWidth={1.25} />
-              <span className="text-sm">Safari Reader</span>
+              <span className="text-sm">All Chapters</span>
             </button>
           </div>
         </header>
@@ -1038,7 +1053,7 @@ export default function BookReader() {
                     const mgr = makeManager();
                     const res = await mgr.translateChapter({
                       paragraphs: [activeChapter.paragraphs[paragraphIdx]],
-                      contextHint: `Single paragraph from "${activeChapter.title}".`,
+                      contextHint: `Single paragraph from "${activeChapter.title}".${buildBookMetaHint(book)}`,
                       glossary: glossaryEntries.length ? glossaryEntries : undefined,
                       skipCache: true,
                     });
@@ -1427,12 +1442,12 @@ export default function BookReader() {
                 <button
                   type="button"
                   onClick={onOpenSafariReader}
-                  aria-label="Open in Safari Reader"
-                  title="Safari Reader — Siri voices & auto-advance"
+                  aria-label="Open all chapters mode"
+                  title="All chapters in one scrollable page"
                   className="h-11 px-3 sm:px-4 inline-flex items-center gap-1.5 rounded-lg border border-border hover:border-foreground/40 active:scale-95 transition-all text-sm font-medium"
                 >
                   <Globe className="w-4 h-4" strokeWidth={1.4} />
-                  <span className="hidden sm:inline">Safari</span>
+                  <span className="hidden sm:inline">All Ch.</span>
                 </button>
 
                 {activeChapter && (

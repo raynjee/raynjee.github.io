@@ -388,9 +388,10 @@ function ProviderSettings({
   const [testing, setTesting] = useState<Record<ProviderId, boolean>>({
     deepseek: false,
     gemini: false,
+    manual: false,
   });
   const [results, setResults] = useState<Record<string, { ok: boolean; message: string } | null>>(
-    { deepseek: null, gemini: null },
+    { deepseek: null, gemini: null, manual: null },
   );
 
   const runTest = async (id: ProviderId) => {

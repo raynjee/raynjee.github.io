@@ -6,6 +6,7 @@ import type { ProviderId } from "@/lib/types";
 const LABEL: Record<ProviderId, string> = {
   deepseek: "DeepSeek",
   gemini: "Gemini",
+  manual: "Imported",
 };
 
 export function ApiStatusPill({
