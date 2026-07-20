@@ -14,6 +14,11 @@ import {
 } from "react-router";
 import "./index.css";
 import "./types/global.d.ts";
+import { registerSW } from "@/lib/sw-register";
+
+// Register the Service Worker ASAP so it's ready when the user taps
+// "Safari Reader". Non-blocking — the app renders regardless.
+registerSW();
 
 // Lazy load route components — no auth gate, no login wall.
 const Landing = lazy(() => import("./pages/Landing.tsx"));
