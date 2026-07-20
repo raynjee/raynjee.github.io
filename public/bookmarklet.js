@@ -71,13 +71,29 @@
   function isChapterLink(a: HTMLAnchorElement): boolean {
     const text = (a.textContent || "").trim().toLowerCase();
     const href = (a.getAttribute("href") || "").toLowerCase();
+
+    // Structural hint: if the link is inside a known chapter container, trust it
+    const container = a.closest(
+      ".chapter-list, .wp-manga-chapter, .listing, .chapters, " +
+      ".eplister, .episodes, .series-chapters, .novel-chapters, " +
+      ".postlist, .page-listing, ul.lcp_catlist"
+    );
+    if (container && /\d/.test(text) && text.length >= 1) return true;
+
     const patterns = [
       /chapter\s*\d+/i, /ch\.?\s*\d+/i, /^c?\d+[\.\-:]/,
       /第[0-9零一二三四五六七八九十百千]+章/, /^[0-9]+[\s\-\.].+/,
+      /chapter[-_]\d+/i,  // Lightnovelwp slug: chapter-1
+      /vol(\.|ume)?\s*\d+\s*ch(\.|apter)?\s*\d+/i,  // Vol. 1 Ch. 1
+      /^\d+[\.\-\s]/,     // Just a number: "1. Title" or "1 - Title"
+      /\bchapitre\s*\d+/i, /\bcap[íi]tulo\s*\d+/i,  // French, Spanish
     ];
     const match = patterns.some((p) => p.test(text) || p.test(href));
     if (!match) return false;
-    if (text.length < 3 && !/\d/.test(text)) return false;
+    // Exclude links that are clearly not chapters (comments, reviews, etc.)
+    const skipWords = ["comment", "review", "about", "contact", "privacy",
+      "login", "register", "account", "profile"];
+    if (skipWords.some((w) => text.includes(w) || href.includes(w))) return false;
     if (href.startsWith("http") && !href.includes(location.hostname)) return false;
     if (href.startsWith("#")) return false;
     return true;
@@ -115,6 +131,42 @@
       lower.includes("recaptcha") ||
       (html.length < 2000 && !lower.includes("<p"))
     );
+  }
+
+  /* ── Load chapter via popup (bypasses X-Frame-Options DENY) ────── */
+  function fetchViaPopup(url: string, timeoutMs: number): Promise<string | null> {
+    return new Promise((resolve) => {
+      const win = window.open(url, "_blank", "width=800,height=600");
+      if (!win) { resolve(null); return; }
+
+      let resolved = false;
+      const timeout = setTimeout(() => {
+        if (!resolved) { resolved = true; try { win.close(); } catch {} resolve(null); }
+      }, timeoutMs);
+
+      const check = setInterval(() => {
+        if (resolved) { clearInterval(check); return; }
+        try {
+          if (win.document && win.document.readyState === "complete" && win.document.body) {
+            const html = win.document.documentElement.outerHTML;
+            if (html.length > 500) {
+              clearInterval(check);
+              clearTimeout(timeout);
+              resolved = true;
+              try { win.close(); } catch {}
+              resolve(html);
+            }
+          }
+        } catch {
+          // Cross-origin popup or not ready yet — keep waiting
+        }
+      }, 300);
+
+      // Safety: give up after timeoutMs regardless
+      setTimeout(() => {
+        if (!resolved) { resolved = true; clearInterval(check); try { win.close(); } catch {} resolve(null); }
+      }, timeoutMs);
+    });
   }
 
   /* ── Load chapter via hidden iframe (bypasses Cloudflare) ──────── */
@@ -160,23 +212,31 @@
     });
   }
 
-  /* ── Fetch chapter with Cloudflare bypass (fetch + iframe fallback) ─ */
+  /* ── Fetch chapter with adaptive fallback chain ─────────────────── */
+  let _fetchFastFailed = false;  // set true after first 403/503
+
   async function fetchChapter(url: string): Promise<string | null> {
-    // 1. Try fast fetch first (works on most sites)
-    try {
-      const resp = await fetch(url, { credentials: "include" });
-      if (resp.ok) {
-        const html = await resp.text();
-        if (!isBotProtectionPage(html)) return html;
-        // It's a Cloudflare challenge page — fall through to iframe
+    // If we already know fetch is blocked, skip straight to iframe/popup
+    if (!_fetchFastFailed) {
+      try {
+        const resp = await fetch(url, { credentials: "include" });
+        if (resp.ok) {
+          const html = await resp.text();
+          if (!isBotProtectionPage(html)) return html;
+        } else if (resp.status === 403 || resp.status === 503) {
+          _fetchFastFailed = true;  // Site blocks fetch — skip for remaining chapters
+        }
+      } catch {
+        // fetch failed entirely — may be a network blip; try iframe first
       }
-    } catch {
-      // fetch failed entirely — fall through to iframe
     }
 
-    // 2. Fall back to hidden iframe (bypasses Cloudflare JS challenges)
-    //    15s timeout to account for Cloudflare's ~5s waiting period
-    return await fetchViaIframe(url, 15000);
+    // 2. Try hidden iframe (bypasses Cloudflare, works with browser session)
+    const iframeHtml = await fetchViaIframe(url, 15000);
+    if (iframeHtml && !isBotProtectionPage(iframeHtml)) return iframeHtml;
+
+    // 3. If iframe failed (likely X-Frame-Options DENY), try popup
+    return await fetchViaPopup(url, 15000);
   }
 
   /* ── Content extraction from a chapter page ───────────────────── */
@@ -264,12 +324,12 @@
     setMsg(`Found ${links.length} chapter links. Fetching…`, 0);
 
     const chapters: { title: string; paragraphs: string[] }[] = [];
-    let ok = 0, fail = 0, iframeUsed = 0;
+    let ok = 0, fail = 0, popupUsed = 0;
 
     for (let i = 0; i < links.length; i++) {
       const a = links[i];
       const pct = Math.round((i / links.length) * 100);
-      const modeStr = iframeUsed > 0 ? ` (iframe for ${iframeUsed})` : "";
+      const modeStr = popupUsed > 0 ? ` (popup for ${popupUsed})` : "";
       setMsg(`Fetching chapter ${i + 1} of ${links.length}… (${ok} loaded${modeStr})`, pct);
 
       try {
@@ -297,8 +357,8 @@
       if (i < links.length - 1) await new Promise((r) => setTimeout(r, 300));
     }
 
-    const iframeNote = iframeUsed > 0 ? ` (${iframeUsed} used iframe fallback)` : "";
-    setMsg(`${ok} chapters ready · ${fail} failed${iframeNote}`, 100);
+    const popupNote = popupUsed > 0 ? ` (${popupUsed} used popup fallback)` : "";
+    setMsg(`${ok} chapters ready · ${fail} failed${popupNote}`, 100);
 
     if (chapters.length === 0) {
       setMsg("Couldn't fetch any chapters. The site may block all requests. Try copy-pasting instead.");

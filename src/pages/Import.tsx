@@ -161,6 +161,72 @@ export default function ImportTranslationsPage() {
   const hasData = !!data || !!error;
   const [howToOpen, setHowToOpen] = useState(!hasData);
 
+  // ── Paste import (no bookmarklet needed) ────────────────────────
+  const [pasteText, setPasteText] = useState("");
+  const [pasteParsing, setPasteParsing] = useState(false);
+
+  const parsePastedChapters = useCallback((text: string): ScrapedChapter[] => {
+    if (!text.trim()) return [];
+    // Detect chapter boundaries:
+    // "Chapter 1", "Ch. 1", "Chapter 1: Title", "1. Title", "Vol 1 Ch 1"
+    // Also: "---", "***", blank-line-separated sections
+    const chapterPatterns = [
+      /^(?:Chapter|Ch\.?|CH)\s*\d+/im,
+      /^\d+[\.\)\-]\s+\S/m,
+      /^Vol(?:ume)?\s*\d+\s*(?:Ch|Chapter)\s*\d+/im,
+    ];
+    const lines = text.split(/\n/);
+    const chapters: { title: string; lines: string[] }[] = [];
+    let current: { title: string; lines: string[] } | null = null;
+
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line) continue;
+      // Check if this line is a chapter header
+      const isHeader = chapterPatterns.some((p) => p.test(line));
+      if (isHeader && (!current || current.lines.length > 0)) {
+        if (current && current.lines.length > 0) {
+          chapters.push(current);
+        }
+        current = { title: line.replace(/^[\s\-–—]+|[\s\-–—]+$/g, ""), lines: [] };
+        continue;
+      }
+      if (current) {
+        current.lines.push(line);
+      } else {
+        // No chapter header found yet — start one
+        current = { title: "Untitled", lines: [line] };
+      }
+    }
+    if (current && current.lines.length > 0) chapters.push(current);
+
+    // If no chapters detected, treat entire paste as one chapter
+    if (chapters.length === 0 && text.trim()) {
+      chapters.push({ title: "Pasted text", lines: text.trim().split(/\n/).filter((l) => l.trim()) });
+    }
+
+    // Convert lines to paragraph arrays, filtering very short lines
+    return chapters.map((c) => ({
+      title: c.title,
+      paragraphs: c.lines.filter((l) => l.length > 5),
+    })).filter((c) => c.paragraphs.length > 0);
+  }, []);
+
+  const handlePasteImport = useCallback(() => {
+    setPasteParsing(true);
+    const chapters = parsePastedChapters(pasteText);
+    if (chapters.length === 0) {
+      toast.error("No chapters detected. Make sure your text includes chapter titles like 'Chapter 1' or 'Ch. 1'.");
+      setPasteParsing(false);
+      return;
+    }
+    const importData: ImportData = { chapters, source: "pasted text" };
+    setData(importData);
+    setError("");
+    setPasteParsing(false);
+    toast.success(`Detected ${chapters.length} chapter${chapters.length !== 1 ? "s" : ""}.`);
+  }, [pasteText, parsePastedChapters]);
+
   if (loading) {
     return (
       <StudioShell>
@@ -208,6 +274,57 @@ export default function ImportTranslationsPage() {
               then come back here to import them into your books. One tap — no copy-paste.
             </p>
           </>
+        )}
+
+        {/* ── Paste import (always available, no bookmarklet needed) ── */}
+        {!data && (
+          <div className="mt-8 studio-card p-4 sm:p-5">
+            <div className="studio-caps text-muted-foreground mb-2">Paste translated chapters</div>
+            <p className="text-xs text-muted-foreground mb-4 leading-relaxed max-w-[58ch]">
+              Copy the translated text from any novel site — one chapter or many.
+              The app auto-detects chapter titles like "Chapter 1", "Ch. 2", "1. Title", etc.
+              <strong> Works on every site, every browser — no bookmarklet needed.</strong>
+            </p>
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              placeholder={`Paste translated chapters here...\n\nChapter 1: The Fall\nThe sky was dark and brooding...\nHe walked through the gates...\n\nChapter 2: The Rebirth\nLight flooded the chamber...`}
+              className="w-full min-h-[200px] bg-muted/50 border border-border focus:border-foreground outline-none px-4 py-3 rounded text-sm transition-colors resize-y font-mono leading-relaxed"
+              rows={8}
+            />
+            <div className="flex items-center gap-3 mt-3">
+              <button
+                type="button"
+                disabled={!pasteText.trim() || pasteParsing}
+                onClick={handlePasteImport}
+                className="h-10 px-5 inline-flex items-center gap-2 rounded-lg bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 active:scale-[0.97] transition-all font-medium text-sm"
+              >
+                {pasteParsing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
+                    Parsing…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" strokeWidth={1.4} />
+                    Detect chapters
+                  </>
+                )}
+              </button>
+              {pasteText.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setPasteText("")}
+                  className="h-10 px-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-3">
+              Tip: On iPhone, use Safari's <strong>Reader Mode</strong> (tap the Aa icon) to get clean, ad-free text, then Copy All.
+            </p>
+          </div>
         )}
 
         {/* ── Import UI (when data is present) ──────────────────── */}
