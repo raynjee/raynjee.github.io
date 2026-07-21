@@ -1342,6 +1342,25 @@ export default function BookReader() {
                               <button
                                 type="button"
                                 onClick={() => {
+                                  setEditMode(!editMode);
+                                  closeToolsDrawer();
+                                }}
+                                className={cn(
+                                  "h-10 px-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border transition-colors text-sm",
+                                  editMode
+                                    ? "bg-foreground text-background border-foreground"
+                                    : "border-border hover:border-foreground/40"
+                                )}
+                              >
+                                <Pencil className="w-4 h-4" strokeWidth={1.4} />
+                                <span className="text-sm">{editMode ? "Done editing" : "Edit translation"}</span>
+                              </button>
+                            )}
+                          {activeTranslation &&
+                            activeTranslation.paragraphs.some((p) => p && p.trim()) && (
+                              <button
+                                type="button"
+                                onClick={() => {
                                   onDeleteTranslation();
                                   closeToolsDrawer();
                                 }}
@@ -1920,7 +1939,7 @@ onPointerDown={() => {
                     title="Hold to jump read aloud here"
                   >
                     {t && t.trim() ? t : (
-                      <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
+                      <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : ""}</span>
                     )}
                   </p>
                 </div>
@@ -2001,7 +2020,7 @@ onPointerDown={() => {
                 title="Hold to jump read aloud here"
               >
                 {t && t.trim() ? t : (
-                  <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : "Not yet translated."}</span>
+                  <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : ""}</span>
                 )}
               </p>
             </motion.div>
