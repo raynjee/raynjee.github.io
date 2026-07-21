@@ -1,9 +1,9 @@
-/* Slim scraper v2 — iframes + visible tappable link + pause + chapter range */
+/* Slim scraper v4 — two-phase: discover → choose range → start */
 (function(){
 if(window.__ak)return;window.__ak=1;
 var d=document,b=d.body,APP='https://raynjee.github.io';
 
-/* ── UI ─────────────────────────────────────────────────── */
+/* ── UI bar (bottom) ───────────────────────────────────── */
 var bar=d.createElement('div');
 bar.id='__a';
 bar.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:9999999;background:#0a0a0a;color:#f5f5f5;font:13px system-ui;padding:12px 14px;display:flex;flex-wrap:wrap;align-items:center;gap:8px';
@@ -13,96 +13,225 @@ var prog=d.createElement('span');prog.id='__ap';prog.style.cssText='font-size:11
 var right=d.createElement('span');right.style.cssText='margin-left:auto;display:flex;gap:6px;align-items:center';
 var pauseBtn=d.createElement('button');pauseBtn.id='__apa';pauseBtn.textContent='Pause';pauseBtn.style.cssText='background:#333;color:#f5f5f5;border:1px solid#555;padding:4px 10px;border-radius:4px;font:11px system-ui;cursor:pointer;display:none';
 var stopBtn=d.createElement('button');stopBtn.id='__ast';stopBtn.textContent='Stop';stopBtn.style.cssText='background:#522;color:#f99;border:1px solid#844;padding:4px 10px;border-radius:4px;font:11px system-ui;cursor:pointer;display:none';
-var startInp=d.createElement('input');startInp.id='__asi';startInp.type='number';startInp.min='1';startInp.placeholder='Start ch';startInp.style.cssText='width:52px;background:#222;color:#f5f5f5;border:1px solid#444;border-radius:4px;padding:3px 5px;font:11px system-ui;display:none';
-var goBtn=d.createElement('button');goBtn.id='__ag';goBtn.disabled=true;goBtn.textContent='Send';goBtn.style.cssText='background:#f5f5f5;color:#0a0a0a;border:none;padding:5px 12px;border-radius:4px;font:600 11px system-ui;cursor:pointer';
+var fromInp=d.createElement('input');fromInp.id='__afr';fromInp.type='number';fromInp.min='1';fromInp.value='1';fromInp.style.cssText='width:48px;background:#222;color:#f5f5f5;border:1px solid#444;border-radius:4px;padding:3px 5px;font:11px system-ui;display:none';
+var toLabel=d.createElement('span');toLabel.id='__atl';toLabel.textContent='to';toLabel.style.cssText='font-size:11px;color:#999;display:none';
+var toInp=d.createElement('input');toInp.id='__ato';toInp.type='number';toInp.min='1';toInp.style.cssText='width:48px;background:#222;color:#f5f5f5;border:1px solid#444;border-radius:4px;padding:3px 5px;font:11px system-ui;display:none';
+var startBtn=d.createElement('button');startBtn.id='__ago';startBtn.textContent='Start';startBtn.style.cssText='background:#f5f5f5;color:#0a0a0a;border:none;padding:5px 12px;border-radius:4px;font:600 11px system-ui;cursor:pointer;display:none';
 var closeBtn=d.createElement('button');closeBtn.id='__ax';closeBtn.textContent='✕';closeBtn.style.cssText='background:none;color:#888;border:1px solid#555;padding:4px 8px;border-radius:4px;font:12px system-ui;cursor:pointer';
 
-right.appendChild(pauseBtn);right.appendChild(stopBtn);right.appendChild(startInp);right.appendChild(goBtn);right.appendChild(closeBtn);
+right.appendChild(pauseBtn);right.appendChild(stopBtn);
+right.appendChild(fromInp);right.appendChild(toLabel);right.appendChild(toInp);
+right.appendChild(startBtn);right.appendChild(closeBtn);
 bar.appendChild(status);bar.appendChild(prog);bar.appendChild(right);
 b.appendChild(bar);
 
-var m=d.getElementById('__as'),p=d.getElementById('__ap'),g=d.getElementById('__ag'),x=d.getElementById('__ax'),
-    pa=d.getElementById('__apa'),st=d.getElementById('__ast'),si=d.getElementById('__asi');
-x.onclick=function(){bar.remove();window.__ak=0};
+/* ── Visible iframe panel ──────────────────────────────── */
+var iframeContainer=d.createElement('div');
+iframeContainer.id='__aifc';
+iframeContainer.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999998;background:#111;border:2px solid#333;border-radius:8px;overflow:hidden;display:none;box-shadow:0 8px 32px rgba(0,0,0,.8)';
+var ifr=d.createElement('iframe');
+ifr.id='__aif';
+ifr.style.cssText='width:360px;height:240px;border:none;background:#fff';
+ifr.setAttribute('sandbox','allow-same-origin allow-scripts');
+var ifrLabel=d.createElement('div');
+ifrLabel.id='__aifl';
+ifrLabel.style.cssText='padding:8px 12px;background:#0a0a0a;color:#999;font:11px system-ui;text-align:center';
+iframeContainer.appendChild(ifrLabel);
+iframeContainer.appendChild(ifr);
+b.appendChild(iframeContainer);
 
-function msg(t,c){m.textContent=t;if(c!=null)p.textContent=c+'/'+total}
+var m=d.getElementById('__as'),p=d.getElementById('__ap'),x=d.getElementById('__ax'),
+    pa=d.getElementById('__apa'),st=d.getElementById('__ast'),
+    fr=d.getElementById('__afr'),tl=d.getElementById('__atl'),to=d.getElementById('__ato'),
+    go=d.getElementById('__ago'),
+    ifc=d.getElementById('__aifc'),ifl=d.getElementById('__aifl'),ifrEl=d.getElementById('__aif');
 
-/* ── Chapter link detection ─────────────────────────────── */
+/* ── Cleanup ───────────────────────────────────────────── */
+function cleanup(){bar.remove();iframeContainer.remove();window.__ak=0;}
+x.onclick=cleanup;
+function msg(t,c){m.textContent=t;if(c!=null)p.textContent=c+'/'+total;}
+
+/* ── Cloudflare detection ──────────────────────────────── */
+function isCloudflarePage(html){
+  var s=html.toLowerCase();
+  return s.includes('just a moment')||s.includes('checking your browser')||
+         s.includes('cf-browser-verification')||s.includes('cf_chl_')||
+         s.includes('cf-please-wait')||s.includes('ddos protection')||
+         s.includes('enable javascript')&&html.length<2000;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PHASE 1 — Discover chapter links, let user choose range
+   ═══════════════════════════════════════════════════════════ */
 var links=[],seen={};
-Array.from(d.querySelectorAll('a[href]')).forEach(function(a){
-  var t=(a.textContent||'').trim().toLowerCase(),h=(a.getAttribute('href')||'').toLowerCase();
-  if(/chapter\s*\d|ch\.?\s*\d|^c?\d+[\.\-:]|^\d+[\s\-\.]|chapter[-_]\d/i.test(t+h)){
-    try{var u=new URL(a.href,location.href).href;if(!seen[u]&&!u.startsWith('#')&&(!u.startsWith('http')||u.includes(location.hostname))){seen[u]=1;links.push(u)}}catch(e){}
+
+/* Try container-based detection FIRST (most accurate) */
+var chapterContainers=[
+  '.chapter-list','.wp-manga-chapter','.listing','.eplister','.postlist',
+  '.chaplist','.chapter-list','.chapters','[class*="chapter"]','[id*="chapter"]',
+  '.entry-content','.post-content','article'
+];
+for(var ci=0;ci<chapterContainers.length;ci++){
+  var containers=d.querySelectorAll(chapterContainers[ci]);
+  for(var cj=0;cj<containers.length;cj++){
+    var as=containers[cj].querySelectorAll('a[href]');
+    for(var ak=0;ak<as.length;ak++){
+      var a=as[ak];
+      var t=(a.textContent||'').trim().toLowerCase(),h=(a.getAttribute('href')||'').toLowerCase();
+      if(t.length>0||h.length>0){
+        try{var u=new URL(a.href,location.href).href;
+          if(!seen[u]&&!u.startsWith('#')&&(!u.startsWith('http')||u.includes(location.hostname))){seen[u]=1;links.push(u)}
+        }catch(e){}
+      }
+    }
   }
-});
+  if(links.length>1)break; // Found a container with links — stop searching
+}
+
+/* Fallback: regex-based detection on ALL links (only if no container worked) */
 if(!links.length){
-  Array.from(d.querySelectorAll('.chapter-list a,.wp-manga-chapter a,.listing a,.eplister a,.postlist a')).forEach(function(a){
-    try{var u=new URL(a.href,location.href).href;if(!seen[u]&&!u.startsWith('#')){seen[u]=1;links.push(u)}}catch(e){}
+  Array.from(d.querySelectorAll('a[href]')).forEach(function(a){
+    var t=(a.textContent||'').trim().toLowerCase(),h=(a.getAttribute('href')||'').toLowerCase();
+    if(/chapter\s*\d|ch\.?\s*\d|^c?\d+[\.\-:]|^\d+[\s\-\.]|chapter[-_]\d/i.test(t+h)){
+      try{var u=new URL(a.href,location.href).href;if(!seen[u]&&!u.startsWith('#')&&(!u.startsWith('http')||u.includes(location.hostname))){seen[u]=1;links.push(u)}}catch(e){}
+    }
   });
 }
-var total=links.length||1;
-si.style.display=links.length>1?'':'none';
-si.max=links.length;
 
-if(!links.length){
-  msg('Found 1 chapter',1);p.textContent='';
+/* Sort by chapter number so index 0 = ch 1 regardless of DOM order */
+links.sort(function(a,b){
+  function n(url){try{var m=new URL(url).pathname.match(/\d+/);return m?parseFloat(m[0]):0}catch(e){return 0}}
+  return n(a)-n(b);
+});
+
+var total=links.length;
+
+/* No links found — single-chapter mode (scrape current page) */
+if(!total){
+  msg('No chapter links — scraping this page',1);
   var ch=[];var ps=Array.from(d.querySelectorAll('p')).map(function(p){return(p.textContent||'').trim()}).filter(function(t){return t.length>10});
   if(!ps.length){msg('No text found.');return}
   ch.push({t:d.title.replace(/\s*[-–|].*$/,'').trim(),p:ps});
   showResult(ch);return;
 }
 
-/* ── Scraping loop ──────────────────────────────────────── */
-var ch=[],ok=0,fail=0,i=0,paused=false,stopped=false;
-pa.style.display='inline-block';st.style.display='inline-block';
-pa.onclick=function(){paused=!paused;pa.textContent=paused?'Resume':'Pause';if(!paused)next()};
-st.onclick=function(){stopped=true;msg(ok+' chapters · '+fail+' failed');pa.style.display='none';st.style.display='none';si.style.display='none';if(!ch.length){msg('No chapters scraped yet.');return}showResult(ch)};
+/* ── Show range picker ─────────────────────────────────── */
+msg('Found '+total+' chapters');
+to.value=total;to.max=total;
+fr.max=total;fr.value=1;
+fr.style.display='inline-block';tl.style.display='inline';to.style.display='inline-block';go.style.display='inline-block';
+
+/* ── Adaptive mobile sizing ────────────────────────────── */
+var isMobile=window.innerWidth<600;
+if(isMobile){ifr.style.width='100vw';ifr.style.height='50vh';iframeContainer.style.left='0';iframeContainer.style.right='0';iframeContainer.style.top='auto';iframeContainer.style.bottom='0';iframeContainer.style.transform='none';iframeContainer.style.borderRadius='8px 8px 0 0';}
+
+/* ═══════════════════════════════════════════════════════════
+   PHASE 2 — User presses Start → scrape selected range
+   ═══════════════════════════════════════════════════════════ */
+go.onclick=function(){
+  var from=parseInt(fr.value)||1;
+  var toVal=parseInt(to.value)||total;
+  if(from<1)from=1;if(toVal>total)toVal=total;if(from>toVal)from=toVal;
+
+  // Lock the range inputs
+  fr.disabled=true;to.disabled=true;go.style.display='none';
+  fr.style.opacity='0.5';to.style.opacity='0.5';
+
+  // Slice the link array
+  links=links.slice(from-1,toVal);
+  total=links.length;
+  msg('Scraping chapters '+from+'–'+toVal);
+
+  // Show Pause/Stop
+  pa.style.display='inline-block';st.style.display='inline-block';
+  pa.onclick=function(){paused=!paused;pa.textContent=paused?'Resume':'Pause';if(!paused){ifc.style.display='block';next();}};
+  st.onclick=function(){stopped=true;msg(ok+' chapters · '+fail+' failed');pa.style.display='none';st.style.display='none';ifc.style.display='none';if(!ch.length){msg('No chapters scraped yet.');return}showResult(ch);};
+
+  next();
+};
+
+/* ── Scraping loop ─────────────────────────────────────── */
+var chapters=[],ok=0,fail=0,i=0,paused=false,stopped=false;
 
 function next(){
   if(stopped||paused)return;
-  var startAt=parseInt(si.value)||1;
-  if(i===0&&startAt>1&&startAt<=links.length){i=startAt-1;total=links.length-startAt+1;}
   if(i>=links.length){
-    msg(ok+' chapters · '+fail+' failed');
-    if(!ch.length){msg('All failed.');return}
-    pa.style.display='none';st.style.display='none';si.style.display='none';
-    showResult(ch);return;
+    ifc.style.display='none';
+    msg(ok+'/'+total+' done · '+fail+' failed');
+    if(!chapters.length){msg('All failed.');return}
+    pa.style.display='none';st.style.display='none';
+    showResult(chapters);return;
   }
-  msg('Ch '+(i+1-startAt+1)+'/'+total+' ('+ok+' ok)');
-  var ifr=d.createElement('iframe');
-  ifr.style.cssText='position:absolute;left:-9999px;width:1px;height:1px;border:none';
-  ifr.src=links[i];
+  // Show what we're about to load (i is 0-based, so +1 for human-readable)
+  ifl.textContent='Loading chapter '+(i+1)+'/'+total+'...';
+  ifc.style.display='block';
+  msg('Loading '+(i+1)+'/'+total+' ('+ok+' done)');
+
+  ifrEl.src=links[i];
   var done=0;
-  var t=setTimeout(function(){if(!done){done=1;ifr.remove();fail++;i++;next()}},12000);
-  ifr.onload=function(){
+  var expectedUrl=links[i];
+  var t=setTimeout(function(){
+    if(!done){done=1;ifc.style.display='none';fail++;i++;next();}
+  },30000);
+
+  ifrEl.onload=function(){
     if(done)return;
+    // Ignore about:blank / wrong URL loads (iframe fires onload for blank page first)
     try{
-      var doc=ifr.contentDocument||(ifr.contentWindow&&ifr.contentWindow.document);
+      var actualUrl=(ifrEl.contentWindow&&ifrEl.contentWindow.location.href)||'';
+      if(actualUrl==='about:blank'||(actualUrl&&actualUrl!==expectedUrl))return;
+    }catch(e){/* cross-origin — skip URL check */}
+    try{
+      var doc=ifrEl.contentDocument||(ifrEl.contentWindow&&ifrEl.contentWindow.document);
       if(doc&&doc.body){
-        var ps=Array.from(doc.querySelectorAll('p')).map(function(p){return(p.textContent||'').trim()}).filter(function(t){return t.length>10});
-        if(ps.length){ch.push({t:doc.title.replace(/\s*[-–|].*$/,'').trim()||('Ch '+(i+1)),p:ps});ok++;}else{fail++}
-      }else{fail++}
-    }catch(e){fail++}
-    done=1;clearTimeout(t);ifr.remove();i++;next();
+        var html=doc.body.innerHTML||'';
+        if(isCloudflarePage(html)){
+          clearTimeout(t);
+          t=setTimeout(function(){
+            if(!done){done=1;ifc.style.display='none';fail++;i++;next();}
+          },25000);
+          setTimeout(function(){
+            if(done)return;
+            try{
+              var doc2=ifrEl.contentDocument||(ifrEl.contentWindow&&ifrEl.contentWindow.document);
+              if(doc2&&doc2.body){
+                var html2=doc2.body.innerHTML||'';
+                if(isCloudflarePage(html2)){done=1;clearTimeout(t);fail++;i++;next();}
+                else{extractP(doc2);}
+              }else{fail++;done=1;clearTimeout(t);i++;next();}
+            }catch(e){fail++;done=1;clearTimeout(t);i++;next();}
+          },3000);
+          return;
+        }
+        extractP(doc);
+      }else{fail++;done=1;clearTimeout(t);i++;next();}
+    }catch(e){fail++;done=1;clearTimeout(t);i++;next();}
   };
-  ifr.onerror=function(){if(!done){done=1;clearTimeout(t);ifr.remove();fail++;i++;next()}};
-  b.appendChild(ifr);
+
+  ifrEl.onerror=function(){if(!done){done=1;clearTimeout(t);fail++;i++;next();}};
+
+  function extractP(doc){
+    var ps=Array.from(doc.querySelectorAll('p')).map(function(p){return(p.textContent||'').trim()}).filter(function(t){return t.length>10});
+    if(ps.length){chapters.push({t:(doc.title||'').replace(/\s*[-–|].*$/,'').trim()||('Ch '+(i+1)),p:ps});ok++;}
+    else{fail++}
+    done=1;clearTimeout(t);i++;
+    // Show completed count AFTER incrementing
+    msg('Done '+(i)+'/'+total+' ('+ok+' ok, '+fail+' fail)');
+    next();
+  }
 }
 
-/* ── Show visible tappable link (Safari CANNOT block this!) ─ */
+/* ── Result: visible tappable link ─────────────────────── */
 function showResult(data){
-  g.style.display='none';
   try{
     var j=JSON.stringify({chapters:data.map(function(c){return{title:c.t,paragraphs:c.p}}),source:location.href});
     var e=btoa(encodeURIComponent(j).replace(/%([0-9A-F]{2})/g,function(m,p){return String.fromCharCode(parseInt(p,16))}));
-    var u=APP+'/#/import?data='+e;
-    var link=d.createElement('a');
-    link.href=u;link.target='_top';
+    // encodeURIComponent the base64 so + / = don't break in the URL query string
+    var u=APP+'/#/import?data='+encodeURIComponent(e);
+    var link=d.createElement('a');link.href=u;link.target='_top';
     link.textContent='📥 Import '+data.length+' chapters →';
     link.style.cssText='color:#f5f5f5;font-weight:600;font-size:13px;text-decoration:underline;cursor:pointer;white-space:nowrap';
     right.insertBefore(link,closeBtn);
   }catch(er){msg('Too large.');}
 }
-
-next();
 })();

@@ -133,10 +133,11 @@ function requestToken(
 ): Promise<string | null> {
   return new Promise((resolve) => {
     const client = getTokenClient(clientId);
-    // Set timeout — GIS may never call back if popup is blocked
+    // Timeout — GIS may never call back if popup is blocked or user ignores it.
+    // 30s is generous: a consent popup takes ~5s to interact with.
     const timeout = setTimeout(() => {
       resolve(null);
-    }, 120_000);
+    }, 30_000);
 
     // Override callback per-request (GIS API quirk)
     (client as unknown as Record<string, unknown>).callback = (
