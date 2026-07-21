@@ -1809,6 +1809,20 @@ function ChapterReader({
                 <Sparkles className={cn("w-3.5 h-3.5", autoAdvance ? "" : "opacity-50")} strokeWidth={1.4} />
                 <span className="text-sm">Auto</span>
               </button>
+              <button
+                type="button"
+                onClick={onToggleEditMode}
+                className={cn(
+                  "h-10 px-3 inline-flex items-center gap-2 border transition-colors cursor-pointer",
+                  editMode
+                    ? "bg-foreground text-background border-foreground"
+                    : "border-border hover:border-foreground/40"
+                )}
+                title={editMode ? "Exit edit mode" : "Edit translation text manually"}
+              >
+                <Pencil className="w-3.5 h-3.5" strokeWidth={1.4} />
+                <span className="text-sm">Edit</span>
+              </button>
               {translation && translation.paragraphs.some((p) => p && p.trim()) && (
                 <button
                   type="button"
@@ -1912,7 +1926,18 @@ onPointerDown={() => {
                   </button>
                 </div>
                 <div className="mt-3">
-                  <p className={cn(
+                  {editMode && t && t.trim() ? (
+                    <textarea
+                      className={`reader-prose-text text-foreground/85 py-3 px-2 -mx-1 rounded border border-border bg-transparent w-full resize-y min-h-[70px] focus:outline-none focus:ring-1 focus:ring-foreground/30`}
+                      value={editedTexts[idx] || ""}
+                      onChange={(e) => {
+                        const next = [...editedTexts];
+                        next[idx] = e.target.value;
+                        setEditedTexts(next);
+                      }}
+                    />
+                  ) : (
+                    <p className={cn(
                     `reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 ${freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent"} ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`,
                     freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent",
                   )}
@@ -1942,6 +1967,7 @@ onPointerDown={() => {
                       <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : ""}</span>
                     )}
                   </p>
+                  )}
                 </div>
               </motion.div>
             );
@@ -1997,7 +2023,18 @@ onPointerDown={() => {
                   </button>
                 </div>
               )}
-              <p className={`reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 ${freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent"} ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`}
+              {editMode && t && t.trim() ? (
+                <textarea
+                  className={`reader-prose-text text-foreground/85 py-3 px-2 -mx-1 rounded border border-border bg-transparent w-full resize-y min-h-[70px] focus:outline-none focus:ring-1 focus:ring-foreground/30`}
+                  value={editedTexts[idx] || ""}
+                  onChange={(e) => {
+                    const next = [...editedTexts];
+                    next[idx] = e.target.value;
+                    setEditedTexts(next);
+                  }}
+                />
+              ) : (
+                <p className={`reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 ${freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent"} ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`}
                 onClick={() => {
                   const timer = longPressRef.current.get(idx);
                   if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
@@ -2023,6 +2060,7 @@ onPointerDown={() => {
                   <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : ""}</span>
                 )}
               </p>
+              )}
             </motion.div>
           );
         })}
