@@ -139,7 +139,7 @@ export function pluralize(n: number, singular: string, plural?: string): string 
 // Persisted to localStorage so the Library can show a "Continue Reading"
 // card and the reader can resume exactly where the user left off.
 
-const BOOKMARK_KEY = "atelier.reader.bookmark";
+const BOOKMARK_KEY = "anekdota.reader.bookmark";
 
 export interface ReadingBookmark {
   bookId: string;

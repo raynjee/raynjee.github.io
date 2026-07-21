@@ -84,14 +84,14 @@ export default function BookReader() {
   // Auto-advance: when on, completing a chapter automatically starts
   // translating the next untranslated chapter. Persisted to localStorage.
   const [autoAdvance, setAutoAdvance] = useState(() => {
-    try { return localStorage.getItem("atelier.reader.autoAdvance") === "true"; } catch { return false; }
+    try { return localStorage.getItem("anekdota.reader.autoAdvance") === "true"; } catch { return false; }
   });
   const autoAdvanceRef = useRef(autoAdvance);
   autoAdvanceRef.current = autoAdvance;
   const onToggleAutoAdvance = useCallback(() => {
     setAutoAdvance((v) => {
       const next = !v;
-      try { localStorage.setItem("atelier.reader.autoAdvance", String(next)); } catch {}
+      try { localStorage.setItem("anekdota.reader.autoAdvance", String(next)); } catch {}
       if (next) toast("Auto-advance on — next chapter will start automatically.");
       return next;
     });
@@ -148,7 +148,7 @@ export default function BookReader() {
   // Persisted in localStorage so it stays hidden across sessions.
   const [showShortcuts, setShowShortcuts] = useState(() => {
     try {
-      return localStorage.getItem("atelier.reader.showShortcuts") !== "false";
+      return localStorage.getItem("anekdota.reader.showShortcuts") !== "false";
     } catch {
       return true;
     }
@@ -156,7 +156,7 @@ export default function BookReader() {
   const toggleShortcuts = useCallback(() => {
     setShowShortcuts((v) => {
       const next = !v;
-      try { localStorage.setItem("atelier.reader.showShortcuts", String(next)); } catch {}
+      try { localStorage.setItem("anekdota.reader.showShortcuts", String(next)); } catch {}
       return next;
     });
   }, []);

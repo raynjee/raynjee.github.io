@@ -271,7 +271,7 @@ export default function Glossary() {
 
   const CHUNK_CHARS = settings.glossaryChunkSize ?? 4000;
   const CHUNK_DELAY_MS = settings.glossaryChunkDelayMs ?? 3000;
-  const EXTRACT_STATE_KEY = `atelier.glossary-extract.${bookId}`;
+  const EXTRACT_STATE_KEY = `anekdota.glossary-extract.${bookId}`;
 
   interface ExtractCheckpoint {
     bookId: string;

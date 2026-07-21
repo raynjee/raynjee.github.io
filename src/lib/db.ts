@@ -17,7 +17,7 @@ import type {
 } from "./types";
 import { DEFAULT_READER_PREFS, migrateReaderPrefs } from "./types";
 
-const DB_NAME = "atelier-studio";
+const DB_NAME = "anekdota-studio";
 const DB_VERSION = 2;
 
 export type StoreName =
@@ -41,7 +41,7 @@ const STORES: StoreName[] = [
   "providerStatus",
 ];
 
-const SETTINGS_KEY = "atelier.settings.v1";
+const SETTINGS_KEY = "anekdota.settings.v1";
 
 const DEFAULT_SETTINGS: StudioSettings = {
   providers: [
@@ -127,12 +127,12 @@ function tx<T>(
 
 export function db(): Promise<IDBDatabase> {
   // Cache connection per page
-  const globalW = window as unknown as { __atelierDb?: IDBDatabase };
-  if (globalW.__atelierDb) return Promise.resolve(globalW.__atelierDb);
+  const globalW = window as unknown as { __anekdotaDb?: IDBDatabase };
+  if (globalW.__anekdotaDb) return Promise.resolve(globalW.__anekdotaDb);
   return openDb().then((d) => {
-    globalW.__atelierDb = d;
+    globalW.__anekdotaDb = d;
     d.onclose = () => {
-      globalW.__atelierDb = undefined;
+      globalW.__anekdotaDb = undefined;
     };
     return d;
   });
@@ -504,7 +504,7 @@ export async function saveProviderStatus(
 ): Promise<void> {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(
-    "atelier.provider-status.v1",
+    "anekdota.provider-status.v1",
     JSON.stringify(status),
   );
 }
@@ -512,7 +512,7 @@ export async function saveProviderStatus(
 export function loadProviderStatus(): ProviderStatus[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem("atelier.provider-status.v1");
+    const raw = window.localStorage.getItem("anekdota.provider-status.v1");
     return raw ? (JSON.parse(raw) as ProviderStatus[]) : [];
   } catch {
     return [];

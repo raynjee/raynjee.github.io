@@ -589,8 +589,8 @@ async function logCall(args: {
 function loadProviderStatus(): ProviderStatus[] {
   if (typeof window === "undefined") return [];
   try {
-    return (window as unknown as { __atelierProviderStatus?: ProviderStatus[] })
-      .__atelierProviderStatus ?? [];
+    return (window as unknown as { __anekdotaProviderStatus?: ProviderStatus[] })
+      .__anekdotaProviderStatus ?? [];
   } catch {
     return [];
   }
@@ -598,7 +598,7 @@ function loadProviderStatus(): ProviderStatus[] {
 
 async function saveProviderStatus(s: ProviderStatus[]) {
   if (typeof window === "undefined") return;
-  (window as unknown as { __atelierProviderStatus?: ProviderStatus[] }).__atelierProviderStatus = s;
+  (window as unknown as { __anekdotaProviderStatus?: ProviderStatus[] }).__anekdotaProviderStatus = s;
   try {
     await import("../db").then((m) => m.saveProviderStatus(s));
   } catch {

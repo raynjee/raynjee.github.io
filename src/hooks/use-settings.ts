@@ -28,7 +28,7 @@ function getSnapshot(): StudioSettings {
   // Use localStorage raw value as a fast dirty-key so we don't
   // need to deep-compare the whole settings object.
   const raw = typeof window !== "undefined"
-    ? window.localStorage.getItem("atelier.settings.v1")
+    ? window.localStorage.getItem("anekdota.settings.v1")
     : null;
   const key = raw ?? "<<absent>>";
   if (key !== snapshotKey || !snapshot) {

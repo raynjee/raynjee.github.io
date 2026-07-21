@@ -184,7 +184,7 @@ ${spineItems}
     type: "blob",
     mimeType: "application/epub+zip",
   });
-  return new File([blob], "atelier-sample.epub", {
+  return new File([blob], "anekdota-sample.epub", {
     type: "application/epub+zip",
   });
 }

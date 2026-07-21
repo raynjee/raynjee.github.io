@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
 
-const PREFS_KEY = "atelier.readAloud.prefs";
+const PREFS_KEY = "anekdota.readAloud.prefs";
 
 type ReadPrefs = {
   voiceName: string | null;

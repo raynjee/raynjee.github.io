@@ -4,7 +4,7 @@
 //   1. SHA-256 → short hex marker → Gist description (fast, for discovery)
 //   2. PBKDF2 → AES-256-GCM key → encrypts the actual backup content
 //
-// The Gist contains a single file "atelier-backup.json". Its content is:
+// The Gist contains a single file "anekdota-backup.json". Its content is:
 //   base64(salt) + ":" + base64(iv) + ":" + base64(ciphertext)
 //
 // This ensures GitHub's secret scanner cannot read the backup and flag
@@ -22,8 +22,8 @@ import { buildBackup, restoreBackup } from "./db";
 import type { StudioBackup } from "./db";
 
 const GIST_API = "https://api.github.com/gists";
-const GIST_FILENAME = "atelier-backup.json";
-const DESCRIPTION_PREFIX = "atelier-sync-";
+const GIST_FILENAME = "anekdota-backup.json";
+const DESCRIPTION_PREFIX = "anekdota-sync-";
 
 // PBKDF2 parameters (tuned for ~200ms on modern hardware)
 const PBKDF2_ITERATIONS = 250_000;

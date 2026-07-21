@@ -21,7 +21,7 @@ function deriveKeyBytes(): Uint8Array {
     screen.colorDepth ?? 24,
     screen.width,
     screen.height,
-    "atelier-studio-key-v4",
+    "anekdota-studio-key-v4",
   ].join("|");
 
   const enc = new TextEncoder();

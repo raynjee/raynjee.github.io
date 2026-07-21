@@ -1046,7 +1046,7 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `atelier-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            a.download = `anekdota-backup-${new Date().toISOString().slice(0, 10)}.json`;
             a.click();
             setTimeout(() => URL.revokeObjectURL(url), 5000);
             toast.success("Backup downloaded.");

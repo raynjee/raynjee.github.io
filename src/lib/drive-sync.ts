@@ -60,7 +60,7 @@ declare namespace google {
 
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 const DRIVE_UPLOAD = "https://www.googleapis.com/upload/drive/v3";
-const BACKUP_FILENAME = "atelier-backup.json";
+const BACKUP_FILENAME = "anekdota-backup.json";
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 
 // ── Result types ──────────────────────────────────────────────────────
@@ -80,6 +80,38 @@ export interface DriveConnectResult extends DriveSyncResult {
 // tokenClient is created fresh per-request — no need to cache
 let gisLoaded = false;
 let gisLoadPromise: Promise<void> | null = null;
+
+// ── Token cache (sessionStorage) ─────────────────────────────────────
+// Caches the access token so push/pull don't require re-auth within ~1h.
+// sessionStorage is per-tab and cleared on close — safe enough for tokens.
+
+const TOKEN_CACHE_KEY = "anekdota.drive.token";
+const TOKEN_EXPIRY_KEY = "anekdota.drive.tokenExpiry";
+
+function getCachedToken(): string | null {
+  try {
+    const token = sessionStorage.getItem(TOKEN_CACHE_KEY);
+    const expiry = sessionStorage.getItem(TOKEN_EXPIRY_KEY);
+    if (token && expiry && Date.now() < Number(expiry)) return token;
+  } catch { /* not available */ }
+  return null;
+}
+
+function cacheToken(token: string, expiresIn: string): void {
+  try {
+    sessionStorage.setItem(TOKEN_CACHE_KEY, token);
+    // Tokens expire in ~3600 s — expire our cache 5 min early
+    const ttl = (Number(expiresIn) - 300) * 1000;
+    sessionStorage.setItem(TOKEN_EXPIRY_KEY, String(Date.now() + ttl));
+  } catch { /* quota exceeded or private browsing */ }
+}
+
+function clearTokenCache(): void {
+  try {
+    sessionStorage.removeItem(TOKEN_CACHE_KEY);
+    sessionStorage.removeItem(TOKEN_EXPIRY_KEY);
+  } catch { /* best effort */ }
+}
 
 // ── GIS script loading ────────────────────────────────────────────────
 
@@ -130,19 +162,27 @@ function requestToken(
   clientId: string,
   prompt: "" | "consent" = "",
 ): Promise<string | null> {
+  // If asking silently and we have a cached token, return it instantly.
+  // This avoids unnecessary GIS round-trips on every push/pull.
+  if (prompt !== "consent") {
+    const cached = getCachedToken();
+    if (cached) return Promise.resolve(cached);
+  }
+
   return new Promise((resolve) => {
-    // Create a fresh TokenClient each call — avoids stale callback issues
-    // that happen when reusing a client with overridden callbacks.
     const client = google.accounts.oauth2.initTokenClient({
       client_id: clientId.trim(),
       scope: DRIVE_SCOPE,
-      prompt: prompt || undefined,
       callback: (response: google.accounts.oauth2.TokenResponse) => {
         clearTimeout(timeout);
         if (response.error) {
           console.error("Drive auth error:", response.error, response.error_description || "");
           resolve(null);
           return;
+        }
+        // Cache the fresh token so we don't need to re-auth for ~1h
+        if (response.access_token && response.expires_in) {
+          cacheToken(response.access_token, response.expires_in);
         }
         resolve(response.access_token);
       },
@@ -153,7 +193,6 @@ function requestToken(
       },
     });
 
-    // Timeout — GIS may never call back if popup is blocked or user ignores it.
     const timeout = setTimeout(() => {
       resolve(null);
     }, 30_000);
@@ -191,10 +230,34 @@ async function driveFetch(
     // Token expired — fall through to silent refresh
   }
 
-  // Silent refresh
-  const fresh = await requestToken(clientId, "");
+  // Silent refresh first, then consent if needed (user already initiated action)
+  let fresh = await requestToken(clientId, "");
+  if (!fresh) fresh = await requestToken(clientId, "consent");
   if (!fresh) throw new Error("Could not obtain Drive access token.");
   return makeReq(fresh);
+}
+
+// ── Retry helper for flaky mobile networks ───────────────────────────
+
+async function retryFetch(
+  fn: () => Promise<Response>,
+  attempts = 3,
+): Promise<Response> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fn();
+      // Only retry on server errors (5xx) and network failures — not 4xx
+      if (res.status < 500) return res;
+      lastErr = new Error(`Server error ${res.status}`);
+    } catch (e) {
+      lastErr = e;
+    }
+    if (i < attempts - 1) {
+      await new Promise((r) => setTimeout(r, Math.pow(2, i) * 1000));
+    }
+  }
+  throw lastErr;
 }
 
 // ── Find existing backup file in appDataFolder ─────────────────────────
@@ -266,7 +329,7 @@ export async function connectDrive(
     return {
       ok: false,
       message:
-        "Sign-in was cancelled or blocked. Allow pop-ups for this site and try again.",
+        "Sign-in popup was blocked or closed. On iPhone: Settings > Safari > turn off Block Pop-ups. On desktop: click the popup-blocked icon in the address bar and allow popups.",
       syncedAt: 0,
     };
   }
@@ -319,12 +382,18 @@ export async function pushToDrive(
     const backup = await buildBackup();
     const content = JSON.stringify(backup, null, 2);
 
-    // Get a fresh token silently
-    const token = await requestToken(clientId, "");
+    // Try silent token first (works if user already granted consent).
+    // If that fails, fall back to consent prompt — the user clicked Push,
+    // so a popup is expected and browsers won't block it.
+    let token = await requestToken(clientId, "");
+    if (!token) {
+      token = await requestToken(clientId, "consent");
+    }
     if (!token) {
       return {
         ok: false,
-        message: "Could not authenticate. Click Connect to re-authorize.",
+        message:
+          "Could not authenticate. Allow pop-ups for this site, then try Connect first.",
         syncedAt: 0,
       };
     }
@@ -334,7 +403,7 @@ export async function pushToDrive(
 
     if (existing) {
       // Update existing file
-      const res = await driveFetch(
+      const res = await retryFetch(() => driveFetch(
         clientId,
         `${DRIVE_UPLOAD}/files/${existing.fileId}?uploadType=media`,
         {
@@ -343,7 +412,7 @@ export async function pushToDrive(
           headers: { "Content-Type": "application/json" },
           body: content,
         },
-      );
+      ));
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -360,7 +429,7 @@ export async function pushToDrive(
         parents: ["appDataFolder"],
       };
 
-      const boundary = "atelier_" + Date.now();
+      const boundary = "anekdota_" + Date.now();
       const body = [
         `--${boundary}`,
         "Content-Type: application/json; charset=UTF-8",
@@ -374,7 +443,7 @@ export async function pushToDrive(
         `--${boundary}--`,
       ].join("\r\n");
 
-      const res = await driveFetch(
+      const res = await retryFetch(() => driveFetch(
         clientId,
         `${DRIVE_UPLOAD}/files?uploadType=multipart`,
         {
@@ -385,7 +454,7 @@ export async function pushToDrive(
           },
           body,
         },
-      );
+      ));
 
       if (!res.ok) {
         const text = await res.text().catch(() => "");
@@ -434,11 +503,16 @@ export async function pullFromDrive(
   }
 
   try {
-    const token = await requestToken(clientId, "");
+    // Try silent token first, fall back to consent if needed.
+    let token = await requestToken(clientId, "");
+    if (!token) {
+      token = await requestToken(clientId, "consent");
+    }
     if (!token) {
       return {
         ok: false,
-        message: "Could not authenticate. Click Connect to re-authorize.",
+        message:
+          "Could not authenticate. Allow pop-ups for this site, then try Connect first.",
         syncedAt: 0,
       };
     }
@@ -516,6 +590,9 @@ export async function disconnectDrive(): Promise<{ ok: boolean; message: string 
     // best effort
   }
 
+  // Clear token cache
+  clearTokenCache();
+
   // Clear GIS state
   if (typeof google !== "undefined" && google?.accounts?.oauth2?.revoke) {
     try {
@@ -524,8 +601,6 @@ export async function disconnectDrive(): Promise<{ ok: boolean; message: string 
       // ignore
     }
   }
-
-  // tokenClient is now created fresh per-request — no cache to clear
 
   return { ok: true, message: "Disconnected from Google Drive." };
 }
