@@ -77,7 +77,7 @@ export interface DriveConnectResult extends DriveSyncResult {
 
 // ── Module state ──────────────────────────────────────────────────────
 
-let tokenClient: google.accounts.oauth2.TokenClient | null = null;
+// tokenClient is created fresh per-request — no need to cache
 let gisLoaded = false;
 let gisLoadPromise: Promise<void> | null = null;
 
@@ -114,15 +114,14 @@ async function loadGisScript(): Promise<void> {
 
 // ── Token client init ─────────────────────────────────────────────────
 
+// getTokenClient is no longer used — requestToken creates fresh clients.
+// Kept for backward compatibility if referenced elsewhere.
 function getTokenClient(clientId: string): google.accounts.oauth2.TokenClient {
-  if (!tokenClient) {
-    tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: clientId.trim(),
-      scope: DRIVE_SCOPE,
-      callback: "", // replaced per-request via override
-    });
-  }
-  return tokenClient;
+  return google.accounts.oauth2.initTokenClient({
+    client_id: clientId.trim(),
+    scope: DRIVE_SCOPE,
+    callback: () => {},
+  });
 }
 
 // ── Obtain an access token ────────────────────────────────────────────
@@ -132,27 +131,40 @@ function requestToken(
   prompt: "" | "consent" = "",
 ): Promise<string | null> {
   return new Promise((resolve) => {
-    const client = getTokenClient(clientId);
+    // Create a fresh TokenClient each call — avoids stale callback issues
+    // that happen when reusing a client with overridden callbacks.
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: clientId.trim(),
+      scope: DRIVE_SCOPE,
+      prompt: prompt || undefined,
+      callback: (response: google.accounts.oauth2.TokenResponse) => {
+        clearTimeout(timeout);
+        if (response.error) {
+          console.error("Drive auth error:", response.error, response.error_description || "");
+          resolve(null);
+          return;
+        }
+        resolve(response.access_token);
+      },
+      error_callback: (error: { type: string; message: string }) => {
+        clearTimeout(timeout);
+        console.error("Drive auth error callback:", error.type, error.message);
+        resolve(null);
+      },
+    });
+
     // Timeout — GIS may never call back if popup is blocked or user ignores it.
-    // 30s is generous: a consent popup takes ~5s to interact with.
     const timeout = setTimeout(() => {
       resolve(null);
     }, 30_000);
 
-    // Override callback per-request (GIS API quirk)
-    (client as unknown as Record<string, unknown>).callback = (
-      response: google.accounts.oauth2.TokenResponse,
-    ) => {
+    try {
+      client.requestAccessToken({ prompt });
+    } catch (e) {
       clearTimeout(timeout);
-      if (response.error) {
-        console.error("Drive auth error:", response.error);
-        resolve(null);
-        return;
-      }
-      resolve(response.access_token);
-    };
-
-    client.requestAccessToken({ prompt });
+      console.error("Failed to request Drive token:", e);
+      resolve(null);
+    }
   });
 }
 
@@ -513,7 +525,7 @@ export async function disconnectDrive(): Promise<{ ok: boolean; message: string 
     }
   }
 
-  tokenClient = null;
+  // tokenClient is now created fresh per-request — no cache to clear
 
   return { ok: true, message: "Disconnected from Google Drive." };
 }

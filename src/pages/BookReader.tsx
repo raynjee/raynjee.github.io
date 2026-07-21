@@ -1823,6 +1823,19 @@ function ChapterReader({
                 <Pencil className="w-3.5 h-3.5" strokeWidth={1.4} />
                 <span className="text-sm">Edit</span>
               </button>
+              {editMode && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSaveEdits(chapter.id, editedTexts);
+                    toast.success("Translation saved.");
+                  }}
+                  className="h-10 px-3 inline-flex items-center gap-1.5 rounded-lg bg-foreground text-background hover:bg-foreground/90 active:scale-[0.97] transition-all cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  <span className="text-sm">Save</span>
+                </button>
+              )}
               {translation && translation.paragraphs.some((p) => p && p.trim()) && (
                 <button
                   type="button"
