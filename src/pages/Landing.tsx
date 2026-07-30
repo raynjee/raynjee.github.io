@@ -16,6 +16,17 @@ export default function Landing() {
 
   return (
     <StudioShell>
+      {/* ── Blink animation ─────────────────────────────── */}
+      <style>{`
+        @keyframes mascot-blink {
+          0%, 90%, 96%, 100% { transform: scaleY(1); }
+          93% { transform: scaleY(0.08); }
+        }
+        .mascot-blink {
+          animation: mascot-blink 4.5s ease-in-out infinite;
+          transform-origin: center 40%;
+        }
+      `}</style>
       {/* ── Hero ──────────────────────────────────────────── */}
       <section className="relative mx-auto max-w-3xl px-6 sm:px-10 pt-32 sm:pt-40 lg:pt-48 pb-24 text-center overflow-hidden">
         {/* Subtle background ring */}
@@ -45,9 +56,9 @@ export default function Landing() {
             className="w-28 sm:w-36"
           >
             <motion.img
-              src="/mascot.jpg"
+              src="/mascot.png"
               alt="Cute chibi mascot reading a book"
-              className="w-full h-auto rounded-2xl drop-shadow-lg"
+              className="w-full h-auto drop-shadow-lg mascot-blink"
               animate={{ scale: [1, 1.03, 1, 1.03, 1] }}
               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             />
