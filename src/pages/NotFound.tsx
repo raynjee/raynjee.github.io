@@ -4,14 +4,17 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { motion } from "framer-motion";
-import { BookOpen, Download, Sparkles, Cloud, HelpCircle, ChevronDown } from "lucide-react";
+import { BookOpen, Download, Heart, Sparkles, Cloud, HelpCircle, ChevronDown } from "lucide-react";
 import { StudioShell } from "@/components/StudioShell";
 
 export default function NotFound() {
   return (
     <StudioShell>
       <div className="mx-auto max-w-[900px] px-6 lg:px-10 pt-10 pb-20">
-        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">How to use RaynETS</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">How to use RaynETS</h1>
+          <Sparkles className="w-5 h-5 text-accent animate-pulse" strokeWidth={1.5} />
+        </div>
         <p className="text-muted-foreground mt-2 text-sm max-w-[60ch]">
           A quiet EPUB-to-EPUB translation studio. Upload a novel, translate it
           with AI, and download the finished book — all from your browser.
@@ -139,7 +142,9 @@ export default function NotFound() {
           </section>
 
           {/* ── Still stuck? ────────────────────────────────── */}
-          <div className="rounded-xl border border-border/50 p-6 text-center">
+          <div className="rounded-xl border border-border/50 p-6 text-center relative overflow-hidden">
+            <Heart className="absolute top-3 right-4 w-4 h-4 text-primary/25" strokeWidth={1.5} fill="currentColor" />
+            <Sparkles className="absolute bottom-3 left-4 w-3.5 h-3.5 text-accent/25" strokeWidth={1.5} />
             <p className="text-sm text-muted-foreground">
               Something not covered here? Head to{" "}
               <Link to="/settings" className="underline hover:text-foreground">
@@ -170,10 +175,9 @@ function Step({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex gap-4">
-      <span className="shrink-0 w-6 h-6 rounded-full bg-foreground text-background flex items-center justify-center text-xs font-semibold mt-0.5">
-        {num}
-      </span>
+    <div className="flex gap-4">              <span className="shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-semibold mt-0.5">
+                {num === 5 ? "♡" : num}
+              </span>
       <div>
         <h3 className="text-base font-semibold">{title}</h3>
         <div className="mt-1">{children}</div>

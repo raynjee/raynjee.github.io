@@ -47,8 +47,8 @@
 
 /* ── ♡ Pastel Dream theme ────────────────────────────────────────── */
 /* Light mode = warm peach cream with soft coral accents.
-   Dark mode = cozy cocoa with rose gold highlights.
-   Both share the same warm hue family for a consistent brand. */
+   Dark mode = deep violet dream with amethyst highlights.
+   Both share the cute pastel aesthetic across day and night. */
 :root {
   --radius: 0.75rem;
 
@@ -108,35 +108,38 @@
 }
 
 .dark {
-  /* Cozy cocoa night */
-  --background: oklch(0.18 0.025 45);
-  --foreground: oklch(0.94 0.02 60);
-  --card: oklch(0.23 0.035 45);
-  --card-foreground: oklch(0.94 0.02 60);
-  --popover: oklch(0.24 0.035 45);
-  --popover-foreground: oklch(0.94 0.02 60);
+  /* Deep violet night — dreamy dark mode */
+  --background: oklch(0.15 0.04 270);
+  --foreground: oklch(0.93 0.02 275);
+  --card: oklch(0.20 0.05 270);
+  --card-foreground: oklch(0.93 0.02 275);
+  --popover: oklch(0.22 0.05 270);
+  --popover-foreground: oklch(0.93 0.02 275);
 
-  /* Rose gold in dark mode */
-  --primary: oklch(0.76 0.12 20);
-  --primary-foreground: oklch(0.18 0.025 45);
+  /* Amethyst primary */
+  --primary: oklch(0.72 0.14 280);
+  --primary-foreground: oklch(0.15 0.04 270);
 
-  --secondary: oklch(0.28 0.04 45);
-  --secondary-foreground: oklch(0.94 0.02 60);
-  --muted: oklch(0.26 0.035 45);
-  --muted-foreground: oklch(0.66 0.03 50);
-  --accent: oklch(0.68 0.10 28);
-  --accent-foreground: oklch(0.96 0.01 65);
+  /* Deep violet secondary */
+  --secondary: oklch(0.26 0.05 272);
+  --secondary-foreground: oklch(0.93 0.02 275);
+  --muted: oklch(0.24 0.045 270);
+  --muted-foreground: oklch(0.68 0.04 275);
 
-  --destructive: oklch(0.62 0.18 20);
+  /* Bright lavender accent */
+  --accent: oklch(0.65 0.14 285);
+  --accent-foreground: oklch(0.97 0.01 275);
 
-  --border: oklch(0.94 0.02 60 / 12%);
-  --input: oklch(0.94 0.02 60 / 16%);
-  --ring: oklch(0.76 0.12 20 / 45%);
+  --destructive: oklch(0.58 0.18 18);
 
-  --sidebar: oklch(0.24 0.035 45);
-  --sidebar-foreground: oklch(0.94 0.02 60);
-  --sidebar-border: oklch(0.94 0.02 60 / 12%);
-  --sidebar-ring: oklch(0.76 0.12 20 / 45%);
+  --border: oklch(0.90 0.03 275 / 14%);
+  --input: oklch(0.90 0.03 275 / 18%);
+  --ring: oklch(0.72 0.14 280 / 50%);
+
+  --sidebar: oklch(0.22 0.05 270);
+  --sidebar-foreground: oklch(0.93 0.02 275);
+  --sidebar-border: oklch(0.90 0.03 275 / 14%);
+  --sidebar-ring: oklch(0.72 0.14 280 / 50%);
 }
 
 @layer base {
@@ -235,11 +238,11 @@
 .dark .raine-rain::before,
 .dark .raine-rain::after {
   background-image:
-    radial-gradient(1.8px 1.8px at 12px 12px, rgba(255, 175, 155, 0.6), transparent 60%),
-    radial-gradient(1.2px 1.2px at 40px 60px, rgba(255, 160, 180, 0.5), transparent 60%),
-    radial-gradient(2px 2px at 90px 30px, rgba(255, 185, 165, 0.5), transparent 60%),
-    radial-gradient(1.4px 1.4px at 130px 100px, rgba(255, 155, 175, 0.55), transparent 60%),
-    radial-gradient(1.6px 1.6px at 170px 50px, rgba(255, 180, 170, 0.5), transparent 60%);
+    radial-gradient(1.8px 1.8px at 12px 12px, rgba(190, 175, 255, 0.65), transparent 60%),
+    radial-gradient(1.2px 1.2px at 40px 60px, rgba(210, 190, 255, 0.55), transparent 60%),
+    radial-gradient(2px 2px at 90px 30px, rgba(175, 160, 255, 0.5), transparent 60%),
+    radial-gradient(1.4px 1.4px at 130px 100px, rgba(200, 185, 255, 0.6), transparent 60%),
+    radial-gradient(1.6px 1.6px at 170px 50px, rgba(215, 195, 255, 0.55), transparent 60%);
 }
 @keyframes sparkle-drift {
   from { transform: translate3d(0, -25%, 0); }
@@ -387,7 +390,7 @@
     padding-left: 0.6em;
   }
   .dark .scene-break__ornament {
-    color: oklch(0.90 0.02 60 / 22%);
+    color: oklch(0.85 0.04 275 / 22%);
   }
 }
 

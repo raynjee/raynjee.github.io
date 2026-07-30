@@ -8,10 +8,12 @@ import {
   Download,
   FileDown,
   Gauge,
+  Heart,
   KeyRound,
   Link,
   Loader2,
   Plus,
+  Sparkles,
   Upload,
   HelpCircle,
   Terminal,
@@ -48,8 +50,14 @@ export default function SettingsPage() {
   return (
     <StudioShell>
       <div className="mx-auto max-w-[1100px] px-6 lg:px-10 pt-10 pb-20">
-        <div className="text-xs text-muted-foreground">The Back Room</div>
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl mt-2 tracking-tight font-semibold">Settings</h1>
+        <div className="flex items-center gap-2">
+          <div className="text-xs text-muted-foreground">The Back Room</div>
+          <Sparkles className="w-3 h-3 text-accent" strokeWidth={1.5} />
+        </div>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl mt-2 tracking-tight font-semibold">Settings</h1>
+          <Heart className="w-5 h-5 sm:w-6 sm:h-6 text-primary/60 mt-1" strokeWidth={1.5} fill="currentColor" />
+        </div>
         <p className="text-muted-foreground mt-3 max-w-[58ch]">
           API keys, proxy configuration, translation preferences, and the
           studio's housekeeping. Everything lives on your machine.

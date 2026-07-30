@@ -11,6 +11,7 @@ import {
   ArrowUp,
   BookOpen,
   BookOpenCheck,
+  Heart,
   Languages,
   Library as LibraryIcon,
   Loader2,
@@ -188,9 +189,12 @@ export default function Library() {
         {/* ── § I · Header ───────────────────────────────────────── */}
         <header className="flex flex-col lg:flex-row gap-8 lg:gap-16 items-start lg:items-end">
           <div className="flex-1 min-w-0">
-            <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-[0.95]">
-              Library
-            </h1>
+            <div className="flex items-center gap-3">
+              <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-[0.95]">
+                Library
+              </h1>
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-accent animate-pulse" strokeWidth={1.5} />
+            </div>
             <p className="text-muted-foreground mt-3 max-w-[48ch] text-sm leading-relaxed">
               Click a volume to open it at the reading desk, or drop a new file to add one.
             </p>
@@ -554,8 +558,10 @@ function EmptyWall({ onUploaded }: { onUploaded: () => Promise<void> }) {
       <div className="w-12 h-12 mx-auto mb-6 grid place-items-center border border-border">
         <BookOpenCheck className="w-5 h-5 text-muted-foreground" strokeWidth={1.2} />
       </div>
-      <h2 className="font-display text-2xl tracking-tight">
+      <h2 className="font-display text-2xl tracking-tight flex items-center justify-center gap-2">
+        <Heart className="w-5 h-5 text-primary/50" strokeWidth={1.5} />
         Your library is empty
+        <Heart className="w-5 h-5 text-primary/50" strokeWidth={1.5} />
       </h2>
       <p className="text-muted-foreground mt-3 text-sm leading-relaxed max-w-[40ch] mx-auto">
         Drop an .epub, .txt, or .docx file to add your first volume.

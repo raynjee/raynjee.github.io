@@ -1,11 +1,39 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <linearGradient id="g" x1="50%" y1="0%" x2="50%" y2="100%">
-      <stop offset="0%" stop-color="#a5b4fc"/>
-      <stop offset="100%" stop-color="#312e81"/>
+    <linearGradient id="bg" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#fff5f0"/>
+      <stop offset="100%" stop-color="#ffe4d6"/>
+    </linearGradient>
+    <linearGradient id="book" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#ff8fa3"/>
+      <stop offset="100%" stop-color="#e8738a"/>
     </linearGradient>
   </defs>
-  <rect width="64" height="64" rx="14" fill="#f4f4f5"/>
-  <path d="M32 10 C 20 26, 16 36, 16 44 C 16 52, 23 58, 32 58 C 41 58, 48 52, 48 44 C 48 36, 44 26, 32 10 Z" fill="url(#g)"/>
-  <ellipse cx="25" cy="40" rx="3" ry="2" fill="rgba(255,255,255,0.55)"/>
+  <!-- Background rounded square -->
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <!-- Open book -->
+  <g transform="translate(16, 18)">
+    <!-- Left page -->
+    <path d="M16 4 L16 28 L2 28 Q1 28 0 26 L0 2 Q1 0 3 0 Z" fill="#ffd4dc" stroke="#ff8fa3" stroke-width="0.5"/>
+    <!-- Right page -->
+    <path d="M16 4 L16 28 L30 28 Q31 28 32 26 L32 2 Q31 0 29 0 Z" fill="#fff0f3" stroke="#ff8fa3" stroke-width="0.5"/>
+    <!-- Spine / center line -->
+    <line x1="16" y1="4" x2="16" y2="28" stroke="#ff8fa3" stroke-width="1.2" stroke-linecap="round"/>
+    <!-- Text lines on left page -->
+    <line x1="4" y1="8" x2="13" y2="8" stroke="#e8738a" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+    <line x1="4" y1="12" x2="13" y2="12" stroke="#e8738a" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+    <line x1="4" y1="16" x2="11" y2="16" stroke="#e8738a" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+    <line x1="4" y1="20" x2="13" y2="20" stroke="#e8738a" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+    <line x1="4" y1="24" x2="10" y2="24" stroke="#e8738a" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+    <!-- Text lines on right page -->
+    <line x1="19" y1="8" x2="28" y2="8" stroke="#e8738a" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+    <line x1="19" y1="12" x2="28" y2="12" stroke="#e8738a" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+    <line x1="19" y1="16" x2="26" y2="16" stroke="#e8738a" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+    <line x1="19" y1="20" x2="28" y2="20" stroke="#e8738a" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+    <line x1="19" y1="24" x2="25" y2="24" stroke="#e8738a" stroke-width="0.8" stroke-linecap="round" opacity="0.5"/>
+  </g>
+  <!-- Sparkle ⭑ top-right -->
+  <text x="48" y="18" font-size="10" fill="#ffb3c6" font-family="sans-serif">✦</text>
+  <!-- Small heart bottom-right -->
+  <text x="46" y="52" font-size="8" fill="#ffccd5" font-family="sans-serif">♡</text>
 </svg>

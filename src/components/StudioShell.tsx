@@ -5,9 +5,11 @@ import { Link, NavLink, useLocation } from "react-router";
 import { motion } from "framer-motion";
 import {
   Bookmark,
+  Heart,
   Library,
   Menu,
   Settings as SettingsIcon,
+  Sparkles,
   Sun,
   Moon,
   LaptopMinimal,
@@ -102,6 +104,7 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
               <img src="/logo.svg" alt="" className="w-5 h-5 dark:hidden" />
               <img src="/logo-dark.svg" alt="" className="w-5 h-5 hidden dark:block" />
               RaynETS
+              <Heart className="w-3 h-3 text-primary/60 hidden sm:block" strokeWidth={2} fill="currentColor" />
             </Link>
 
             <nav className="hidden md:flex items-center gap-6">
@@ -205,7 +208,23 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
         {children}
       </motion.main>
 
-
+      {/* ── ♡ Cute global footer ────────────────────────────── */}
+      {!hideChrome && (
+        <footer className="border-t border-border bg-background/60 backdrop-blur-sm">
+          <div className="mx-auto max-w-[1400px] px-6 lg:px-10 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Sparkles className="w-3 h-3 text-accent" strokeWidth={1.5} />
+              <span>Made with</span>
+              <Heart className="w-3 h-3 text-primary" strokeWidth={2} fill="currentColor" />
+              <span>by Rayn</span>
+              <Sparkles className="w-3 h-3 text-accent" strokeWidth={1.5} />
+            </div>
+            <div className="flex items-center gap-4 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/60">
+              <span>✦ EPUB Translation Studio ✦</span>
+            </div>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
