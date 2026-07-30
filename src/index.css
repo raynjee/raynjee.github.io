@@ -1,0 +1,449 @@
+/* DO NOT CHANGE */
+@import "tailwindcss";
+@import "tw-animate-css";
+@custom-variant dark (&:is(.dark *));
+
+/* DO NOT CHANGE */
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
+}
+
+/* ── ♡ Pastel Dream theme ────────────────────────────────────────── */
+/* Light mode = warm peach cream with soft coral accents.
+   Dark mode = cozy cocoa with rose gold highlights.
+   Both share the same warm hue family for a consistent brand. */
+:root {
+  --radius: 0.75rem;
+
+  /* Warm peach cream */
+  --background: oklch(0.965 0.025 65);
+  --card: oklch(0.985 0.015 65);
+  --popover: oklch(0.99 0.01 65);
+
+  /* Rich cocoa brown */
+  --foreground: oklch(0.22 0.025 45);
+  --card-foreground: oklch(0.22 0.025 45);
+  --popover-foreground: oklch(0.22 0.025 45);
+
+  /* Soft coral pink — the primary CTA */
+  --primary: oklch(0.58 0.14 15);
+  --primary-foreground: oklch(0.98 0.01 65);
+
+  /* Gentle lavender */
+  --secondary: oklch(0.82 0.05 300);
+  --secondary-foreground: oklch(0.25 0.03 45);
+
+  /* Soft warm gray */
+  --muted: oklch(0.90 0.02 70);
+  --muted-foreground: oklch(0.45 0.04 45);
+
+  /* Warm peachy accent */
+  --accent: oklch(0.72 0.11 35);
+  --accent-foreground: oklch(0.98 0.01 65);
+
+  --destructive: oklch(0.52 0.15 18);
+
+  /* Soft warm border */
+  --border: oklch(0.30 0.04 50 / 12%);
+  --input: oklch(0.30 0.04 50 / 16%);
+  --ring: oklch(0.58 0.14 15 / 35%);
+
+  /* Chart colors — pastel rainbow */
+  --chart-1: oklch(0.62 0.14 15);
+  --chart-2: oklch(0.62 0.10 210);
+  --chart-3: oklch(0.62 0.10 130);
+  --chart-4: oklch(0.62 0.10 310);
+  --chart-5: oklch(0.62 0.10 50);
+
+  --sidebar: oklch(0.975 0.015 65);
+  --sidebar-foreground: oklch(0.22 0.025 45);
+  --sidebar-primary: oklch(0.58 0.14 15);
+  --sidebar-primary-foreground: oklch(0.98 0.01 65);
+  --sidebar-accent: oklch(0.88 0.03 70);
+  --sidebar-accent-foreground: oklch(0.25 0.03 45);
+  --sidebar-border: oklch(0.30 0.04 50 / 12%);
+  --sidebar-ring: oklch(0.58 0.14 15 / 35%);
+
+  /* Typography — friendly, rounded sans-serif */
+  --font-serif: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+.dark {
+  /* Cozy cocoa night */
+  --background: oklch(0.18 0.025 45);
+  --foreground: oklch(0.94 0.02 60);
+  --card: oklch(0.23 0.035 45);
+  --card-foreground: oklch(0.94 0.02 60);
+  --popover: oklch(0.24 0.035 45);
+  --popover-foreground: oklch(0.94 0.02 60);
+
+  /* Rose gold in dark mode */
+  --primary: oklch(0.76 0.12 20);
+  --primary-foreground: oklch(0.18 0.025 45);
+
+  --secondary: oklch(0.28 0.04 45);
+  --secondary-foreground: oklch(0.94 0.02 60);
+  --muted: oklch(0.26 0.035 45);
+  --muted-foreground: oklch(0.66 0.03 50);
+  --accent: oklch(0.68 0.10 28);
+  --accent-foreground: oklch(0.96 0.01 65);
+
+  --destructive: oklch(0.62 0.18 20);
+
+  --border: oklch(0.94 0.02 60 / 12%);
+  --input: oklch(0.94 0.02 60 / 16%);
+  --ring: oklch(0.76 0.12 20 / 45%);
+
+  --sidebar: oklch(0.24 0.035 45);
+  --sidebar-foreground: oklch(0.94 0.02 60);
+  --sidebar-border: oklch(0.94 0.02 60 / 12%);
+  --sidebar-ring: oklch(0.76 0.12 20 / 45%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  /* Soft warm background gradient */
+  html,
+  body {
+    background-color: var(--background);
+    background-image: linear-gradient(
+      180deg,
+      var(--background) 0%,
+      color-mix(in oklch, var(--background), var(--accent) 8%) 100%
+    );
+    color: var(--foreground);
+    overflow-x: hidden;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-sans);
+    letter-spacing: -0.015em;
+    font-weight: 600;
+  }
+  .font-serif {
+    font-family: var(--font-serif);
+  }
+  .font-display {
+    font-family: var(--font-display);
+  }
+  button:not([disabled]),
+  [role="button"]:not([disabled]) {
+    cursor: pointer;
+  }
+
+  /* Inline rule */
+  hr,
+  .rule {
+    border: 0;
+    border-top: 1px solid var(--border);
+  }
+  .rule-strong {
+    border-top-color: var(--foreground);
+    opacity: 0.25;
+  }
+
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Mobile touch-friendly: all interactive elements ≥ 44px ── */
+  @media (max-width: 640px) {
+    button, [role="button"], nav a, input[type="checkbox"], input[type="radio"] {
+      min-height: 44px;
+    }
+  }
+}
+
+/* ── ♡ Gentle floating sparkles / petals ──────────────────────────── */
+/* Replaces the stormy rain with soft, dreamy sparkles.
+   Light mode: warm golden sparkles. Dark mode: rose-gold sparkles. */
+.raine-rain {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.raine-rain::before,
+.raine-rain::after {
+  content: "";
+  position: absolute;
+  inset: -25%;
+  background-image:
+    radial-gradient(1.8px 1.8px at 12px 12px, rgba(255, 190, 150, 0.5), transparent 60%),
+    radial-gradient(1.2px 1.2px at 40px 60px, rgba(255, 180, 200, 0.45), transparent 60%),
+    radial-gradient(2px 2px at 90px 30px, rgba(255, 200, 170, 0.4), transparent 60%),
+    radial-gradient(1.4px 1.4px at 130px 100px, rgba(255, 175, 190, 0.5), transparent 60%),
+    radial-gradient(1.6px 1.6px at 170px 50px, rgba(255, 195, 180, 0.45), transparent 60%);
+  background-size: 240px 240px;
+  background-repeat: repeat;
+  animation: sparkle-drift 22s linear infinite;
+  will-change: transform;
+}
+.raine-rain::after {
+  background-size: 340px 340px;
+  animation-duration: 34s;
+  animation-delay: -11s;
+  opacity: 0.55;
+}
+.dark .raine-rain::before,
+.dark .raine-rain::after {
+  background-image:
+    radial-gradient(1.8px 1.8px at 12px 12px, rgba(255, 175, 155, 0.6), transparent 60%),
+    radial-gradient(1.2px 1.2px at 40px 60px, rgba(255, 160, 180, 0.5), transparent 60%),
+    radial-gradient(2px 2px at 90px 30px, rgba(255, 185, 165, 0.5), transparent 60%),
+    radial-gradient(1.4px 1.4px at 130px 100px, rgba(255, 155, 175, 0.55), transparent 60%),
+    radial-gradient(1.6px 1.6px at 170px 50px, rgba(255, 180, 170, 0.5), transparent 60%);
+}
+@keyframes sparkle-drift {
+  from { transform: translate3d(0, -25%, 0); }
+  to   { transform: translate3d(0, 25%, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .raine-rain::before,
+  .raine-rain::after {
+    animation: none;
+    opacity: 0.25;
+  }
+}
+
+/* ── Studio component refinements — soft + cute ──────────────────── */
+@layer components {
+  .studio-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  }
+  .studio-frame {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+  .studio-btn {
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+  }
+  .studio-caps {
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    font-size: 0.68rem;
+    font-weight: 500;
+  }
+  .studio-num {
+    font-family: var(--font-serif);
+    font-feature-settings: "tnum", "lnum";
+  }
+
+  /* Gallery grid — responsive + cute */
+  .gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  @media (min-width: 640px) {
+    .gallery-grid {
+      gap: 1.5rem;
+    }
+  }
+  @media (min-width: 768px) {
+    .gallery-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 2rem;
+    }
+  }
+  @media (min-width: 1200px) {
+    .gallery-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  /* Reader prose */
+  .reader-prose p {
+    margin-bottom: 1.1em;
+    line-height: 1.85;
+    text-indent: 1.5em;
+  }
+  .reader-prose p:first-child {
+    text-indent: 0;
+  }
+  .reader-prose h1,
+  .reader-prose h2,
+  .reader-prose h3 {
+    font-family: var(--font-display);
+    margin: 1.5em 0 0.6em;
+    text-indent: 0;
+  }
+
+  /* Gallery tiles */
+  .gallery-tile {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    background: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .gallery-tile:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  }
+  .gallery-tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .gallery-frame {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 4px;
+    background: var(--card);
+  }
+  .plate {
+    border-top: 1px solid var(--foreground);
+    opacity: 0.15;
+  }
+
+  /* ── Reader controls ──────────────────────────────────────────── */
+  .reader-root {
+    --reader-font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+    --reader-font-size: 18px;
+    --reader-leading: 1.75;
+    --reader-paragraph-gap: 1.75rem;
+  }
+  .reader-prose-text {
+    font-family: var(--reader-font-family);
+    line-height: var(--reader-leading);
+    font-size: var(--reader-font-size);
+    white-space: pre-line;
+    word-wrap: break-word;
+  }
+  .reader-gap > * + * {
+    margin-top: var(--reader-paragraph-gap);
+  }
+
+  /* Scene break separator */
+  .scene-break {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 0;
+    user-select: none;
+    pointer-events: none;
+  }
+  .scene-break__ornament {
+    font-family: var(--font-serif);
+    font-size: 1.1rem;
+    letter-spacing: 0.6em;
+    color: oklch(0.35 0.03 45 / 30%);
+    padding-left: 0.6em;
+  }
+  .dark .scene-break__ornament {
+    color: oklch(0.90 0.02 60 / 22%);
+  }
+}
+
+/* ── Custom scrollbar — thin, rounded, cute ──────────────────────── */
+@layer utilities {
+  .thin-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 9999px;
+  }
+  .thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  select {
+    background-image: none;
+  }
+  .caret-ink {
+    caret-color: var(--foreground);
+  }
+
+  /* ── Skeleton loaders ───────────────────────────────────────────── */
+  @keyframes sparkle-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .skeleton {
+    background: var(--muted);
+    border-radius: var(--radius-md);
+    animation: sparkle-pulse 3.6s ease-in-out infinite;
+    will-change: opacity;
+  }
+  .skeleton-line {
+    display: block;
+    background: var(--muted);
+    height: 0.7rem;
+    border-radius: var(--radius-sm);
+    animation: sparkle-pulse 3.6s ease-in-out infinite;
+    will-change: opacity;
+  }
+  .skeleton-line + .skeleton-line {
+    margin-top: 0.45rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton,
+    .skeleton-line {
+      animation: none;
+      opacity: 0.65;
+    }
+  }
+
+  /* ── Mobile touch-friendly utility ─────────────────────────────── */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "RaynETS — Epub Translation Studio",
+  "short_name": "RaynETS",
+  "description": "RaynETS — Rayn's Epub Translation Studio: translate novels between languages, EPUB to EPUB, fully on your device.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e1b4b",
+  "theme_color": "#1e1b4b",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo-dark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

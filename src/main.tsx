@@ -1,0 +1,103 @@
+import "@vly-ai/integrations";
+import { Toaster } from "@/components/ui/sonner";
+import { ConfirmProvider } from "@/components/ConfirmDialog";
+import { AppErrorBoundary } from "@/components/AppErrorBoundary";
+import { VlyToolbar } from "../vly-toolbar-readonly.tsx";
+import { InstrumentationProvider } from "@/instrumentation.tsx";
+import { StrictMode, useEffect, lazy, Suspense } from "react";
+import { createRoot } from "react-dom/client";
+import {
+  HashRouter,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from "react-router";
+import "./index.css";
+import "./types/global.d.ts";
+import { registerSW } from "@/lib/sw-register";
+
+// Register the Service Worker ASAP so it's ready when the user taps
+// "Safari Reader". Non-blocking — the app renders regardless.
+registerSW();
+
+// Lazy load route components — no auth gate, no login wall.
+const Landing = lazy(() => import("./pages/Landing.tsx"));
+const Library = lazy(() => import("./pages/Library.tsx"));
+const BookReader = lazy(() => import("./pages/BookReader.tsx"));
+const Glossary = lazy(() => import("./pages/Glossary.tsx"));
+const Settings = lazy(() => import("./pages/Settings.tsx"));
+const ImportTranslationsPage = lazy(() => import("./pages/Import.tsx"));
+const NotFound = lazy(() => import("./pages/NotFound.tsx"));
+
+function RouteLoading() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="font-display text-muted-foreground tracking-wide animate-pulse">
+        Preparing the studio…
+      </div>
+    </div>
+  );
+}
+
+function RouteSyncer() {
+  const location = useLocation();
+  useEffect(() => {
+    window.parent.postMessage(
+      { type: "iframe-route-change", path: location.pathname },
+      "*",
+    );
+  }, [location.pathname]);
+
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (event.data?.type === "navigate") {
+        if (event.data.direction === "back") window.history.back();
+        if (event.data.direction === "forward") window.history.forward();
+      }
+    }
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
+
+  return null;
+}
+
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
+    <VlyToolbar />
+    <InstrumentationProvider>
+      <HashRouter>
+        <RouteSyncer />
+        <Suspense fallback={<RouteLoading />}>
+          <ConfirmProvider>
+            <AppErrorBoundary>
+              <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/library" element={<Library />} />
+              <Route path="/library/:bookId/edit" element={<BookEditorRoute />} />
+              <Route path="/library/:bookId" element={<BookReader />} />
+              <Route path="/library/:bookId/glossary" element={<Glossary />} />
+              <Route path="/library/:bookId/:chapterId" element={<BookReader />} />
+              <Route path="/import" element={<ImportTranslationsPage />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            </AppErrorBoundary>
+          </ConfirmProvider>
+        </Suspense>
+      </HashRouter>
+      <Toaster />
+    </InstrumentationProvider>
+  </StrictMode>,
+);
+
+import { BookEditor as BookEditorImpl } from "./pages/Library";
+function BookEditorRoute() {
+  // useParams comes from the top-level "react-router" import above. Don't
+  // reintroduce a runtime require() here — it throws "require is not defined"
+  // under Vite's browser ESM bundle.
+  const { bookId } = useParams();
+  if (!bookId) return null;
+  return <BookEditorImpl bookId={bookId} />;
+}
