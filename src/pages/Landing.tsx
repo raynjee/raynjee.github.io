@@ -16,6 +16,27 @@ export default function Landing() {
 
   return (
     <StudioShell>
+      {/* ── Blink animation (two-layer opacity) ─────────── */}
+      <style>{`
+        .mascot-layer { position: relative; display: inline-block; line-height: 0; }
+        .mascot-layer img { width: 100%; height: auto; display: block; }
+        .mascot-closed {
+          position: absolute; inset: 0;
+          opacity: 0;
+          animation: blink-eyes 4.5s ease-in-out infinite;
+        }
+        @keyframes blink-eyes {
+          0%, 38%  { opacity: 0; }
+          40%      { opacity: 1; }
+          44%      { opacity: 1; }
+          46%      { opacity: 0; }
+          62%      { opacity: 0; }
+          64%      { opacity: 1; }
+          68%      { opacity: 1; }
+          70%      { opacity: 0; }
+          100%     { opacity: 0; }
+        }
+      `}</style>
 
       {/* ── Hero ──────────────────────────────────────────── */}
       <section className="relative mx-auto max-w-3xl px-6 sm:px-10 pt-32 sm:pt-40 lg:pt-48 pb-24 text-center overflow-hidden">
@@ -45,14 +66,23 @@ export default function Landing() {
             }}
             className="w-28 sm:w-36"
           >
-            <motion.img
-              src="/mascot.png"
-              alt="Cute chibi mascot reading a book"
-              className="w-full h-auto drop-shadow-lg"
-              draggable={false}
-              animate={{ scale: [1, 1.03, 1, 1.03, 1] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-            />
+            <div className="mascot-layer">
+              <motion.img
+                src="/mascot.png"
+                alt="Cute chibi mascot reading a book"
+                className="drop-shadow-lg"
+                draggable={false}
+                animate={{ scale: [1, 1.03, 1, 1.03, 1] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              />
+              <img
+                src="/mascot-closed.png"
+                alt=""
+                className="mascot-closed"
+                aria-hidden
+                draggable={false}
+              />
+            </div>
           </motion.div>
           {/* Tiny sparkles around the mascot */}
           <Sparkles className="absolute -top-1 -right-1 w-4 h-4 text-accent animate-pulse" strokeWidth={1.5} />
