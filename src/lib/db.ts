@@ -4,6 +4,7 @@
 
 import { encryptApiKey, decryptApiKey } from "./crypto";
 import { setGeminiRpmLimit } from "./translators/gemini";
+import { REFERENCE_GLOSSARY } from "../data/reference-glossary";
 import type {
   ApiCallLog,
   Book,
@@ -449,9 +450,26 @@ export async function listGlossaryEntries(
     "readonly",
     (s) => s.getAll(),
   );
-  return all
+  const bookEntries = all
     .filter((e) => e.bookId === bookId)
     .sort((a, b) => a.createdAt - b.createdAt);
+
+  // Merge built-in reference glossary (Chinese wuxia/xianxia & Korean terms).
+  // Reference entries use bookId="ref:global" and synthetic IDs so they never
+  // collide with user-created entries. They are read-only and always available.
+  const refEntries: GlossaryEntry[] = REFERENCE_GLOSSARY.map((r, i) => ({
+    id: `ref:global:${i}`,
+    bookId: "ref:global",
+    term: r.term,
+    translation: r.translation,
+    category: r.category,
+    gender: r.gender,
+    notes: r.notes,
+    createdAt: 0,
+    updatedAt: 0,
+  }));
+
+  return [...refEntries, ...bookEntries];
 }
 
 export async function deleteGlossaryEntry(id: string): Promise<void> {

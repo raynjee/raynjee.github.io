@@ -16,6 +16,7 @@ import {
   Pencil,
   Search,
   CopyMinus,
+  Globe,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import { StudioShell } from "@/components/StudioShell";
@@ -69,6 +70,10 @@ const CATEGORY_LABELS: Record<GlossaryEntry["category"], string> = {
   word: "Word",
   slang: "Slang",
 };
+
+function isRefEntry(entry: GlossaryEntry): boolean {
+  return entry.bookId === "ref:global";
+}
 
 const GENDERS: Array<NonNullable<GlossaryEntry["gender"]>> = ["F", "M", "N"];
 const GENDER_LABEL: Record<string, string> = {
@@ -770,8 +775,19 @@ export default function Glossary() {
               </p>
             )}
 
+            {/* Reference glossary count */}
+            {filteredEntries.some(isRefEntry) && (
+              <div className="mt-6 flex items-center gap-2 text-xs text-muted-foreground">
+                <Globe className="w-3.5 h-3.5" strokeWidth={1.4} />
+                <span>
+                  {filteredEntries.filter(isRefEntry).length} built-in reference terms
+                  (Immortal Mountain & WuxiaWorld glossaries)
+                </span>
+              </div>
+            )}
+
             {/* Desktop table (md+) */}
-            <div className="hidden md:block mt-8 border border-border">
+            <div className="hidden md:block mt-4 border border-border">
               {/* Table header */}
               <div className="grid grid-cols-12 gap-3 px-4 py-3 border-b border-border bg-card text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                 <span className="col-span-3">Term</span>
@@ -847,31 +863,41 @@ function GlossaryMobileCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const isRef = isRefEntry(entry);
   return (
-    <div className="border border-border bg-card p-4 space-y-2">
+    <div className={cn("border bg-card p-4 space-y-2", isRef ? "border-blue-500/20 bg-muted/20" : "border-border")}>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-base font-medium leading-tight">{entry.term}</p>
+          <p className="text-base font-medium leading-tight">
+            {entry.term}
+            {isRef && (
+              <span className="ml-1.5 inline-block text-[9px] uppercase tracking-[0.14em] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 align-middle">
+                ref
+              </span>
+            )}
+          </p>
           <p className="text-sm text-foreground/80 mt-0.5">{entry.translation}</p>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="p-2 text-muted-foreground hover:text-foreground active:scale-95 transition-all"
-            aria-label="Edit entry"
-          >
-            <Pencil className="w-4 h-4" strokeWidth={1.4} />
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="p-2 text-muted-foreground hover:text-destructive active:scale-95 transition-all"
-            aria-label="Delete entry"
-          >
-            <Trash2 className="w-4 h-4" strokeWidth={1.4} />
-          </button>
-        </div>
+        {!isRef && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="p-2 text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+              aria-label="Edit entry"
+            >
+              <Pencil className="w-4 h-4" strokeWidth={1.4} />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="p-2 text-muted-foreground hover:text-destructive active:scale-95 transition-all"
+              aria-label="Delete entry"
+            >
+              <Trash2 className="w-4 h-4" strokeWidth={1.4} />
+            </button>
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <span className="inline-block text-[10px] uppercase tracking-[0.16em] px-2 py-0.5 border border-border text-muted-foreground">
@@ -904,10 +930,21 @@ function GlossaryViewRow({
   const genderBadge = entry.gender
     ? GENDER_LABEL[entry.gender] ?? entry.gender
     : null;
+  const isRef = isRefEntry(entry);
 
   return (
-    <div className="grid grid-cols-12 gap-3 px-4 py-3 items-center hover:bg-muted/40 transition-colors">
-      <span className="col-span-3 text-sm font-medium">{entry.term}</span>
+    <div className={cn(
+      "grid grid-cols-12 gap-3 px-4 py-3 items-center transition-colors",
+      isRef ? "bg-muted/20 hover:bg-muted/30" : "hover:bg-muted/40",
+    )}>
+      <span className="col-span-3 text-sm font-medium">
+        {entry.term}
+        {isRef && (
+          <span className="ml-1.5 inline-block text-[9px] uppercase tracking-[0.14em] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+            ref
+          </span>
+        )}
+      </span>
       <span className="col-span-3 text-sm text-foreground/85">
         {entry.translation}
       </span>
@@ -936,22 +973,26 @@ function GlossaryViewRow({
         {entry.notes || "—"}
       </span>
       <span className="col-span-1 flex items-center justify-end gap-1.5">
-        <button
-          type="button"
-          onClick={onEdit}
-          className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
-          aria-label="Edit entry"
-        >
-          <Pencil className="w-3.5 h-3.5" strokeWidth={1.4} />
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
-          aria-label="Delete entry"
-        >
-          <Trash2 className="w-3.5 h-3.5" strokeWidth={1.4} />
-        </button>
+        {!isRef && (
+          <>
+            <button
+              type="button"
+              onClick={onEdit}
+              className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Edit entry"
+            >
+              <Pencil className="w-3.5 h-3.5" strokeWidth={1.4} />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+              aria-label="Delete entry"
+            >
+              <Trash2 className="w-3.5 h-3.5" strokeWidth={1.4} />
+            </button>
+          </>
+        )}
       </span>
     </div>
   );
