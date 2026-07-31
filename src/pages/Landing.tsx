@@ -23,10 +23,18 @@ export default function Landing() {
           50%      { box-shadow: 0 0 80px 30px rgba(200,180,255,0.10), inset 0 0 50px 15px rgba(200,180,255,0.05); }
         }
         @keyframes twinkle {
-          0%, 100% { opacity: 0.3; transform: scale(0.8); }
-          50%      { opacity: 1;   transform: scale(1.2); }
+          0%, 100% { opacity: 0.4; transform: scale(0.8); }
+          50%      { opacity: 1;   transform: scale(1.3); }
+        }
+        @keyframes shooting-star {
+          0%   { transform: translateX(0) translateY(0) rotate(-35deg) scaleX(0.1); opacity: 0; }
+          5%   { opacity: 1; transform: translateX(20px) translateY(13px) rotate(-35deg) scaleX(0.6); }
+          30%  { opacity: 1; transform: translateX(80px) translateY(53px) rotate(-35deg) scaleX(1); }
+          60%  { opacity: 0.6; transform: translateX(180px) translateY(120px) rotate(-35deg) scaleX(0.7); }
+          100% { transform: translateX(280px) translateY(186px) rotate(-35deg) scaleX(0.2); opacity: 0; }
         }
         .moon-circle {
+          overflow: hidden;
           background: radial-gradient(circle at 35% 35%,
             hsl(var(--background)) 0%,
             hsl(var(--muted) / 0.3) 40%,
@@ -39,13 +47,30 @@ export default function Landing() {
           position: absolute;
           width: 3px; height: 3px;
           border-radius: 50%;
-          background: hsl(var(--foreground) / 0.25);
+          background: hsl(var(--foreground) / 0.5);
+          box-shadow: 0 0 3px 1px hsl(var(--foreground) / 0.2);
           animation: twinkle var(--dur, 3s) ease-in-out var(--delay, 0s) infinite;
         }
         .star--bright {
-          background: hsl(var(--foreground) / 0.4);
+          background: hsl(var(--foreground) / 0.7);
+          width: 4px; height: 4px;
+          box-shadow: 0 0 6px 2px hsl(var(--foreground) / 0.3), 0 0 12px 4px hsl(var(--foreground) / 0.1);
+        }
+        .star--tiny {
+          background: hsl(var(--foreground) / 0.35);
           width: 2px; height: 2px;
-          box-shadow: 0 0 4px 1px hsl(var(--foreground) / 0.15);
+          box-shadow: 0 0 2px 1px hsl(var(--foreground) / 0.15);
+        }
+        .shooting-star {
+          position: absolute;
+          width: 100px;
+          height: 2px;
+          border-radius: 999px;
+          background: linear-gradient(90deg, hsl(var(--foreground) / 0.7), transparent);
+          animation: shooting-star var(--dur, 4s) ease-out var(--delay, 0s) infinite;
+          pointer-events: none;
+          will-change: transform, opacity;
+          transform-origin: left center;
         }
         @keyframes sparkle-float {
           0%, 100% { transform: translateY(0) scale(1); opacity: 1; }
@@ -91,17 +116,30 @@ export default function Landing() {
                       w-[420px] h-[420px] sm:w-[560px] sm:h-[560px] rounded-full
                       border border-border/20 moon-circle"
         >
-          {/* Scattered twinkling stars */}
+          {/* Scattered twinkling stars — more visible */}
           <span className="star" style={{ top:'12%', left:'18%', '--dur':'3.2s', '--delay':'0s' } as React.CSSProperties} />
           <span className="star star--bright" style={{ top:'8%', left:'65%', '--dur':'4.1s', '--delay':'1.2s' } as React.CSSProperties} />
           <span className="star" style={{ top:'25%', left:'82%', '--dur':'2.8s', '--delay':'0.5s' } as React.CSSProperties} />
           <span className="star star--bright" style={{ top:'45%', left:'5%', '--dur':'3.6s', '--delay':'2.1s' } as React.CSSProperties} />
           <span className="star" style={{ top:'70%', left:'12%', '--dur':'4.4s', '--delay':'0.8s' } as React.CSSProperties} />
-          <span className="star" style={{ top:'85%', left:'75%', '--dur':'3.0s', '--delay':'1.5s' } as React.CSSProperties} />
-          <span className="star star--bright" style={{ top:'60%', left:'90%', '--dur':'3.8s', '--delay':'0.3s' } as React.CSSProperties} />
-          <span className="star" style={{ top:'35%', left:'92%', '--dur':'2.6s', '--delay':'1.8s' } as React.CSSProperties} />
+          <span className="star star--bright" style={{ top:'85%', left:'75%', '--dur':'3.0s', '--delay':'1.5s' } as React.CSSProperties} />
+          <span className="star" style={{ top:'60%', left:'90%', '--dur':'3.8s', '--delay':'0.3s' } as React.CSSProperties} />
+          <span className="star star--tiny" style={{ top:'35%', left:'92%', '--dur':'2.6s', '--delay':'1.8s' } as React.CSSProperties} />
           <span className="star star--bright" style={{ top:'90%', left:'40%', '--dur':'4.0s', '--delay':'2.5s' } as React.CSSProperties} />
           <span className="star" style={{ top:'15%', left:'45%', '--dur':'3.4s', '--delay':'0.7s' } as React.CSSProperties} />
+          {/* Extra scattered stars for density */}
+          <span className="star star--tiny" style={{ top:'5%', left:'35%', '--dur':'5.0s', '--delay':'0.4s' } as React.CSSProperties} />
+          <span className="star star--tiny" style={{ top:'18%', left:'78%', '--dur':'3.5s', '--delay':'1.0s' } as React.CSSProperties} />
+          <span className="star" style={{ top:'50%', left:'50%', '--dur':'4.2s', '--delay':'2.0s' } as React.CSSProperties} />
+          <span className="star star--tiny" style={{ top:'75%', left:'30%', '--dur':'3.1s', '--delay':'0.6s' } as React.CSSProperties} />
+          <span className="star" style={{ top:'30%', left:'15%', '--dur':'4.6s', '--delay':'1.4s' } as React.CSSProperties} />
+          <span className="star star--tiny" style={{ top:'65%', left:'70%', '--dur':'2.9s', '--delay':'2.3s' } as React.CSSProperties} />
+          <span className="star" style={{ top:'80%', left:'55%', '--dur':'3.7s', '--delay':'0.9s' } as React.CSSProperties} />
+          <span className="star star--tiny" style={{ top:'40%', left:'88%', '--dur':'4.8s', '--delay':'1.7s' } as React.CSSProperties} />
+          {/* ✨ Shooting stars */}
+          <span className="shooting-star" style={{ top:'15%', left:'10%', '--dur':'6s', '--delay':'0s' } as React.CSSProperties} />
+          <span className="shooting-star" style={{ top:'35%', left:'55%', '--dur':'8s', '--delay':'3s' } as React.CSSProperties} />
+          <span className="shooting-star" style={{ top:'60%', left:'25%', '--dur':'7s', '--delay':'5.5s' } as React.CSSProperties} />
         </div>
 
         {/* ♡ Cute chibi mascot */}
