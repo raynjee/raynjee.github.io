@@ -19,12 +19,19 @@ export default function Landing() {
       {/* ── Blink animation ─────────────────────────────── */}
       <style>{`
         @keyframes mascot-blink {
-          0%, 90%, 96%, 100% { transform: scaleY(1); }
-          93% { transform: scaleY(0.08); }
+          0%, 35%  { transform: scaleY(1); }
+          37%      { transform: scaleY(0.15); }
+          40%      { transform: scaleY(0.15); }
+          43%      { transform: scaleY(1); }
+          60%      { transform: scaleY(1); }
+          62%      { transform: scaleY(0.15); }
+          65%      { transform: scaleY(0.15); }
+          68%      { transform: scaleY(1); }
+          100%     { transform: scaleY(1); }
         }
         .mascot-blink {
-          animation: mascot-blink 4.5s ease-in-out infinite;
-          transform-origin: center 40%;
+          animation: mascot-blink 5s ease-in-out infinite;
+          transform-origin: center 33%;
         }
       `}</style>
       {/* ── Hero ──────────────────────────────────────────── */}
@@ -59,6 +66,7 @@ export default function Landing() {
               src="/mascot.png"
               alt="Cute chibi mascot reading a book"
               className="w-full h-auto drop-shadow-lg mascot-blink"
+              draggable={false}
               animate={{ scale: [1, 1.03, 1, 1.03, 1] }}
               transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
             />
