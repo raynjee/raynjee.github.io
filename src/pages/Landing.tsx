@@ -16,30 +16,8 @@ export default function Landing() {
 
   return (
     <StudioShell>
-      {/* ── Mascot animations ─────────────────────────────── */}
+      {/* ── Mascot decorations ────────────────────────────── */}
       <style>{`
-        .mascot-layer { position: relative; display: inline-block; line-height: 0; }
-        .mascot-layer img { width: 100%; height: auto; display: block; }
-        .mascot-closed {
-          position: absolute; inset: 0;
-          opacity: 0;
-          animation: blink-eyes 4.5s ease-in-out infinite;
-        }
-        @keyframes blink-eyes {
-          0%, 38%  { opacity: 0; }
-          40%      { opacity: 1; }
-          44%      { opacity: 1; }
-          46%      { opacity: 0; }
-          62%      { opacity: 0; }
-          64%      { opacity: 1; }
-          68%      { opacity: 1; }
-          70%      { opacity: 0; }
-          100%     { opacity: 0; }
-        }
-        @keyframes mascot-breathe {
-          0%, 100% { transform: scaleY(1) scaleX(1); }
-          50%      { transform: scaleY(1.02) scaleX(0.98); }
-        }
         @keyframes sparkle-float {
           0%, 100% { transform: translateY(0) scale(1); opacity: 1; }
           50%      { transform: translateY(-8px) scale(1.3); opacity: 0.6; }
@@ -54,10 +32,6 @@ export default function Landing() {
         @keyframes float-up {
           0%   { transform: translateY(0) scale(0.5); opacity: 0.8; }
           100% { transform: translateY(-40px) scale(0); opacity: 0; }
-        }
-        .mascot-breathe {
-          animation: mascot-breathe 3s ease-in-out infinite;
-          transform-origin: bottom center;
         }
         .mascot-sparkle {
           animation: sparkle-float 2s ease-in-out infinite;
@@ -97,34 +71,23 @@ export default function Landing() {
           className="absolute right-0 sm:right-4 bottom-12 sm:bottom-16 z-10"
         >
           <motion.div
-            className="mascot-breathe"
+            animate={{
+              y: [0, -8, 0, -4, 0],
+              rotate: [0, 2, 0, -2, 0],
+            }}
+            transition={{
+              y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+              rotate: { duration: 6, repeat: Infinity, ease: "easeInOut" },
+            }}
+            className="w-28 sm:w-36 rounded-xl overflow-hidden drop-shadow-lg"
           >
-            <motion.div
-              animate={{
-                y: [0, -8, 0, -4, 0],
-                rotate: [0, 2, 0, -2, 0],
-              }}
-              transition={{
-                y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
-                rotate: { duration: 6, repeat: Infinity, ease: "easeInOut" },
-              }}
-              className="w-28 sm:w-36 rounded-xl overflow-hidden drop-shadow-lg"
-            >
-              <div className="mascot-layer">
-                <img
-                  src="/mascot.png"
-                  alt="Cute chibi mascot"
-                  draggable={false}
-                />
-                <img
-                  src="/mascot-closed.png"
-                  alt=""
-                  className="mascot-closed"
-                  aria-hidden
-                  draggable={false}
-                />
-              </div>
-            </motion.div>
+            {/* GIF animates natively — no blink hacks needed */}
+            <img
+              src="/mascot.gif"
+              alt="Cute chibi mascot reading a book"
+              draggable={false}
+              className="w-full h-auto block"
+            />
           </motion.div>
           {/* Floating sparkle particles */}
           <div className="absolute inset-0 pointer-events-none" aria-hidden>
