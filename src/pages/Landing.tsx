@@ -16,7 +16,7 @@ export default function Landing() {
 
   return (
     <StudioShell>
-      {/* ── Blink animation (two-layer opacity) ─────────── */}
+      {/* ── Mascot animations ─────────────────────────────── */}
       <style>{`
         .mascot-layer { position: relative; display: inline-block; line-height: 0; }
         .mascot-layer img { width: 100%; height: auto; display: block; }
@@ -36,6 +36,47 @@ export default function Landing() {
           70%      { opacity: 0; }
           100%     { opacity: 0; }
         }
+        @keyframes mascot-breathe {
+          0%, 100% { transform: scaleY(1) scaleX(1); }
+          50%      { transform: scaleY(1.02) scaleX(0.98); }
+        }
+        @keyframes sparkle-float {
+          0%, 100% { transform: translateY(0) scale(1); opacity: 1; }
+          50%      { transform: translateY(-8px) scale(1.3); opacity: 0.6; }
+        }
+        @keyframes heart-beat {
+          0%, 100% { transform: scale(1); }
+          15%      { transform: scale(1.25); }
+          30%      { transform: scale(1); }
+          45%      { transform: scale(1.15); }
+          60%      { transform: scale(1); }
+        }
+        @keyframes float-up {
+          0%   { transform: translateY(0) scale(0.5); opacity: 0.8; }
+          100% { transform: translateY(-40px) scale(0); opacity: 0; }
+        }
+        .mascot-breathe {
+          animation: mascot-breathe 3s ease-in-out infinite;
+          transform-origin: bottom center;
+        }
+        .mascot-sparkle {
+          animation: sparkle-float 2s ease-in-out infinite;
+        }
+        .mascot-sparkle--delayed {
+          animation: sparkle-float 2.5s ease-in-out 0.8s infinite;
+        }
+        .mascot-heart {
+          animation: heart-beat 2.2s ease-in-out infinite;
+        }
+        .mascot-particle {
+          position: absolute;
+          width: 6px; height: 6px;
+          border-radius: 50%;
+          animation: float-up 3s ease-out infinite;
+        }
+        .mascot-particle:nth-child(1) { left: 20%; bottom: 30%; animation-delay: 0s; background: #f9a8d4; }
+        .mascot-particle:nth-child(2) { left: 50%; bottom: 40%; animation-delay: 1s; background: #c4b5fd; }
+        .mascot-particle:nth-child(3) { left: 75%; bottom: 25%; animation-delay: 2s; background: #fde68a; }
       `}</style>
 
       {/* ── Hero ──────────────────────────────────────────── */}
@@ -50,39 +91,59 @@ export default function Landing() {
 
         {/* ♡ Cute chibi mascot */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.4, duration: 0.6, ease: "easeOut" }}
+          initial={{ opacity: 0, scale: 0.5, y: 30 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.8, type: "spring", bounce: 0.5 }}
           className="absolute right-0 sm:right-4 bottom-12 sm:bottom-16 z-10"
         >
           <motion.div
-            animate={{
-              y: [0, -6, 0],
-              rotate: [0, 1, 0, -1, 0],
-            }}
-            transition={{
-              y: { duration: 3.5, repeat: Infinity, ease: "easeInOut" },
-              rotate: { duration: 5, repeat: Infinity, ease: "easeInOut" },
-            }}
-            className="w-28 sm:w-36 rounded-xl overflow-hidden drop-shadow-lg"
+            className="mascot-breathe"
           >
-            <div className="mascot-layer">
-              <img
-                src="/mascot.png"
-                alt="Cute chibi mascot"
-                draggable={false}
-              />
-              <img
-                src="/mascot-closed.png"
-                alt=""
-                className="mascot-closed"
-                aria-hidden
-                draggable={false}
-              />
-            </div>
+            <motion.div
+              animate={{
+                y: [0, -8, 0, -4, 0],
+                rotate: [0, 2, 0, -2, 0],
+              }}
+              transition={{
+                y: { duration: 4, repeat: Infinity, ease: "easeInOut" },
+                rotate: { duration: 6, repeat: Infinity, ease: "easeInOut" },
+              }}
+              className="w-28 sm:w-36 rounded-xl overflow-hidden drop-shadow-lg"
+            >
+              <div className="mascot-layer">
+                <img
+                  src="/mascot.png"
+                  alt="Cute chibi mascot"
+                  draggable={false}
+                />
+                <img
+                  src="/mascot-closed.png"
+                  alt=""
+                  className="mascot-closed"
+                  aria-hidden
+                  draggable={false}
+                />
+              </div>
+            </motion.div>
           </motion.div>
-          <Sparkles className="absolute -top-1 -right-1 w-4 h-4 text-accent animate-pulse" strokeWidth={1.5} />
-          <Heart className="absolute -bottom-2 -left-1 w-3.5 h-3.5 text-primary animate-pulse" strokeWidth={1.5} />
+          {/* Floating sparkle particles */}
+          <div className="absolute inset-0 pointer-events-none" aria-hidden>
+            <span className="mascot-particle" />
+            <span className="mascot-particle" />
+            <span className="mascot-particle" />
+          </div>
+          <Sparkles
+            className="absolute -top-2 -right-2 w-5 h-5 text-accent mascot-sparkle"
+            strokeWidth={1.5}
+          />
+          <Sparkles
+            className="absolute top-1/3 -left-3 w-3.5 h-3.5 text-accent/60 mascot-sparkle--delayed"
+            strokeWidth={1.5}
+          />
+          <Heart
+            className="absolute -bottom-2 -left-1 w-4 h-4 text-primary mascot-heart"
+            strokeWidth={1.5}
+          />
         </motion.div>
 
         <motion.div
