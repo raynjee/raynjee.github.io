@@ -253,6 +253,131 @@ const KOREAN_TERMS: RefGlossaryEntry[] = [
   { term: "아이씨", translation: "Aish", category: "slang", gender: null, notes: "Expression of annoyance or frustration (mild expletive)" },
 ];
 
+
+// ── Japanese: Light Novel & Manga Terms ───────────────────────────────
+
+const JAPANESE_TERMS: RefGlossaryEntry[] = [
+  // Isekai & fantasy tropes
+  { term: "\u7570\u4e16\u754c", translation: "Isekai / Another World", category: "word", gender: null, notes: "Transported to another world \u2014 the core isekai trope" },
+  { term: "\u8ee2\u751f", translation: "Reincarnation / Rebirth", category: "word", gender: null, notes: "Being reborn (often with memories of past life)" },
+  { term: "\u8ee2\u79fb", translation: "Teleportation / Transfer", category: "word", gender: null, notes: "Being transported to another world or location" },
+  { term: "\u53ec\u559a", translation: "Summoning", category: "word", gender: null, notes: "Being called to another world by a ritual" },
+  { term: "\u5192\u967a\u8005", translation: "Adventurer", category: "character", gender: null, notes: "A person who explores dungeons and takes quests" },
+  { term: "\u52c7\u8005", translation: "Hero / Brave", category: "character", gender: null, notes: "The chosen hero destined to defeat the Demon King" },
+  { term: "\u9b54\u738b", translation: "Demon King / Demon Lord", category: "character", gender: "M", notes: "The supreme antagonist ruling the demon race" },
+  { term: "\u9b54\u65cf", translation: "Demon Race", category: "word", gender: null, notes: "The race of demons opposing humanity" },
+  { term: "\u795e", translation: "God / Deity", category: "character", gender: null, notes: "A divine being, often granting skills or reincarnation" },
+  { term: "\u5973\u795e", translation: "Goddess", category: "character", gender: "F", notes: "A female deity, often the one who summons the hero" },
+  { term: "\u52c7\u8005\u30d1\u30fc\u30c6\u30a3\u30fc", translation: "Hero\u2019s Party", category: "character", gender: null, notes: "The hero\u2019s adventuring group" },
+
+  // Skills & abilities
+  { term: "\u30b9\u30ad\u30eb", translation: "Skill", category: "word", gender: null, notes: "A special ability, often granted by a system or god" },
+  { term: "\u30b9\u30c6\u30fc\u30bf\u30b9", translation: "Status", category: "word", gender: null, notes: "Character stats displayed in a game-like interface" },
+  { term: "\u30ec\u30d9\u30eb", translation: "Level", category: "word", gender: null, notes: "A numerical measure of power" },
+  { term: "\u7d4c\u9a13\u5024", translation: "Experience Points (EXP)", category: "word", gender: null, notes: "Points gained from defeating monsters or completing quests" },
+  { term: "\u30af\u30a8\u30b9\u30c8", translation: "Quest", category: "word", gender: null, notes: "A task or mission, often from a guild" },
+  { term: "\u30ae\u30eb\u30c9", translation: "Guild", category: "location", gender: null, notes: "An organization that assigns quests to adventurers" },
+  { term: "\u30c0\u30f3\u30b8\u30e7\u30f3", translation: "Dungeon", category: "location", gender: null, notes: "An underground labyrinth full of monsters and treasure" },
+  { term: "\u30e2\u30f3\u30b9\u30bf\u30fc", translation: "Monster", category: "word", gender: null, notes: "Hostile creatures that adventurers fight" },
+  { term: "\u9b54\u7269", translation: "Magical Beast / Monster", category: "word", gender: null, notes: "Non-human creatures with magical properties" },
+  { term: "\u56de\u5fa9", translation: "Healing / Recovery", category: "word", gender: null, notes: "Restoring HP or status effects" },
+  { term: "\u8ee2\u8077", translation: "Class Change / Job Change", category: "word", gender: null, notes: "Changing one\u2019s adventurer class for new abilities" },
+
+  // Magic & combat
+  { term: "\u9b54\u6cd5", translation: "Magic", category: "word", gender: null, notes: "Supernatural spells and abilities" },
+  { term: "\u9b54\u529b", translation: "Mana / Magic Power", category: "word", gender: null, notes: "The energy used to cast spells" },
+  { term: "\u9b54\u5c0e\u5e2b", translation: "Mage / Wizard", category: "character", gender: null, notes: "A practitioner of magic" },
+  { term: "\u9b54\u6cd5\u4f7f\u3044", translation: "Magic User / Sorcerer", category: "character", gender: null, notes: "Someone who uses magic" },
+  { term: "\u5263\u58eb", translation: "Swordsman", category: "character", gender: null, notes: "A warrior who specializes in sword fighting" },
+  { term: "\u9a0e\u58eb", translation: "Knight", category: "character", gender: null, notes: "A noble warrior, often serving a kingdom" },
+  { term: "\u76d7\u8cca", translation: "Thief / Rogue", category: "character", gender: null, notes: "A stealthy adventurer class" },
+  { term: "\u50e7\u4fa3", translation: "Priest / Cleric", category: "character", gender: null, notes: "A healer class that uses holy magic" },
+  { term: "\u5f13\u4f7f\u3044", translation: "Archer / Bow User", category: "character", gender: null, notes: "A ranged combat specialist" },
+  { term: "\u5263\u8056", translation: "Sword Saint", category: "character", gender: null, notes: "The highest title for a swordsman" },
+  { term: "\u8a60\u5531", translation: "Incantation / Chant", category: "word", gender: null, notes: "The verbal component needed to cast a spell" },
+  { term: "\u7121\u8a60\u5531", translation: "Incantation-less / Chantless", category: "word", gender: null, notes: "Casting magic without verbal components \u2014 a rare skill" },
+
+  // Titles & roles
+  { term: "\u56fd\u738b", translation: "King", category: "character", gender: "M", notes: "Ruler of a kingdom" },
+  { term: "\u5973\u738b", translation: "Queen", category: "character", gender: "F", notes: "Female ruler of a kingdom" },
+  { term: "\u738b\u5973", translation: "Princess", category: "character", gender: "F", notes: "Daughter of the king" },
+  { term: "\u738b\u5b50", translation: "Prince", category: "character", gender: "M", notes: "Son of the king" },
+  { term: "\u516c\u7235", translation: "Duke", category: "character", gender: null, notes: "Highest noble rank below royalty" },
+  { term: "\u8cb4\u65cf", translation: "Noble / Aristocrat", category: "character", gender: null, notes: "A member of the ruling class" },
+  { term: "\u9818\u4e3b", translation: "Lord / Feudal Lord", category: "character", gender: null, notes: "A ruler of a territory or domain" },
+  { term: "\u5546\u4eba", translation: "Merchant", category: "character", gender: null, notes: "A trader of goods" },
+  { term: "\u5974\u96b7", translation: "Slave", category: "character", gender: null, notes: "An enslaved person (common trope in isekai)" },
+
+  // School / academy settings
+  { term: "\u5b66\u9662", translation: "Academy", category: "location", gender: null, notes: "A school for magic or martial arts training" },
+  { term: "\u8ee2\u6821\u751f", translation: "Transfer Student", category: "character", gender: null, notes: "A new student arriving mid-term (common trope)" },
+  { term: "\u751f\u5f92\u4f1a", translation: "Student Council", category: "character", gender: null, notes: "The student governing body, often with significant power" },
+  { term: "\u751f\u5f92\u4f1a\u9577", translation: "Student Council President", category: "character", gender: null, notes: "The leader of the student council" },
+  { term: "\u5148\u8f29", translation: "Senpai / Senior", category: "character", gender: null, notes: "An upperclassman or senior at school/work" },
+  { term: "\u5f8c\u8f29", translation: "Kouhai / Junior", category: "character", gender: null, notes: "An underclassman or junior" },
+  { term: "\u5e7c\u99b4\u67d3", translation: "Childhood Friend", category: "character", gender: null, notes: "A friend since childhood \u2014 classic romance trope" },
+  { term: "\u304a\u5b22\u69d8", translation: "Ojou-sama / Young Lady", category: "character", gender: "F", notes: "A wealthy, high-class young woman" },
+  { term: "\u30c4\u30f3\u30c7\u30ec", translation: "Tsundere", category: "character", gender: null, notes: "A character who is cold/hostile but secretly warm" },
+  { term: "\u30e4\u30f3\u30c7\u30ec", translation: "Yandere", category: "character", gender: null, notes: "A character whose love becomes dangerously obsessive" },
+  { term: "\u30af\u30fc\u30c7\u30ec", translation: "Kuudere", category: "character", gender: null, notes: "A character who is cool/emotionless on the surface" },
+  { term: "\u30c9\u30f3\u30c7\u30ec", translation: "Dandere", category: "character", gender: null, notes: "A character who is quiet/shy but opens up to loved ones" },
+
+  // Honorifics & address
+  { term: "\u3055\u3093", translation: "san (Mr./Ms.)", category: "word", gender: null, notes: "Standard polite honorific" },
+  { term: "\u69d8", translation: "sama (Lord/Lady)", category: "word", gender: null, notes: "Very formal/respectful honorific" },
+  { term: "\u541b", translation: "kun", category: "word", gender: "M", notes: "Informal honorific for younger males or juniors" },
+  { term: "\u3061\u3083\u3093", translation: "chan", category: "word", gender: null, notes: "Cute/affectionate honorific, often for children" },
+  { term: "\u6bbf", translation: "dono (Milord)", category: "word", gender: null, notes: "Archaic/formal honorific, used in historical settings" },
+  { term: "\u5148\u751f", translation: "Sensei / Teacher", category: "character", gender: null, notes: "Teacher, doctor, or someone of expertise" },
+
+  // Common Japanese phrases in LN
+  { term: "\u306a\u308b\u307b\u3069", translation: "Naruhodo / I see", category: "slang", gender: null, notes: "Expression of understanding" },
+  { term: "\u3084\u3070\u3044", translation: "Yabai / Amazing (or dangerous)", category: "slang", gender: null, notes: "Slang for something amazing, crazy, or dangerous" },
+  { term: "\u30de\u30b8\u3067", translation: "Maji de? / Seriously?", category: "slang", gender: null, notes: "Expression of disbelief" },
+  { term: "\u3056\u307e\u307e\u306a\u3044", translation: "Zamaanai / Serves you right", category: "slang", gender: null, notes: "Gloating at someone\u2019s misfortune" },
+  { term: "\u3042\u308a\u3048\u306a\u3044", translation: "Arienai / Impossible", category: "slang", gender: null, notes: "Expression of disbelief or impossibility" },
+
+  // Common LN tropes
+  { term: "\u30cf\u30fc\u30ec\u30e0", translation: "Harem", category: "word", gender: null, notes: "A protagonist surrounded by multiple love interests" },
+  { term: "\u30c1\u30fc\u30c8", translation: "Cheat / Overpowered Ability", category: "word", gender: null, notes: "An unfairly powerful ability (from English cheat)" },
+  { term: "\u6700\u5f37", translation: "The Strongest", category: "word", gender: null, notes: "Title for the most powerful being" },
+  { term: "\u6210\u308a\u4e0a\u304c\u308a", translation: "Rags to Riches / Rise to Power", category: "word", gender: null, notes: "A weak character becoming powerful" },
+  { term: "\u8ffd\u653e", translation: "Banishment / Expulsion", category: "word", gender: null, notes: "Being expelled from a party or kingdom (popular trope)" },
+  { term: "\u5fa9\u8b14", translation: "Revenge", category: "word", gender: null, notes: "Seeking vengeance \u2014 a major motivation in many LNs" },
+  { term: "\u88cf\u5207\u308a", translation: "Betrayal", category: "word", gender: null, notes: "Being betrayed (often by party members or lover)" },
+  { term: "\u5951\u7d04", translation: "Contract / Pact", category: "word", gender: null, notes: "A magical agreement, often with a summoned being" },
+  { term: "\u7737\u5c5e", translation: "Subordinate / Follower", category: "character", gender: null, notes: "A loyal follower or creature bound to the protagonist" },
+];
+
+// ── Chinese: Additional Xuanhuan / Modern Cultivation Terms ───────────
+
+const XUANHUAN_TERMS: RefGlossaryEntry[] = [
+  // Modern cultivation / urban fantasy
+  { term: "\u7075\u6c14\u590d\u82cf", translation: "Spiritual Energy Revival", category: "word", gender: null, notes: "Modern world suddenly filled with spiritual energy" },
+  { term: "\u89c9\u9192", translation: "Awakening", category: "word", gender: null, notes: "Gaining supernatural abilities in modern setting" },
+  { term: "\u5f02\u80fd", translation: "Supernatural Ability / Superpower", category: "word", gender: null, notes: "Special powers awakened in modern cultivation" },
+  { term: "\u8840\u8109", translation: "Bloodline", category: "word", gender: null, notes: "Inherited power through ancestry" },
+  { term: "\u4f53\u8d28", translation: "Constitution / Body Type", category: "word", gender: null, notes: "Innate physical talent affecting cultivation potential" },
+  { term: "\u7075\u9b42", translation: "Soul / Spirit", category: "word", gender: null, notes: "The spiritual essence of a person" },
+  { term: "\u5143\u795e", translation: "Primordial Spirit", category: "word", gender: null, notes: "The highest form of spiritual consciousness" },
+  { term: "\u52ab\u96f7", translation: "Tribulation Lightning", category: "word", gender: null, notes: "Lightning bolts during heavenly tribulation" },
+  { term: "\u4ed9\u4e39", translation: "Immortality Pill", category: "word", gender: null, notes: "A pill that grants or extends life" },
+  { term: "\u6d17\u9ad3", translation: "Marrow Cleansing", category: "word", gender: null, notes: "A process to purify the body and improve talent" },
+  { term: "\u9006\u5929", translation: "Defying Heaven", category: "word", gender: null, notes: "Going against the natural order \u2014 common protagonist trait" },
+  { term: "\u5929\u547d", translation: "Heavenly Mandate / Destiny", category: "word", gender: null, notes: "The fate ordained by heaven" },
+  { term: "\u6c14\u8fd0", translation: "Lucky Aura / Fortune", category: "word", gender: null, notes: "One\u2019s personal luck or fate energy" },
+  { term: "\u56e0\u679c", translation: "Karma / Cause and Effect", category: "word", gender: null, notes: "The Buddhist concept of cause and consequence" },
+  { term: "\u8f6e\u56de", translation: "Samsara / Cycle of Rebirth", category: "word", gender: null, notes: "The cycle of death and reincarnation" },
+  { term: "\u4e00\u5ff5", translation: "A Single Thought", category: "word", gender: null, notes: "A moment of enlightenment that changes everything" },
+  { term: "\u609f\u6027", translation: "Comprehension / Insight", category: "word", gender: null, notes: "One\u2019s ability to understand cultivation principles" },
+  { term: "\u5929\u8d4b", translation: "Innate Talent / Gift", category: "word", gender: null, notes: "Natural-born cultivation ability" },
+  { term: "\u6839\u9aa8", translation: "Spiritual Root / Bone Structure", category: "word", gender: null, notes: "Physical foundation that determines cultivation talent" },
+  { term: "\u5e9f\u6750\u9006\u88ad", translation: "Trash-to-Treasure Comeback", category: "slang", gender: null, notes: "Classic trope: useless person becomes overpowered" },
+  { term: "\u6253\u8138", translation: "Face-slapping", category: "slang", gender: null, notes: "Humiliating someone who doubted or mocked you" },
+  { term: "\u88c5\u903c", translation: "Showing off / Flexing", category: "slang", gender: null, notes: "Acting cool or powerful in front of others" },
+  { term: "\u62ee\u6f0f", translation: "Finding a Bargain / Lucky Find", category: "slang", gender: null, notes: "Discovering something valuable that others overlooked" },
+  { term: "\u56e2\u706d", translation: "Total Party Kill / Wipeout", category: "slang", gender: null, notes: "An entire group being defeated" },
+];
 // ── Merged export ──────────────────────────────────────────────────────
 
 export const REFERENCE_GLOSSARY: RefGlossaryEntry[] = [
@@ -260,4 +385,6 @@ export const REFERENCE_GLOSSARY: RefGlossaryEntry[] = [
   ...MYTHOLOGICAL_CREATURES,
   ...TERMS_OF_ADDRESS,
   ...KOREAN_TERMS,
+  ...JAPANESE_TERMS,
+  ...XUANHUAN_TERMS,
 ];
