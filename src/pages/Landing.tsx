@@ -16,8 +16,37 @@ export default function Landing() {
 
   return (
     <StudioShell>
-      {/* ── Mascot decorations ────────────────────────────── */}
+      {/* ── Hero background & mascot decorations ───────────── */}
       <style>{`
+        @keyframes moon-glow {
+          0%, 100% { box-shadow: 0 0 60px 20px rgba(200,180,255,0.06), inset 0 0 40px 10px rgba(200,180,255,0.03); }
+          50%      { box-shadow: 0 0 80px 30px rgba(200,180,255,0.10), inset 0 0 50px 15px rgba(200,180,255,0.05); }
+        }
+        @keyframes twinkle {
+          0%, 100% { opacity: 0.3; transform: scale(0.8); }
+          50%      { opacity: 1;   transform: scale(1.2); }
+        }
+        .moon-circle {
+          background: radial-gradient(circle at 35% 35%,
+            hsl(var(--background)) 0%,
+            hsl(var(--muted) / 0.3) 40%,
+            hsl(var(--muted) / 0.08) 70%,
+            transparent 100%
+          );
+          animation: moon-glow 6s ease-in-out infinite;
+        }
+        .star {
+          position: absolute;
+          width: 3px; height: 3px;
+          border-radius: 50%;
+          background: hsl(var(--foreground) / 0.25);
+          animation: twinkle var(--dur, 3s) ease-in-out var(--delay, 0s) infinite;
+        }
+        .star--bright {
+          background: hsl(var(--foreground) / 0.4);
+          width: 2px; height: 2px;
+          box-shadow: 0 0 4px 1px hsl(var(--foreground) / 0.15);
+        }
         @keyframes sparkle-float {
           0%, 100% { transform: translateY(0) scale(1); opacity: 1; }
           50%      { transform: translateY(-8px) scale(1.3); opacity: 0.6; }
@@ -55,13 +84,25 @@ export default function Landing() {
 
       {/* ── Hero ──────────────────────────────────────────── */}
       <section className="relative mx-auto max-w-3xl px-6 sm:px-10 pt-32 sm:pt-40 lg:pt-48 pb-24 text-center overflow-hidden">
-        {/* Subtle background ring */}
+        {/* Moon-like circle with subtle galaxy stars */}
         <div
           aria-hidden
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
                       w-[420px] h-[420px] sm:w-[560px] sm:h-[560px] rounded-full
-                      border border-border/40"
-        />
+                      border border-border/20 moon-circle"
+        >
+          {/* Scattered twinkling stars */}
+          <span className="star" style={{ top:'12%', left:'18%', '--dur':'3.2s', '--delay':'0s' } as React.CSSProperties} />
+          <span className="star star--bright" style={{ top:'8%', left:'65%', '--dur':'4.1s', '--delay':'1.2s' } as React.CSSProperties} />
+          <span className="star" style={{ top:'25%', left:'82%', '--dur':'2.8s', '--delay':'0.5s' } as React.CSSProperties} />
+          <span className="star star--bright" style={{ top:'45%', left:'5%', '--dur':'3.6s', '--delay':'2.1s' } as React.CSSProperties} />
+          <span className="star" style={{ top:'70%', left:'12%', '--dur':'4.4s', '--delay':'0.8s' } as React.CSSProperties} />
+          <span className="star" style={{ top:'85%', left:'75%', '--dur':'3.0s', '--delay':'1.5s' } as React.CSSProperties} />
+          <span className="star star--bright" style={{ top:'60%', left:'90%', '--dur':'3.8s', '--delay':'0.3s' } as React.CSSProperties} />
+          <span className="star" style={{ top:'35%', left:'92%', '--dur':'2.6s', '--delay':'1.8s' } as React.CSSProperties} />
+          <span className="star star--bright" style={{ top:'90%', left:'40%', '--dur':'4.0s', '--delay':'2.5s' } as React.CSSProperties} />
+          <span className="star" style={{ top:'15%', left:'45%', '--dur':'3.4s', '--delay':'0.7s' } as React.CSSProperties} />
+        </div>
 
         {/* ♡ Cute chibi mascot */}
         <motion.div
