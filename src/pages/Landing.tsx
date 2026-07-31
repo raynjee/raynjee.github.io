@@ -1,7 +1,8 @@
 // RaynETS — minimalist landing.
 // Hero with brand mark → feature cards → footer.
 
-import { motion } from "framer-motion";
+import * as React from "react";
+import { motion, useScroll, useTransform } from "framer-motion";
 import { Link, useNavigate } from "react-router";
 import { ArrowRight, BookOpen, Globe, Heart, Shield, Sparkles } from "lucide-react";
 import { StudioShell } from "@/components/StudioShell";
@@ -13,6 +14,15 @@ const FADE = {
 
 export default function Landing() {
   const navigate = useNavigate();
+
+  /* Parallax: moon circle drifts slower than page scroll */
+  const heroRef = React.useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
+  const moonY = useTransform(scrollYProgress, [0, 1], [0, 120]);
+  const moonScale = useTransform(scrollYProgress, [0, 1], [1, 0.92]);
 
   return (
     <StudioShell>
@@ -108,10 +118,11 @@ export default function Landing() {
       `}</style>
 
       {/* ── Hero ──────────────────────────────────────────── */}
-      <section className="relative mx-auto max-w-3xl px-6 sm:px-10 pt-32 sm:pt-40 lg:pt-48 pb-24 text-center overflow-hidden">
-        {/* Moon-like circle with subtle galaxy stars */}
-        <div
+      <section ref={heroRef} className="relative mx-auto max-w-3xl px-6 sm:px-10 pt-32 sm:pt-40 lg:pt-48 pb-24 text-center overflow-hidden">
+        {/* Moon-like circle with parallax drift + subtle galaxy stars */}
+        <motion.div
           aria-hidden
+          style={{ y: moonY, scale: moonScale }}
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
                       w-[420px] h-[420px] sm:w-[560px] sm:h-[560px] rounded-full
                       border border-border/20 moon-circle"
@@ -140,7 +151,7 @@ export default function Landing() {
           <span className="shooting-star" style={{ top:'15%', left:'10%', '--dur':'6s', '--delay':'0s' } as React.CSSProperties} />
           <span className="shooting-star" style={{ top:'35%', left:'55%', '--dur':'8s', '--delay':'3s' } as React.CSSProperties} />
           <span className="shooting-star" style={{ top:'60%', left:'25%', '--dur':'7s', '--delay':'5.5s' } as React.CSSProperties} />
-        </div>
+        </motion.div>
 
         {/* ♡ Cute chibi mascot */}
         <motion.div
