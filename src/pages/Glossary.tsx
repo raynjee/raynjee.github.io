@@ -663,6 +663,24 @@ export default function Glossary() {
         </div>
 
         {/* ── Extraction progress bar ──────────────────────────────── */}
+        {/* ── Important notice ─────────────────────────────────── */}
+        <div className="mt-8 border border-amber-500/30 bg-amber-500/5 rounded-xl p-5 space-y-2">
+          <p className="text-sm leading-relaxed">
+            <strong>{'⚠️ Important:'}</strong> Use <strong>Gemini</strong> for extracting glossary — it's the only supported provider.
+            Extraction will take a <strong>LONG TIME</strong> (potentially hours for large books), so please be patient!
+            The AI processes your novel chunk by chunk with delays between requests to avoid rate limits.
+          </p>
+          <p className="text-sm leading-relaxed">
+            These glossary entries will <strong>tremendously help with translation quality</strong> — the AI will remember
+            character names, locations, slang, and difficult words across the entire book.
+          </p>
+          <p className="text-sm leading-relaxed text-destructive">
+            <strong>{'🚫 DeepSeek Chat is NOT allowed for glossary extraction.'}</strong>
+            Using DeepSeek for this task has a high chance of causing account timeouts or bans.
+            Please use Gemini only.
+          </p>
+        </div>
+
         {extracting && extractProgress && (
           <div className="mt-6 space-y-2">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
