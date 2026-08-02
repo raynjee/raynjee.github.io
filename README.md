@@ -1,91 +1,111 @@
-# 📚 Atelier Translation Studio
+# 📚 RaynETS
 
-> *A quiet studio for translating novels between languages — EPUB to EPUB, fully on your device.*
+> *A modern, privacy-first workspace for translating EPUB books while preserving their structure, formatting, and reading experience.*
 
-Atelier Translation Studio is a privacy-first web application for translating EPUB books while preserving their structure, formatting, and reading experience. Designed with an editorial aesthetic, Atelier combines modern web technologies with a distraction-free interface to create a calm environment for literary translation.
+**RaynETS** is an open-source web application built for readers, fan translators, and localization enthusiasts. It provides a clean, distraction-free environment for translating EPUB novels while keeping the original formatting intact.
 
----
-
-## ✨ Features
-
-- 📖 Import and translate EPUB books
-- 🌍 Translate between multiple languages
-- 🔒 Privacy-first workflow — processing stays on your device
-- 📚 Preserve EPUB formatting and structure
-- ⚡ Fast, responsive user experience
-- 🎨 Editorial-inspired interface
-- 📱 Mobile-friendly responsive design
-- 🌙 Light and dark mode support
-- 📦 Progressive Web App (PWA) support
+Unlike traditional translators, RaynETS is designed specifically for books—making it easier to preserve chapters, styling, and the overall reading experience.
 
 ---
 
-## 🛠️ Built With
+# ✨ Features
+
+* 📖 Import and translate EPUB books
+* 🌍 Translate between multiple languages
+* 📚 Preserve EPUB formatting and chapter structure
+* 🔒 Privacy-first workflow with local processing whenever possible
+* ⚡ Fast and responsive interface
+* 🎨 Clean, editor-inspired design
+* 📱 Mobile-friendly responsive layout
+* 🌙 Light and dark mode
+* 📦 Progressive Web App (PWA) support
+
+---
+
+# 🚀 Vision
+
+RaynETS aims to become a complete translation workspace—not just another translator.
+
+Future versions are planned to include:
+
+* AI-assisted translation
+* Translation memory
+* Shared and personal glossaries
+* Character database
+* Side-by-side editing
+* Version history
+* Cloud synchronization
+* Collaboration tools
+* Plugin ecosystem
+
+---
+
+# 🛠️ Built With
 
 ### Frontend
 
-- React
-- TypeScript
-- Vite
-- React Router
-- Tailwind CSS
-- Framer Motion
-
-### Design
-
-- Inter
-- Fraunces
-- JetBrains Mono
+* React
+* TypeScript
+* Vite
+* React Router
+* Tailwind CSS
+* Framer Motion
 
 ### Platform
 
-- Progressive Web App (PWA)
+* Progressive Web App (PWA)
+
+### Typography
+
+* Inter
+* Fraunces
+* JetBrains Mono
 
 ---
 
-## 🚀 Getting Started
+# 🚀 Getting Started
 
-### Clone the repository
+Clone the repository:
 
 ```bash
 git clone https://github.com/raynjee/raynjee.github.io.git
 ```
 
-### Navigate into the project
+Enter the project:
 
 ```bash
 cd raynjee.github.io
 ```
 
-### Install dependencies
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-### Start the development server
+Start the development server:
 
 ```bash
 npm run dev
 ```
 
-Open your browser and visit:
+Open:
 
-```
+```text
 http://localhost:5173
 ```
 
 ---
 
-## 📦 Production Build
+# 📦 Production
 
-Create an optimized production build:
+Build:
 
 ```bash
 npm run build
 ```
 
-Preview the production build:
+Preview:
 
 ```bash
 npm run preview
@@ -93,14 +113,11 @@ npm run preview
 
 ---
 
-## 📁 Project Structure
+# 📁 Project Structure
 
 ```text
 .
 ├── public/
-│   ├── logo.svg
-│   └── manifest.webmanifest
-│
 ├── src/
 │   ├── assets/
 │   ├── components/
@@ -109,7 +126,6 @@ npm run preview
 │   ├── styles/
 │   ├── utils/
 │   └── main.tsx
-│
 ├── index.html
 ├── package.json
 ├── vite.config.ts
@@ -118,80 +134,59 @@ npm run preview
 
 ---
 
-## 🎨 Design Philosophy
+# 🔒 Privacy First
 
-Atelier is inspired by traditional bookmaking and editorial design.
+Your books belong to you.
 
-The interface emphasizes:
-
-- Calm visual hierarchy
-- Elegant typography
-- Spacious layouts
-- Minimal distractions
-- Comfortable reading
-- Fast, fluid interactions
+RaynETS is designed to process your work locally whenever possible, minimizing unnecessary data sharing while providing a fast and secure translation workflow.
 
 ---
 
-## 🔒 Privacy
+# 💝 Keeping RaynETS Free
 
-Your books remain on your device throughout the translation process whenever possible.
+RaynETS is built by an independent developer with a simple goal:
 
-Atelier is designed with privacy as a core principle, minimizing unnecessary data sharing while delivering a smooth translation workflow.
+> **Everyone should have access to high-quality book translation tools without mandatory subscriptions or paywalls.**
 
----
+The project will remain free to use.
 
-## 📱 Progressive Web App
-
-Atelier includes a web app manifest, allowing installation on supported browsers for a more native desktop and mobile experience.
+If RaynETS saves you time, helps your translation workflow, or lets you enjoy stories in another language, consider supporting its continued development through donations. Every contribution helps cover development, hosting, storage, and AI infrastructure while keeping the core experience free for everyone.
 
 ---
 
-## 🌐 Deployment
+# 🌐 Deployment
 
-The project can be deployed to any static hosting provider, including:
+RaynETS can be deployed on any static hosting platform, including:
 
-- GitHub Pages
-- Netlify
-- Vercel
-- Cloudflare Pages
-
----
-
-## 💡 Roadmap
-
-Future improvements include:
-
-- AI-assisted translation
-- Side-by-side editing
-- Translation memory
-- EPUB validation tools
-- Additional export formats
-- Offline translation improvements
-- Custom themes
-- Plugin support
+* GitHub Pages
+* Netlify
+* Vercel
+* Cloudflare Pages
 
 ---
 
-## 🤝 Contributing
+# 🤝 Contributing
 
-Contributions are welcome! If you'd like to improve Atelier, feel free to fork the repository, open an issue, or submit a pull request.
+Contributions, bug reports, feature requests, and pull requests are always welcome.
+
+Whether you're a developer, translator, or reader, your feedback helps improve RaynETS for everyone.
 
 ---
 
-## 📄 License
+# 📄 License
 
 This project is licensed under the MIT License.
 
 ---
 
-## 👤 Author
+# 👤 Author
 
-**Raynjee**
+**Ray (Raynjee)**
 
-- GitHub: https://github.com/raynjee
-- Website: https://raynjee.github.io
+GitHub: https://github.com/raynjee
+
+Website: https://raynjee.github.io
 
 ---
 
-> *Where stories cross languages without losing their soul.*
+> **Translate stories. Preserve their soul.**
