@@ -9,7 +9,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronDown,
-  Loader2,
   Pause,
   Play,
   RefreshCw,
@@ -30,7 +29,7 @@ import {
   loadKokoro,
   type SyntheticVoice,
 } from "@/hooks/use-kokoro";
-import { Download } from "lucide-react";
+
 
 const PREFS_KEY = "raynets.readAloud.prefs";
 
@@ -649,35 +648,6 @@ export function ReadAloud({
 
               {/* ── Divider ──────────────────────────────────────── */}
               <div className="border-t border-border" />
-
-              {/* ── Kokoro download banner (hidden once ready) ──── */}
-              {kokoro.status === "idle" && (
-                <div className="px-3 py-2">
-                  <button
-                    type="button"
-                    onClick={() => kokoro.load()}
-                    className="w-full h-9 px-3 inline-flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-300 transition-colors"
-                  >
-                    <Download className="w-3.5 h-3.5 shrink-0" strokeWidth={1.6} />
-                    <span className="text-xs font-medium">Download Premium Voice (Kokoro) · ~86MB</span>
-                  </button>
-                </div>
-              )}
-              {kokoro.isDownloading && (
-                <div className="px-3 py-2">
-                  <div className="w-full h-9 px-3 inline-flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/5">
-                    <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin shrink-0" strokeWidth={1.6} />
-                    <span className="text-xs text-emerald-300/80">Downloading Kokoro model… first-time only, cached locally</span>
-                  </div>
-                </div>
-              )}
-              {kokoro.status === "error" && (
-                <div className="px-3 py-2">
-                  <div className="w-full h-9 px-3 inline-flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10">
-                    <span className="text-xs text-destructive">Kokoro failed — {kokoro.error?.slice(0, 60) ?? "check connection"}</span>
-                  </div>
-                </div>
-              )}
 
               {/* ── Bottom row: voice + speed + auto-advance ────── */}
               <div className="flex items-center gap-2.5 px-3 py-2.5 flex-wrap">

@@ -2,7 +2,7 @@
 // studio housekeeping (theme, backup, restore). Includes a tutorial for
 // the DeepSeek local proxy.
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   Download,
@@ -25,7 +25,9 @@ import {
   CloudUpload,
 } from "lucide-react";
 import { StudioShell } from "@/components/StudioShell";
+import { cn } from "@/lib/utils";
 import { useSettings } from "@/hooks/use-settings";
+import { useKokoroTTS, loadKokoro, KOKORO_VOICES } from "@/hooks/use-kokoro";
 import { PROVIDERS } from "@/lib/translators/types";
 import { buildBackup, restoreBackup, listLogs, appendLog } from "@/lib/db";
 import { toast } from "sonner";
@@ -67,6 +69,7 @@ export default function SettingsPage() {
           <DeepSeekTutorial />
           <ProviderSettings settings={settings} update={update} canEdit={true} />
           <TranslationPreferences settings={settings} update={update} canEdit={true} />
+          <KokoroVoiceSection />
           <LogsCard />
           <BackupPanel canEdit={true} />
         </div>
@@ -787,6 +790,108 @@ function TranslationPreferences({
             <span>Safety</span>
           </div>
         </PreferenceCard>
+      </div>
+    </section>
+  );
+}
+
+// ── Kokoro Neural Voice ──────────────────────────────────────────────
+
+function KokoroVoiceSection() {
+  const kokoro = useKokoroTTS();
+
+  // Toast when download completes so the user knows what to do next.
+  const prevReady = useRef(kokoro.isReady);
+  useEffect(() => {
+    if (kokoro.isReady && !prevReady.current) {
+      toast.success("Kokoro voice ready! Select it in the reader's voice picker.");
+    }
+    prevReady.current = kokoro.isReady;
+  }, [kokoro.isReady]);
+
+  return (
+    <section>
+      <SectionHeader eyebrow="Voice" title="Premium Neural Voice (Kokoro)" />
+      <div className="mt-6 rounded-xl border border-border/50 p-4 sm:p-6 space-y-5">
+        {/* Status + download */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                "inline-block w-2 h-2 rounded-full",
+                kokoro.isReady ? "bg-emerald-400" : kokoro.isDownloading ? "bg-amber-400 animate-pulse" : kokoro.status === "error" ? "bg-destructive" : "bg-muted-foreground/40",
+              )} />
+              <span className="text-sm font-medium">
+                {kokoro.isReady ? "Ready" : kokoro.isDownloading ? "Downloading model…" : kokoro.status === "error" ? "Error" : "Not downloaded"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+              {kokoro.isReady
+                ? "Kokoro is installed and ready to use. Select a Kokoro voice in the reader's voice picker."
+                : kokoro.isDownloading
+                  ? "First download may take a few minutes. The model (~86MB) is cached in your browser for instant loads afterward."
+                  : kokoro.status === "error"
+                    ? (kokoro.error ?? "Download failed.")
+                    : "High-quality neural TTS that runs 100% locally in your browser. Works offline after download."}
+            </p>
+          </div>
+          {!kokoro.isReady && !kokoro.isDownloading && (
+            <button
+              type="button"
+              onClick={() => loadKokoro()}
+              className="h-11 px-5 shrink-0 inline-flex items-center gap-2 rounded-lg bg-foreground text-background hover:bg-foreground/90 active:scale-[0.97] transition-all text-sm font-medium"
+            >
+              <Download className="w-4 h-4" strokeWidth={1.6} />
+              Download (~86MB)
+            </button>
+          )}
+          {kokoro.isDownloading && (
+            <div className="h-11 px-5 shrink-0 inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10">
+              <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" strokeWidth={1.6} />
+              <span className="text-sm text-emerald-300">Downloading…</span>
+            </div>
+          )}
+        </div>
+
+        {/* Voice catalog — always visible so users can preview what they'll get */}
+        <div>
+          <h3 className="text-xs text-muted-foreground font-medium mb-3">Available voices</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {KOKORO_VOICES.map((v) => (
+              <div
+                key={v.id}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-card"
+              >
+                <span className={cn(
+                  "shrink-0 w-7 h-7 rounded-full grid place-items-center text-[10px] font-semibold",
+                  v.gender === "F"
+                    ? "bg-pink-500/15 text-pink-400 border border-pink-500/20"
+                    : "bg-blue-500/15 text-blue-400 border border-blue-500/20",
+                )}>
+                  {v.gender}
+                </span>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">{v.name}</div>
+                  <div className="text-[10px] text-muted-foreground">{v.lang}</div>
+                </div>
+                {kokoro.isReady && v.id === "af_heart" && (
+                  <span className="ml-auto shrink-0 text-emerald-400" title="Default voice">
+                    <Check className="w-4 h-4" strokeWidth={2} />
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Info footer */}
+        <div className="text-[11px] text-muted-foreground/60 leading-relaxed border-t border-border/30 pt-4">
+          <p>
+            Kokoro is an open-source neural TTS engine. The model runs entirely in your browser via
+            WebAssembly — no data is sent to any server. Supports American and British English accents.
+            Works on iPhone Safari, Android Chrome, and desktop browsers.
+          </p>
+        </div>
       </div>
     </section>
   );
