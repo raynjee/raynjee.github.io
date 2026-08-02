@@ -110,12 +110,15 @@ function useFireflyScatter() {
   const motionY = useRef<import("framer-motion").MotionValue<number>[]>([]);
   const scatterX = useRef<number[]>(new Array(FIREFLY_DATA.length).fill(0));
   const scatterY = useRef<number[]>(new Array(FIREFLY_DATA.length).fill(0));
+  const prevPos = useRef<({ x: number; y: number } | null)[]>([]);
+  const elRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   if (motionX.current.length === 0) {
     for (let i = 0; i < FIREFLY_DATA.length; i++) {
       motionX.current.push(motion(0));
       motionY.current.push(motion(0));
     }
+    prevPos.current = FIREFLY_DATA.map(() => null);
   }
 
   useEffect(() => {
@@ -183,6 +186,23 @@ function useFireflyScatter() {
         const newY = baseY + scatterY.current[i];
         if (Math.abs(newX - mvX.get()) > 0.02) mvX.set(newX);
         if (Math.abs(newY - mvY.get()) > 0.02) mvY.set(newY);
+
+        // ── Trail direction from velocity (skip first frame to avoid spike) ──
+        const prev = prevPos.current[i];
+        prevPos.current[i] = { x: newX, y: newY };
+        if (!prev) continue; // first frame — no velocity yet
+        const vx = newX - prev.x;
+        const vy = newY - prev.y;
+        const speed = Math.sqrt(vx * vx + vy * vy);
+        if (speed > 0.3) {
+          const angle = Math.atan2(vy, vx);
+          const el = elRefs.current[i];
+          if (el) {
+            el.style.setProperty("--ff-angle", `${angle}rad`);
+            // Trail length scales with speed (capped)
+            el.style.setProperty("--ff-trail", String(Math.min(speed / 30, 1)));
+          }
+        }
       }
       animId = requestAnimationFrame(tick);
     };
@@ -302,6 +322,33 @@ export default function Landing() {
             0 0 30px 10px rgba(251, 191, 36, 0.08);
           animation: firefly-glow var(--ff-glow-dur, 4s) ease-in-out var(--ff-delay, 0s) infinite;
         }
+        /* ── Firefly trail ──────────────────────────────────── */
+        .firefly::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          /* Elongated ellipse: 3× wide, 7× tall, then rotated to match
+             movement direction via --ff-angle. --ff-trail (0..1) scales
+             the trail length proportional to current speed. */
+          width: calc(300% + var(--ff-trail, 0) * 200%);
+          height: calc(600% + var(--ff-trail, 0) * 400%);
+          transform:
+            translate(-50%, -50%)
+            rotate(var(--ff-angle, 0rad))
+            scaleY(0.35);
+          border-radius: 50%;
+          background: radial-gradient(
+            ellipse,
+            rgba(253, 224, 71, 0.28) 0%,
+            rgba(251, 191, 36, 0.10) 45%,
+            transparent 70%
+          );
+          opacity: calc(0.3 + var(--ff-trail, 0) * 0.5);
+          pointer-events: none;
+          filter: blur(2px);
+          transition: opacity 0.3s ease;
+        }
       `}</style>
 
       {/* ✨ Floating blinking star particles — scattered across the whole page */}
@@ -325,10 +372,11 @@ export default function Landing() {
         ))}
       </div>
 
-      {/* 🪲 Firefly particles — warm drifting glow with mouse scatter */}
+      {/* 🪲 Firefly particles — warm drifting glow with mouse scatter + trail */}
       {FIREFLY_DATA.map((f) => (
         <motion.div
           key={`ff-${f.id}`}
+          ref={(el) => { elRefs.current[f.id] = el; }}
           aria-hidden
           className="firefly pointer-events-none"
           style={{
