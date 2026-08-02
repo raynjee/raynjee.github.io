@@ -1766,8 +1766,7 @@ export default function BookReader() {
           </motion.button>
         )}
 
-      {/* PARAGRAPH ACTIONS MENU — desktop anchored popover; mobile bottom-sheet.
-           Triggered via right-click / long-press from any paragraph. */}
+      {/* PARAGRAPH ACTIONS MENU — desktop anchored popover; mobile bottom-sheet.            Triggered via right-click / double-tap from any paragraph. */}
       <AnimatePresence>
         {paraMenu && (
           <>
@@ -1937,9 +1936,10 @@ function ChapterReader({
 
   // Track freshly-translated paragraphs for a brief highlight animation.
   // Only triggers when busy (streaming), not on initial load of an already-completed chapter.
-  // Long-press timer map for paragraph-jump (read aloud).  Each paragraph
-  // that is held for 1.5s jumps the reader to that position.
-  const longPressRef = useRef<Map<number, number>>(new Map());
+  // Double-tap detection for opening paragraph menu on mobile.
+  // Tracks last click timestamp per paragraph — two rapid taps (< 400ms)
+  // open the paragraph actions menu instead of the read-aloud jump.
+  const lastClickRef = useRef<Map<number, number>>(new Map());
 
   const [freshIndices, setFreshIndices] = useState<Set<number>>(new Set());
   const prevTranslatedRef = useRef<(string | null)[]>(translated);
@@ -2179,30 +2179,22 @@ function ChapterReader({
                 <div className="group flex items-start gap-1">
                   <p
                     className={`reader-prose-text text-foreground/80 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 flex-1 ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`}
-onClick={() => {
-  const timer = longPressRef.current.get(idx);
-  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
-  const ri = chapterIdxToReadableIdx[idx];
-  if (ri >= 0) onParagraphJump(ri);
-}
-}
-onPointerDown={(e) => {
-                      const target = (e as React.PointerEvent<HTMLElement>).currentTarget;
-                      const timer = window.setTimeout(() => {
-                        onParaMenuOpen(idx, target);
-                        longPressRef.current?.delete(idx);
-                      }, 1500);
-                      longPressRef.current.set(idx, timer);
-                    }}
-                    onPointerUp={() => {
-                      const timer = longPressRef.current.get(idx);
-                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+onClick={(e) => {
+                      const now = Date.now();
+                      const last = lastClickRef.current.get(idx) ?? 0;
+                      lastClickRef.current.set(idx, now);
+                      if (now - last < 400) {
+                        onParaMenuOpen(idx, e.currentTarget);
+                        return;
+                      }
+                      const ri = chapterIdxToReadableIdx[idx];
+                      if (ri >= 0) onParagraphJump(ri);
                     }}
                     onContextMenu={(e) => {
                   e.preventDefault();
                   onParaMenuOpen(idx, e.currentTarget);
                 }}
-                    title="Hold to read aloud from here"
+                    title="Double-tap to retranslate · Tap to read aloud"
                   >
                     {p}
                   </p>
@@ -2231,30 +2223,22 @@ onPointerDown={(e) => {
                     `reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 ${freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent"} ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`,
                     freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent",
                   )}
-onClick={() => {
-  const timer = longPressRef.current.get(idx);
-  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
-  const ri = chapterIdxToReadableIdx[idx];
-  if (ri >= 0) onParagraphJump(ri);
-}
-}
-onPointerDown={(e) => {
-                      const target = (e as React.PointerEvent<HTMLElement>).currentTarget;
-                      const timer = window.setTimeout(() => {
-                        onParaMenuOpen(idx, target);
-                        longPressRef.current?.delete(idx);
-                      }, 1500);
-                      longPressRef.current.set(idx, timer);
-                    }}
-                    onPointerUp={() => {
-                      const timer = longPressRef.current.get(idx);
-                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+onClick={(e) => {
+                      const now = Date.now();
+                      const last = lastClickRef.current.get(idx) ?? 0;
+                      lastClickRef.current.set(idx, now);
+                      if (now - last < 400) {
+                        onParaMenuOpen(idx, e.currentTarget);
+                        return;
+                      }
+                      const ri = chapterIdxToReadableIdx[idx];
+                      if (ri >= 0) onParagraphJump(ri);
                     }}
                     onContextMenu={(e) => {
                   e.preventDefault();
                   onParaMenuOpen(idx, e.currentTarget);
                 }}
-                    title="Hold to jump read aloud here"
+                    title="Double-tap to retranslate · Tap to read aloud"
                   >
                     {t && t.trim() ? t : (
                       <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : ""}</span>
@@ -2282,30 +2266,22 @@ onPointerDown={(e) => {
                 <div className="group flex items-start gap-1">
                   <p
                     className={`reader-prose-text text-foreground/80 py-3 cursor-pointer hover:bg-foreground/5 px-1 -mx-1 rounded transition-colors duration-1000 flex-1 ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`}
-onClick={() => {
-  const timer = longPressRef.current.get(idx);
-  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
-  const ri = chapterIdxToReadableIdx[idx];
-  if (ri >= 0) onParagraphJump(ri);
-}
-}
-onPointerDown={(e) => {
-                      const target = (e as React.PointerEvent<HTMLElement>).currentTarget;
-                      const timer = window.setTimeout(() => {
-                        onParaMenuOpen(idx, target);
-                        longPressRef.current?.delete(idx);
-                      }, 1500);
-                      longPressRef.current.set(idx, timer);
-                    }}
-                    onPointerUp={() => {
-                      const timer = longPressRef.current.get(idx);
-                      if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+onClick={(e) => {
+                      const now = Date.now();
+                      const last = lastClickRef.current.get(idx) ?? 0;
+                      lastClickRef.current.set(idx, now);
+                      if (now - last < 400) {
+                        onParaMenuOpen(idx, e.currentTarget);
+                        return;
+                      }
+                      const ri = chapterIdxToReadableIdx[idx];
+                      if (ri >= 0) onParagraphJump(ri);
                     }}
                     onContextMenu={(e) => {
                   e.preventDefault();
                   onParaMenuOpen(idx, e.currentTarget);
                 }}
-                    title="Hold to read aloud from here"
+                    title="Double-tap to retranslate · Tap to read aloud"
                   >
                     {p}
                   </p>
@@ -2331,29 +2307,22 @@ onPointerDown={(e) => {
                 />
               ) : (
                 <p className={`reader-prose-text text-foreground/85 py-3 px-1 -mx-1 rounded transition-colors duration-1000 cursor-pointer hover:bg-foreground/5 ${freshIndices.has(idx) ? "bg-foreground/10" : "bg-transparent"} ${speakingParagraphIdx === idx ? "ring-1 ring-inset ring-foreground/20 bg-foreground/[0.04] shadow-sm" : ""}`}
-                onClick={() => {
-                  const timer = longPressRef.current.get(idx);
-                  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
+                onClick={(e) => {
+                  const now = Date.now();
+                  const last = lastClickRef.current.get(idx) ?? 0;
+                  lastClickRef.current.set(idx, now);
+                  if (now - last < 400) {
+                    onParaMenuOpen(idx, e.currentTarget);
+                    return;
+                  }
                   const ri = chapterIdxToReadableIdx[idx];
                   if (ri >= 0) onParagraphJump(ri);
-                }}
-                onPointerDown={(e) => {
-                  const target = (e as React.PointerEvent<HTMLElement>).currentTarget;
-                  const timer = window.setTimeout(() => {
-                    onParaMenuOpen(idx, target);
-                    longPressRef.current?.delete(idx);
-                  }, 1500);
-                  longPressRef.current.set(idx, timer);
-                }}
-                onPointerUp={() => {
-                  const timer = longPressRef.current.get(idx);
-                  if (timer) { clearTimeout(timer); longPressRef.current.delete(idx); }
                 }}
                 onContextMenu={(e) => {
                   e.preventDefault();
                   onParaMenuOpen(idx, e.currentTarget);
                 }}
-                title="Hold to jump read aloud here"
+                title="Double-tap to retranslate · Tap to read aloud"
               >
                 {t && t.trim() ? t : (
                   <span className="text-muted-foreground/70 italic">{busy ? "Translating…" : ""}</span>
