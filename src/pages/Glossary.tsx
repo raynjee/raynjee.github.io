@@ -334,6 +334,16 @@ export default function Glossary() {
     (window as unknown as { __glossaryExtraction?: boolean }).__glossaryExtraction = true;
     pauseRef.current = false;
     setExtractPaused(false);
+
+    // ── Auto-pause when tab becomes hidden (saves API quota) ──
+    const onVisibility = () => {
+      if (document.hidden && !pauseRef.current) {
+        pauseRef.current = true;
+        setExtractPaused(true);
+        toast.message('Tab hidden — extraction auto-paused to save quota. Switch back to resume.', { duration: 4000 });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     try {
       // 1. Gather every paragraph from every chapter.
       const chaps = await listChapters(bookId);
@@ -543,6 +553,7 @@ export default function Glossary() {
       const msg = err instanceof Error ? err.message : String(err);
       toast.error(`Extraction failed: ${msg.slice(0, 200)}`);
     } finally {
+      document.removeEventListener('visibilitychange', onVisibility);
       setExtracting(false);
       setExtractPaused(false);
       setExtractProgress(null);
