@@ -14,6 +14,7 @@ import {
   Play,
   RefreshCw,
   Repeat,
+  Search,
   Square,
   Volume2,
   X,
@@ -236,6 +237,7 @@ export function ReadAloud({
   const [currentIdx, setCurrentIdx] = useState(0);
   // Voice picker dropdown open state
   const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
+  const [voiceSearch, setVoiceSearch] = useState("");
 
   const advanceRequestedRef = useRef(false);
   const isMountedRef = useRef(true);
@@ -638,6 +640,35 @@ export function ReadAloud({
               {/* ── Divider ──────────────────────────────────────── */}
               <div className="border-t border-border" />
 
+              {/* ── Kokoro download banner (hidden once ready) ──── */}
+              {kokoro.status === "idle" && (
+                <div className="px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => kokoro.load()}
+                    className="w-full h-9 px-3 inline-flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-300 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 shrink-0" strokeWidth={1.6} />
+                    <span className="text-xs font-medium">Download Premium Voice (Kokoro) · ~86MB</span>
+                  </button>
+                </div>
+              )}
+              {kokoro.isDownloading && (
+                <div className="px-3 py-2">
+                  <div className="w-full h-9 px-3 inline-flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/5">
+                    <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin shrink-0" strokeWidth={1.6} />
+                    <span className="text-xs text-emerald-300/80">Downloading Kokoro model… first-time only, cached locally</span>
+                  </div>
+                </div>
+              )}
+              {kokoro.status === "error" && (
+                <div className="px-3 py-2">
+                  <div className="w-full h-9 px-3 inline-flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10">
+                    <span className="text-xs text-destructive">Kokoro failed — {kokoro.error?.slice(0, 60) ?? "check connection"}</span>
+                  </div>
+                </div>
+              )}
+
               {/* ── Bottom row: voice + speed + auto-advance ────── */}
               <div className="flex items-center gap-2.5 px-3 py-2.5 flex-wrap">
                 {/* Voice picker — styled dropdown */}
@@ -681,95 +712,93 @@ export function ReadAloud({
                           exit={{ opacity: 0 }}
                           transition={{ duration: 0.1 }}
                           className="fixed inset-0 z-30"
-                          onClick={() => setVoiceDropdownOpen(false)}
+                          onClick={() => { setVoiceDropdownOpen(false); setVoiceSearch(""); }}
                         />
                         <motion.div
                           initial={{ opacity: 0, y: -4 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -4 }}
                           transition={{ duration: 0.15 }}
-                          className="absolute bottom-full left-0 mb-1.5 w-[260px] max-h-[220px] overflow-y-auto rounded-md border border-border bg-background shadow-lg z-40"
+                          className="absolute bottom-full left-0 mb-1.5 w-[320px] max-h-[300px] flex flex-col rounded-md border border-border bg-background shadow-lg z-40 overflow-hidden"
                         >
-                          <div className="p-1">
+                          <div className="p-1.5 border-b border-border flex items-center gap-1.5">
+                            <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" strokeWidth={1.4} />
+                            <input
+                              type="text"
+                              value={voiceSearch}
+                              onChange={(e) => setVoiceSearch(e.target.value)}
+                              placeholder="Search voices…"
+                              className="flex-1 bg-transparent outline-none text-xs text-foreground placeholder:text-muted-foreground"
+                            />
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); refreshVoices(); }}
                               disabled={voicesRefreshing}
-                              className="w-full text-left px-2.5 py-1.5 text-[10px] uppercase tracking-[0.1em] text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors flex items-center gap-1.5"
+                              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                              title="Refresh voices"
                             >
                               <RefreshCw className={cn("w-3 h-3", voicesRefreshing && "animate-spin")} strokeWidth={1.6} />
-                              {voicesRefreshing ? "Refreshing…" : "Refresh voices"}
                             </button>
+                          </div>
+                          <div className="flex-1 overflow-y-auto p-1">
+                            {(() => {
+                              const q = voiceSearch.trim().toLowerCase();
+                              const filtered = q
+                                ? voiceOptions.filter(({ v }) => v.name.toLowerCase().includes(q) || v.lang.toLowerCase().includes(q))
+                                : voiceOptions;
 
-                            {/* Kokoro TTS download / status */}
-                            {kokoro.status === "idle" && (
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); kokoro.load(); }}
-                                className="w-full text-left px-2.5 py-2 text-xs rounded transition-colors bg-foreground/5 hover:bg-foreground/10 border border-border/50 mt-0.5"
-                              >
-                                <span className="flex items-center gap-2">
-                                  <Download className="w-3.5 h-3.5 text-emerald-400 shrink-0" strokeWidth={1.6} />
-                                  <span className="font-medium">Download Premium Voice</span>
-                                </span>
-                                <span className="text-[10px] text-muted-foreground ml-5.5 block mt-0.5">
-                                  Kokoro neural TTS · ~86MB · cached locally
-                                </span>
-                              </button>
-                            )}
-                            {kokoro.isDownloading && (
-                              <div className="w-full px-2.5 py-2 text-xs rounded bg-foreground/5 border border-border/50 mt-0.5">
-                                <span className="flex items-center gap-2">
-                                  <Loader2 className="w-3.5 h-3.5 text-emerald-400 animate-spin shrink-0" strokeWidth={1.6} />
-                                  <span className="font-medium">Downloading Kokoro model…</span>
-                                </span>
-                                <span className="text-[10px] text-muted-foreground ml-5.5 block mt-0.5">
-                                  First-time only · cached in browser storage
-                                </span>
-                              </div>
-                            )}
-                            {kokoro.status === "error" && (
-                              <div className="w-full px-2.5 py-2 text-xs rounded bg-destructive/10 border border-destructive/20 mt-0.5">
-                                <span className="text-destructive font-medium">Kokoro download failed</span>
-                                <span className="text-[10px] text-muted-foreground block mt-0.5">
-                                  {kokoro.error ?? "Check your connection and try again"}
-                                </span>
-                              </div>
-                            )}
-                            {voiceOptions.map(({ v, kind }) => (
-                              <button
-                                key={v.name}
-                                type="button"
-                                onClick={() => {
-                                  persist({ voiceName: v.name });
-                                  setVoiceDropdownOpen(false);
-                                  if (playing) {
-                                    try { window.speechSynthesis.cancel(); } catch { /* noop */ }
-                                    speakImplRef.current(currentIdx);
-                                  }
-                                }}
-                                className={cn(
-                                  "w-full text-left px-2.5 py-1.5 text-xs rounded transition-colors",
-                                  "hover:bg-muted",
-                                  selectedVoice?.name === v.name && "bg-foreground/10 font-medium",
-                                )}
-                              >
-                                <span className="flex items-center gap-1.5">
-                                  {kind === "Kokoro" && (
-                                    <span className="text-[10px] text-emerald-400 shrink-0">✦</span>
-                                  )}
-                                  {kind === "Natural" && (
-                                    <span className="text-[10px] text-emerald-400/60 shrink-0">✦</span>
-                                  )}
-                                  <span className="truncate">{v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").replace(/^Kokoro:\s*/i, "")}</span>
-                                </span>
-                                <span className="text-[9px] text-muted-foreground ml-4">
-                                  {kind} · {v.lang}
-                                </span>
-                              </button>
-                            ))}
+                              // Group by kind
+                              const groups: Record<string, typeof filtered> = {};
+                              for (const item of filtered) {
+                                (groups[item.kind] ??= []).push(item);
+                              }
+                              const groupOrder = ["Kokoro", "Natural", "Standard"];
+
+                              return groupOrder.map((kind) => {
+                                const items = groups[kind];
+                                if (!items || items.length === 0) return null;
+                                return (
+                                  <div key={kind} className="mb-1">
+                                    <div className="px-2.5 py-1 text-[9px] uppercase tracking-[0.14em] text-muted-foreground/60 font-medium">
+                                      {kind === "Kokoro" && "✦ "}{kind}
+                                    </div>
+                                    {items.map(({ v, kind: k }) => (
+                                      <button
+                                        key={v.name}
+                                        type="button"
+                                        onClick={() => {
+                                          persist({ voiceName: v.name });
+                                          setVoiceDropdownOpen(false);
+                                          setVoiceSearch("");
+                                          if (playing) {
+                                            try { window.speechSynthesis.cancel(); } catch { /* noop */ }
+                                            speakImplRef.current(currentIdx);
+                                          }
+                                        }}
+                                        className={cn(
+                                          "w-full text-left px-2.5 py-2 text-xs rounded-md transition-colors",
+                                          "hover:bg-muted",
+                                          selectedVoice?.name === v.name && "bg-foreground/10 font-medium",
+                                        )}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          {k === "Kokoro" && <span className="text-emerald-400 text-[10px]">✦</span>}
+                                          {k === "Natural" && <span className="text-emerald-400/60 text-[10px]">✦</span>}
+                                          <span className="flex-1 truncate">
+                                            {v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").replace(/^Kokoro:\s*/i, "")}
+                                          </span>
+                                          <span className="text-[10px] text-muted-foreground shrink-0">
+                                            {v.lang}
+                                          </span>
+                                        </div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                );
+                              });
+                            })()}
                             {voiceOptions.length === 0 && (
-                              <div className="px-2.5 py-3 text-xs text-muted-foreground text-center">
+                              <div className="px-2.5 py-4 text-xs text-muted-foreground text-center">
                                 No English voices found
                               </div>
                             )}
