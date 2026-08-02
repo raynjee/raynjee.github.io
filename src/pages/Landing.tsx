@@ -70,52 +70,137 @@ function generateParticles(count: number): Particle[] {
 
 const STAR_PARTICLES = generateParticles(35);
 
-/* ── Firefly particles — slow-drifting warm glow dots ── */
-interface Firefly {
-  id: number;
-  startX: string;
-  startY: string;
-  size: number;
-  dur: string;
-  delay: string;
-  path: { x: number[]; y: number[] }; // keyframe positions
-}
-
-function generateFireflies(count: number): Firefly[] {
-  const rng = seededRandom(99);
-  const fireflies: Firefly[] = [];
-  for (let i = 0; i < count; i++) {
-    const cx = rng() * 100;
-    const cy = rng() * 100;
-    // Each firefly wanders in a loose, organic path
-    const wander = 80 + rng() * 150;
-    const segments = 6;
-    const xKeyframes: number[] = [0];
-    const yKeyframes: number[] = [0];
-    for (let s = 1; s <= segments; s++) {
-      xKeyframes.push(xKeyframes[s - 1] + (rng() - 0.5) * wander);
-      yKeyframes.push(yKeyframes[s - 1] + (rng() - 0.5) * wander * 0.6);
-    }
-    // Close the loop back to origin
-    xKeyframes.push(0);
-    yKeyframes.push(0);
-    fireflies.push({
-      id: i,
-      startX: `${cx.toFixed(1)}%`,
-      startY: `${cy.toFixed(1)}%`,
-      size: 4 + rng() * 3, // 4-7px — larger than star particles
-      dur: `${(18 + rng() * 22).toFixed(0)}s`, // 18-40s — very slow
-      delay: `${(rng() * 8).toFixed(1)}s`,
-      path: { x: xKeyframes, y: yKeyframes },
-    });
+/** Pre-compute firefly seed data (stable across re-renders). */
+const FIREFLY_COUNT = 10;
+const _ffRng = seededRandom(99);
+const FIREFLY_DATA = Array.from({ length: FIREFLY_COUNT }, (_, id) => {
+  const cx = _ffRng() * 100;
+  const cy = _ffRng() * 100;
+  const wander = 80 + _ffRng() * 150;
+  const xKeyframes: number[] = [0];
+  const yKeyframes: number[] = [0];
+  for (let s = 1; s <= 6; s++) {
+    xKeyframes.push(xKeyframes[s - 1] + (_ffRng() - 0.5) * wander);
+    yKeyframes.push(yKeyframes[s - 1] + (_ffRng() - 0.5) * wander * 0.6);
   }
-  return fireflies;
-}
+  xKeyframes.push(0);
+  yKeyframes.push(0);
+  return {
+    id,
+    startX: `${cx.toFixed(1)}%`,
+    startY: `${cy.toFixed(1)}%`,
+    size: 4 + _ffRng() * 3,
+    dur: 18 + _ffRng() * 22,
+    delay: (_ffRng() * 8).toFixed(1) + "s",
+    glowDur: 3 + (id % 4),
+    path: { x: xKeyframes, y: yKeyframes },
+  };
+});
 
-const FIREFLIES = generateFireflies(10);
+/**
+ * useFireflyScatter — drives firefly positions from a single rAF loop.
+ * Each firefly has:
+ *  - A looping wandering path (pre-computed keyframes interpolated over time)
+ *  - A mouse-repulsion displacement (gently pushes away when cursor is near)
+ *
+ * Returns MotionValue pairs per firefly — zero re-renders.
+ */
+function useFireflyScatter() {
+  const motionX = useRef<import("framer-motion").MotionValue<number>[]>([]);
+  const motionY = useRef<import("framer-motion").MotionValue<number>[]>([]);
+  const scatterX = useRef<number[]>(new Array(FIREFLY_DATA.length).fill(0));
+  const scatterY = useRef<number[]>(new Array(FIREFLY_DATA.length).fill(0));
+
+  if (motionX.current.length === 0) {
+    for (let i = 0; i < FIREFLY_DATA.length; i++) {
+      motionX.current.push(motion(0));
+      motionY.current.push(motion(0));
+    }
+  }
+
+  useEffect(() => {
+    let animId: number;
+    let mouseX = -9999;
+    let mouseY = -9999;
+
+    const onMove = (e: MouseEvent) => { mouseX = e.clientX; mouseY = e.clientY; };
+    const onLeave = () => { mouseX = -9999; mouseY = -9999; };
+
+    window.addEventListener("mousemove", onMove, { passive: true });
+    document.addEventListener("mouseleave", onLeave);
+
+    const REPEL_RADIUS = 180;
+    const REPEL_STRENGTH = 60;
+    const startTime = performance.now();
+
+    const tick = () => {
+      const elapsed = (performance.now() - startTime) / 1000; // seconds
+
+      for (let i = 0; i < FIREFLY_DATA.length; i++) {
+        const f = FIREFLY_DATA[i];
+        const mvX = motionX.current[i];
+        const mvY = motionY.current[i];
+        if (!mvX || !mvY) continue;
+
+        // ── Wandering path: interpolate keyframes over the loop duration ──
+        const loopT = ((elapsed - parseFloat(f.delay)) % f.dur + f.dur) % f.dur;
+        const progress = loopT / f.dur; // 0..1 over one loop
+        const segCount = f.path.x.length - 1;
+        const rawSeg = progress * segCount;
+        const segIdx = Math.min(Math.floor(rawSeg), segCount - 1);
+        const segFrac = rawSeg - segIdx;
+        // Smooth ease between keyframes (cosine interpolation)
+        const t = (1 - Math.cos(segFrac * Math.PI)) / 2;
+        const baseX = f.path.x[segIdx] * (1 - t) + f.path.x[segIdx + 1] * t;
+        const baseY = f.path.y[segIdx] * (1 - t) + f.path.y[segIdx + 1] * t;
+
+        // ── Mouse repulsion ────────────────────────────────────────────
+        // Read viewport size each frame so scatter works after resize.
+        const cx = (parseFloat(f.startX) / 100) * window.innerWidth;
+        const cy = (parseFloat(f.startY) / 100) * window.innerHeight;
+        const fireflyScreenX = cx + baseX + scatterX.current[i];
+        const fireflyScreenY = cy + baseY + scatterY.current[i];
+
+        const dx = fireflyScreenX - mouseX;
+        const dy = fireflyScreenY - mouseY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        let targetSX = 0;
+        let targetSY = 0;
+        if (dist < REPEL_RADIUS && dist > 1) {
+          const force = (1 - dist / REPEL_RADIUS) * REPEL_STRENGTH;
+          targetSX = (dx / dist) * force;
+          targetSY = (dy / dist) * force;
+        }
+
+        // Smoothly lerp scatter toward target
+        const lerp = 0.08;
+        scatterX.current[i] += (targetSX - scatterX.current[i]) * lerp;
+        scatterY.current[i] += (targetSY - scatterY.current[i]) * lerp;
+
+        // ── Combine base path + scatter → update motion value ────────
+        const newX = baseX + scatterX.current[i];
+        const newY = baseY + scatterY.current[i];
+        if (Math.abs(newX - mvX.get()) > 0.02) mvX.set(newX);
+        if (Math.abs(newY - mvY.get()) > 0.02) mvY.set(newY);
+      }
+      animId = requestAnimationFrame(tick);
+    };
+    animId = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(animId);
+      window.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseleave", onLeave);
+    };
+  }, []);
+
+  return { motionX: motionX.current, motionY: motionY.current };
+}
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { motionX, motionY } = useFireflyScatter();
 
   return (
     <StudioShell>
@@ -240,36 +325,25 @@ export default function Landing() {
         ))}
       </div>
 
-      {/* 🪲 Firefly particles — warm drifting glow */}
-      {FIREFLIES.map((f) => {
-        const keyframes = f.path.x.map((x, i) => ({
-          x: f.path.x[i],
-          y: f.path.y[i],
-        }));
-        return (
-          <motion.div
-            key={`ff-${f.id}`}
-            aria-hidden
-            className="firefly pointer-events-none"
-            style={{
-              left: f.startX,
-              top: f.startY,
-              width: f.size,
-              height: f.size,
-              '--ff-glow-dur': `${(3 + (f.id % 4))}s`,
-              '--ff-delay': f.delay,
-            } as React.CSSProperties}
-            animate={{
-              x: keyframes.map((k) => k.x),
-              y: keyframes.map((k) => k.y),
-            }}
-            transition={{
-              x: { duration: parseFloat(f.dur), repeat: Infinity, ease: "linear" },
-              y: { duration: parseFloat(f.dur), repeat: Infinity, ease: "linear" },
-            }}
-          />
-        );
-      })}
+      {/* 🪲 Firefly particles — warm drifting glow with mouse scatter */}
+      {FIREFLY_DATA.map((f) => (
+        <motion.div
+          key={`ff-${f.id}`}
+          aria-hidden
+          className="firefly pointer-events-none"
+          style={{
+            position: "fixed",
+            left: f.startX,
+            top: f.startY,
+            width: f.size,
+            height: f.size,
+            '--ff-glow-dur': `${f.glowDur}s`,
+            '--ff-delay': f.delay,
+            x: motionX[f.id],
+            y: motionY[f.id],
+          } as React.CSSProperties}
+        />
+      ))}
 
       {/* ── Hero ──────────────────────────────────────────── */}
       <section className="relative mx-auto max-w-3xl px-6 sm:px-10 pt-32 sm:pt-40 lg:pt-48 pb-24 text-center overflow-hidden">
