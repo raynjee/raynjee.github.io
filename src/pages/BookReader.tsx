@@ -1611,6 +1611,18 @@ export default function BookReader() {
                       <button
                         type="button"
                         onClick={() => {
+                          closeToolsDrawer();
+                          void onOpenSafariReader();
+                        }}
+                        className="h-10 px-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 transition-colors text-sm"
+                        title="Open all chapters in one scrollable page (like AO3 Entire Work)"
+                      >
+                        <Globe className="w-4 h-4" strokeWidth={1.4} />
+                        <span className="text-sm">All Chapters</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
                           if (!book) return;
                           closeToolsDrawer();
                           navigate(`/library/${book.id}/glossary`);
