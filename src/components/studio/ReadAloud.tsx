@@ -128,7 +128,14 @@ export function ReadAloud({
 
   const getAudioCtx = useCallback(() => {
     if (!audioCtxRef.current) {
-      audioCtxRef.current = new AudioContext();
+      // Safari needs the webkit prefix in older versions
+      const AC = window.AudioContext || (window as any).webkitAudioContext;
+      audioCtxRef.current = new AC();
+    }
+    // Resume immediately — iOS Safari requires this during user gesture.
+    // If called outside a gesture, resume() is a no-op (won't throw).
+    if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume().catch(() => {});
     }
     return audioCtxRef.current;
   }, []);
@@ -307,13 +314,16 @@ export function ReadAloud({
       setCurrentIdx(idx);
       onParagraphChangeRef.current?.(idx);
 
+      // MUST resume AudioContext synchronously before the async call.
+      // iOS Safari drops the "user gesture" token after ~1s of async work.
+      const audioCtx = getAudioCtx();
+
       generateSpeech(text, voiceId, ctx.prefs.rate)
         .then((result) => {
           if (!isMountedRef.current || !kokoroPlayingRef.current) return;
-          const audioCtx = getAudioCtx();
-          // Resume AudioContext if suspended (browser autoplay policy)
+          // Double-check resume in case it was re-suspended
           if (audioCtx.state === "suspended") {
-            audioCtx.resume();
+            audioCtx.resume().catch(() => {});
           }
           const buffer = audioCtx.createBuffer(1, result.data.length, result.sampleRate);
           buffer.copyToChannel(result.data, 0);

@@ -6,6 +6,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+/* ── Platform detection ────────────────────────────────────────────── */
+const _isIOS = typeof navigator !== "undefined"
+  && (/iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
+const _isSafari = typeof navigator !== "undefined"
+  && /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
 /* ── Types ─────────────────────────────────────────────────────────── */
 
 export type KokoroStatus = "idle" | "downloading" | "ready" | "error";
@@ -101,13 +108,24 @@ export async function loadKokoro(): Promise<void> {
     try {
       // Dynamic import so the ~86MB ONNX runtime is only loaded when needed.
       const { KokoroTTS } = await import("kokoro-js");
+
+      // Force WASM on iOS/Safari — WebGPU isn't supported/stable there yet.
+      const options: Record<string, unknown> = { dtype: "q8" };
+      if (_isIOS || _isSafari) {
+        options.device = "wasm";
+      }
+
       kokoroInstance = await KokoroTTS.from_pretrained(
         "hexgrad/Kokoro-82M-v1.0-ONNX",
-        { dtype: "q8" },
+        options,
       );
       setStatus("ready");
     } catch (err) {
       _error = err instanceof Error ? err.message : String(err);
+      // Friendlier error for iOS memory limits.
+      if (_error.toLowerCase().includes("memory") || _error.toLowerCase().includes("allocation") || _error.toLowerCase().includes("out of memory")) {
+        _error = "Device memory limit reached — try closing other tabs, or use native voices instead.";
+      }
       console.error("Kokoro TTS load failed:", _error);
       setStatus("error");
       kokoroPromise = null;
