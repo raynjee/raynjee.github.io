@@ -54,6 +54,50 @@ function generateParticles(count: number): Particle[] {
 
 const STAR_PARTICLES = generateParticles(35);
 
+/* ── Firefly particles — slow-drifting warm glow dots ── */
+interface Firefly {
+  id: number;
+  startX: string;
+  startY: string;
+  size: number;
+  dur: string;
+  delay: string;
+  path: { x: number[]; y: number[] }; // keyframe positions
+}
+
+function generateFireflies(count: number): Firefly[] {
+  const rng = seededRandom(99);
+  const fireflies: Firefly[] = [];
+  for (let i = 0; i < count; i++) {
+    const cx = rng() * 100;
+    const cy = rng() * 100;
+    // Each firefly wanders in a loose, organic path
+    const wander = 80 + rng() * 150;
+    const segments = 6;
+    const xKeyframes: number[] = [0];
+    const yKeyframes: number[] = [0];
+    for (let s = 1; s <= segments; s++) {
+      xKeyframes.push(xKeyframes[s - 1] + (rng() - 0.5) * wander);
+      yKeyframes.push(yKeyframes[s - 1] + (rng() - 0.5) * wander * 0.6);
+    }
+    // Close the loop back to origin
+    xKeyframes.push(0);
+    yKeyframes.push(0);
+    fireflies.push({
+      id: i,
+      startX: `${cx.toFixed(1)}%`,
+      startY: `${cy.toFixed(1)}%`,
+      size: 4 + rng() * 3, // 4-7px — larger than star particles
+      dur: `${(18 + rng() * 22).toFixed(0)}s`, // 18-40s — very slow
+      delay: `${(rng() * 8).toFixed(1)}s`,
+      path: { x: xKeyframes, y: yKeyframes },
+    });
+  }
+  return fireflies;
+}
+
+const FIREFLIES = generateFireflies(10);
+
 export default function Landing() {
   const navigate = useNavigate();
 
@@ -132,6 +176,31 @@ export default function Landing() {
         .mascot-particle:nth-child(1) { left: 20%; bottom: 30%; animation-delay: 0s; background: #f9a8d4; }
         .mascot-particle:nth-child(2) { left: 50%; bottom: 40%; animation-delay: 1s; background: #c4b5fd; }
         .mascot-particle:nth-child(3) { left: 75%; bottom: 25%; animation-delay: 2s; background: #fde68a; }
+
+        /* ── Firefly particles — warm drifting glow ─────── */
+        @keyframes firefly-glow {
+          0%, 100% { opacity: 0.15; filter: blur(0.5px); }
+          25%      { opacity: 0.9;  filter: blur(0px);  }
+          50%      { opacity: 0.5;  filter: blur(0.3px); }
+          75%      { opacity: 0.85; filter: blur(0px);  }
+        }
+        .firefly {
+          position: fixed;
+          border-radius: 50%;
+          pointer-events: none;
+          z-index: 1;
+          /* Warm golden glow */
+          background: radial-gradient(circle,
+            rgba(253, 224, 71, 0.95) 0%,
+            rgba(251, 191, 36, 0.6) 40%,
+            rgba(251, 191, 36, 0) 70%
+          );
+          box-shadow:
+            0 0 6px 2px rgba(253, 224, 71, 0.5),
+            0 0 16px 6px rgba(251, 191, 36, 0.25),
+            0 0 30px 10px rgba(251, 191, 36, 0.08);
+          animation: firefly-glow var(--ff-glow-dur, 4s) ease-in-out var(--ff-delay, 0s) infinite;
+        }
       `}</style>
 
       {/* ✨ Floating blinking star particles — scattered across the whole page */}
@@ -153,6 +222,37 @@ export default function Landing() {
           />
         ))}
       </div>
+
+      {/* 🪲 Firefly particles — warm drifting glow */}
+      {FIREFLIES.map((f) => {
+        const keyframes = f.path.x.map((x, i) => ({
+          x: f.path.x[i],
+          y: f.path.y[i],
+        }));
+        return (
+          <motion.div
+            key={`ff-${f.id}`}
+            aria-hidden
+            className="firefly pointer-events-none"
+            style={{
+              left: f.startX,
+              top: f.startY,
+              width: f.size,
+              height: f.size,
+              '--ff-glow-dur': `${(3 + (f.id % 4))}s`,
+              '--ff-delay': f.delay,
+            } as React.CSSProperties}
+            animate={{
+              x: keyframes.map((k) => k.x),
+              y: keyframes.map((k) => k.y),
+            }}
+            transition={{
+              x: { duration: parseFloat(f.dur), repeat: Infinity, ease: "linear" },
+              y: { duration: parseFloat(f.dur), repeat: Infinity, ease: "linear" },
+            }}
+          />
+        );
+      })}
 
       {/* ── Hero ──────────────────────────────────────────── */}
       <section className="relative mx-auto max-w-3xl px-6 sm:px-10 pt-32 sm:pt-40 lg:pt-48 pb-24 text-center overflow-hidden">
