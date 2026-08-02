@@ -340,7 +340,7 @@ export default function Glossary() {
       if (document.hidden && !pauseRef.current) {
         pauseRef.current = true;
         setExtractPaused(true);
-        toast.message('Tab hidden — extraction auto-paused to save quota. Switch back to resume.', { duration: 4000 });
+        toast.message('Tab hidden — extraction auto-paused to save quota. Switch back and click Resume.', { duration: 4000 });
       }
     };
     document.addEventListener('visibilitychange', onVisibility);
