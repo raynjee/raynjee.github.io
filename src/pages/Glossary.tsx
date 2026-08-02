@@ -2,7 +2,7 @@
 // words extracted by the AI (editable by the user). This glossary feeds
 // back into future translations so the LLM remembers names and terms.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -17,6 +17,8 @@ import {
   Search,
   CopyMinus,
   Globe,
+  Pause,
+  Play,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
 import { StudioShell } from "@/components/StudioShell";
@@ -95,6 +97,8 @@ export default function Glossary() {
 
   const [entries, setEntries] = useState<GlossaryEntry[]>([]);
   const [extracting, setExtracting] = useState(false);
+  const [extractPaused, setExtractPaused] = useState(false);
+  const pauseRef = useRef(false);
   const [extractProgress, setExtractProgress] = useState<{ done: number; total: number; avgChunkMs: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -328,6 +332,8 @@ export default function Glossary() {
     setResuming(false);
     // Persist on window so extraction survives page navigation.
     (window as unknown as { __glossaryExtraction?: boolean }).__glossaryExtraction = true;
+    pauseRef.current = false;
+    setExtractPaused(false);
     try {
       // 1. Gather every paragraph from every chapter.
       const chaps = await listChapters(bookId);
@@ -392,6 +398,11 @@ export default function Glossary() {
       for (let ci = 0; ci < totalChunks; ci++) {
         // Skip already-completed chunks.
         if (completedSet.has(ci)) continue;
+
+        // ── Pause gate: wait here until user resumes ──
+        while (pauseRef.current) {
+          await new Promise((r) => setTimeout(r, 300));
+        }
 
         // Rate-limit delay (skip first chunk if not resuming).
         const chunksSoFar = ci > 0 || resumeFrom ? ci : 0;
@@ -533,6 +544,7 @@ export default function Glossary() {
       toast.error(`Extraction failed: ${msg.slice(0, 200)}`);
     } finally {
       setExtracting(false);
+      setExtractPaused(false);
       setExtractProgress(null);
       (window as unknown as { __glossaryExtraction?: boolean }).__glossaryExtraction = false;
     }
@@ -690,11 +702,38 @@ export default function Glossary() {
           <div className="mt-6 space-y-2">
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span className="uppercase tracking-[0.18em]">
-                Extracting glossary · {extractProgress.done}/{extractProgress.total} chunks
+                {extractPaused ? 'Paused' : 'Extracting glossary'} · {extractProgress.done}/{extractProgress.total} chunks
               </span>
-              <span className="tabular-nums">
-                ~{formatEta(extractProgress.total - extractProgress.done, extractProgress.avgChunkMs)} remaining
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="tabular-nums">
+                  ~{formatEta(extractProgress.total - extractProgress.done, extractProgress.avgChunkMs)} remaining
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !pauseRef.current;
+                    pauseRef.current = next;
+                    setExtractPaused(next);
+                    if (next) {
+                      toast.message('Extraction paused. Progress is saved — you can resume even after closing the tab.');
+                    }
+                  }}
+                  className="h-8 px-3 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 rounded transition-colors"
+                  title={extractPaused ? 'Resume extraction' : 'Pause extraction' }
+                >
+                  {extractPaused ? (
+                    <>
+                      <Play className="w-3.5 h-3.5" strokeWidth={1.4} />
+                      <span className="text-[10px] uppercase tracking-[0.18em]">Resume</span>
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="w-3.5 h-3.5" strokeWidth={1.4} />
+                      <span className="text-[10px] uppercase tracking-[0.18em]">Pause</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
             <div className="h-1 bg-muted rounded-full overflow-hidden">
               <div
