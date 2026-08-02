@@ -21,6 +21,20 @@ function seededRandom(seed: number) {
   };
 }
 
+/** Color palette for star particles — pastel tints */
+const STAR_COLORS = [
+  null,                                          // neutral (foreground)
+  "hsl(260 80% 75%)",   // purple  
+  "hsl(210 90% 72%)",   // blue    
+  "hsl(330 80% 78%)",   // pink    
+  "hsl(280 70% 80%)",   // lavender
+  null,                  // keep some neutral for balance
+  "hsl(200 85% 68%)",   // sky blue
+  "hsl(340 75% 75%)",   // rose    
+  null,                  // more neutral
+  "hsl(220 80% 78%)",   // periwinkle
+];
+
 interface Particle {
   id: number;
   left: string;
@@ -30,6 +44,7 @@ interface Particle {
   delay: string;
   brightness: number; // 0-1 opacity range
   drift: string;      // gentle horizontal drift
+  color: string | null; // CSS color or null for default foreground
 }
 
 function generateParticles(count: number): Particle[] {
@@ -47,6 +62,7 @@ function generateParticles(count: number): Particle[] {
       delay: `${(rng() * 5).toFixed(1)}s`,
       brightness: isBright ? 0.85 : isTiny ? 0.35 : 0.55,
       drift: `${(rng() * 8 - 4).toFixed(1)}px`,
+      color: STAR_COLORS[i % STAR_COLORS.length],
     });
   }
   return particles;
@@ -135,7 +151,7 @@ export default function Landing() {
         .home-star {
           position: fixed;
           border-radius: 50%;
-          background: hsl(var(--foreground) / var(--star-brightness, 0.55));
+          background: var(--star-color, hsl(var(--foreground) / var(--star-brightness, 0.55)));
           pointer-events: none;
           z-index: 0;
           animation:
@@ -218,6 +234,7 @@ export default function Landing() {
               '--star-delay': p.delay,
               '--star-brightness': p.brightness,
               '--star-drift': p.drift,
+              ...(p.color ? { '--star-color': p.color } : {}),
             } as React.CSSProperties}
           />
         ))}
