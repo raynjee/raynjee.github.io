@@ -116,7 +116,7 @@ export async function loadKokoro(): Promise<void> {
       }
 
       kokoroInstance = await KokoroTTS.from_pretrained(
-        "hexgrad/Kokoro-82M-v1.0-ONNX",
+        "onnx-community/Kokoro-82M-v1.0-ONNX",
         options,
       );
       setStatus("ready");
