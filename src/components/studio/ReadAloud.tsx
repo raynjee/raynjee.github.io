@@ -325,7 +325,7 @@ export function ReadAloud({
             audioCtx.resume().catch(() => {});
           }
           const buffer = audioCtx.createBuffer(1, result.data.length, result.sampleRate);
-          buffer.copyToChannel(result.data, 0);
+          buffer.copyToChannel(new Float32Array(result.data), 0);
           const source = audioCtx.createBufferSource();
           source.buffer = buffer;
           source.playbackRate.value = ctx.prefs.rate;

@@ -2,6 +2,7 @@
 // Hero with brand mark → feature cards → footer.
 
 import * as React from "react";
+import { useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router";
 import { ArrowRight, BookOpen, Globe, Heart, Shield, Sparkles } from "lucide-react";
@@ -103,23 +104,13 @@ const FIREFLY_DATA = Array.from({ length: FIREFLY_COUNT }, (_, id) => {
  *  - A looping wandering path (pre-computed keyframes interpolated over time)
  *  - A mouse-repulsion displacement (gently pushes away when cursor is near)
  *
- * Returns MotionValue pairs per firefly — zero re-renders.
+ * Uses direct DOM style updates — zero re-renders, no MotionValues needed.
  */
 function useFireflyScatter() {
-  const motionX = useRef<import("framer-motion").MotionValue<number>[]>([]);
-  const motionY = useRef<import("framer-motion").MotionValue<number>[]>([]);
+  const elRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scatterX = useRef<number[]>(new Array(FIREFLY_DATA.length).fill(0));
   const scatterY = useRef<number[]>(new Array(FIREFLY_DATA.length).fill(0));
-  const prevPos = useRef<({ x: number; y: number } | null)[]>([]);
-  const elRefs = useRef<(HTMLDivElement | null)[]>([]);
-
-  if (motionX.current.length === 0) {
-    for (let i = 0; i < FIREFLY_DATA.length; i++) {
-      motionX.current.push(motion(0));
-      motionY.current.push(motion(0));
-    }
-    prevPos.current = FIREFLY_DATA.map(() => null);
-  }
+  const prevPos = useRef<({ x: number; y: number } | null)[]>(FIREFLY_DATA.map(() => null));
 
   useEffect(() => {
     let animId: number;
@@ -141,9 +132,8 @@ function useFireflyScatter() {
 
       for (let i = 0; i < FIREFLY_DATA.length; i++) {
         const f = FIREFLY_DATA[i];
-        const mvX = motionX.current[i];
-        const mvY = motionY.current[i];
-        if (!mvX || !mvY) continue;
+        const el = elRefs.current[i];
+        if (!el) continue;
 
         // ── Wandering path: interpolate keyframes over the loop duration ──
         const loopT = ((elapsed - parseFloat(f.delay)) % f.dur + f.dur) % f.dur;
@@ -181,11 +171,10 @@ function useFireflyScatter() {
         scatterX.current[i] += (targetSX - scatterX.current[i]) * lerp;
         scatterY.current[i] += (targetSY - scatterY.current[i]) * lerp;
 
-        // ── Combine base path + scatter → update motion value ────────
+        // ── Combine base path + scatter → update DOM directly ──────
         const newX = baseX + scatterX.current[i];
         const newY = baseY + scatterY.current[i];
-        if (Math.abs(newX - mvX.get()) > 0.02) mvX.set(newX);
-        if (Math.abs(newY - mvY.get()) > 0.02) mvY.set(newY);
+        el.style.transform = `translate(${newX}px, ${newY}px)`;
 
         // ── Trail direction from velocity (skip first frame to avoid spike) ──
         const prev = prevPos.current[i];
@@ -196,12 +185,9 @@ function useFireflyScatter() {
         const speed = Math.sqrt(vx * vx + vy * vy);
         if (speed > 0.3) {
           const angle = Math.atan2(vy, vx);
-          const el = elRefs.current[i];
-          if (el) {
-            el.style.setProperty("--ff-angle", `${angle}rad`);
-            // Trail length scales with speed (capped)
-            el.style.setProperty("--ff-trail", String(Math.min(speed / 30, 1)));
-          }
+          el.style.setProperty("--ff-angle", `${angle}rad`);
+          // Trail length scales with speed (capped)
+          el.style.setProperty("--ff-trail", String(Math.min(speed / 30, 1)));
         }
       }
       animId = requestAnimationFrame(tick);
@@ -215,12 +201,12 @@ function useFireflyScatter() {
     };
   }, []);
 
-  return { motionX: motionX.current, motionY: motionY.current };
+  return { elRefs };
 }
 
 export default function Landing() {
   const navigate = useNavigate();
-  const { motionX, motionY } = useFireflyScatter();
+  const { elRefs } = useFireflyScatter();
 
   return (
     <StudioShell>
@@ -387,8 +373,6 @@ export default function Landing() {
             height: f.size,
             '--ff-glow-dur': `${f.glowDur}s`,
             '--ff-delay': f.delay,
-            x: motionX[f.id],
-            y: motionY[f.id],
           } as React.CSSProperties}
         />
       ))}
