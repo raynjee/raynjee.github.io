@@ -26,6 +26,7 @@ const Landing = lazy(() => import("./pages/Landing.tsx"));
 const Library = lazy(() => import("./pages/Library.tsx"));
 const BookReader = lazy(() => import("./pages/BookReader.tsx"));
 const Glossary = lazy(() => import("./pages/Glossary.tsx"));
+const Characters = lazy(() => import("./pages/Characters.tsx"));
 const Settings = lazy(() => import("./pages/Settings.tsx"));
 const ImportTranslationsPage = lazy(() => import("./pages/Import.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -78,6 +79,7 @@ createRoot(document.getElementById("root")!).render(
               <Route path="/library/:bookId/edit" element={<BookEditorRoute />} />
               <Route path="/library/:bookId" element={<BookReader />} />
               <Route path="/library/:bookId/glossary" element={<Glossary />} />
+              <Route path="/library/:bookId/characters" element={<Characters />} />
               <Route path="/library/:bookId/:chapterId" element={<BookReader />} />
               <Route path="/import" element={<ImportTranslationsPage />} />
               <Route path="/settings" element={<Settings />} />

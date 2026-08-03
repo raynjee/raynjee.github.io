@@ -27,6 +27,7 @@ import {
   Square,
   Trash2,
   Undo2,
+  Users,
   X,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router";
@@ -1635,6 +1636,18 @@ export default function BookReader() {
                       <button
                         type="button"
                         onClick={() => {
+                          if (!book) return;
+                          closeToolsDrawer();
+                          navigate(`/library/${book.id}/characters`);
+                        }}
+                        className="h-10 px-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 transition-colors text-sm"
+                      >
+                        <Users className="w-4 h-4" strokeWidth={1.4} />
+                        <span className="text-sm">Characters</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
                           closeToolsDrawer();
                           void onExport();
                         }}
@@ -2031,6 +2044,14 @@ function ChapterReader({
           >
             <BookOpen className="w-4 h-4" strokeWidth={1.4} />
             <span className="hidden xs:inline text-sm">Glossary</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(`/library/${bookId}/characters`)}
+            className="h-10 sm:h-10 px-2.5 sm:px-3 inline-flex items-center gap-1.5 sm:gap-2 border border-border hover:border-foreground/40 active:scale-[0.97] transition-all"
+          >
+            <Users className="w-4 h-4" strokeWidth={1.4} />
+            <span className="hidden xs:inline text-sm">Characters</span>
           </button>
           <ReaderSettingsMenu bookId={bookId} />
           <ReadAloud {...readAloudProps} />

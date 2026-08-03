@@ -251,3 +251,24 @@ export interface ProviderStatus {
   callCount: number;
   errorCount: number;
 }
+
+// ── Character Database ───────────────────────────────────────────────────
+// Per-book character profiles for maintaining translation consistency.
+// Richer than glossary entries — includes aliases, role, relationships,
+// and description for the AI to reference during translation.
+
+export type CharacterRole = "protagonist" | "antagonist" | "supporting" | "minor";
+
+export interface Character {
+  id: string; // `${bookId}:char:${uuidFragment}`
+  bookId: string;
+  name: string; // Original-language name (displayed prominently)
+  translation: string; // Translated name / romanization
+  aliases: string[]; // Other names, titles, nicknames
+  gender: "F" | "M" | "N" | null;
+  role: CharacterRole | null;
+  description: string; // Brief description of the character
+  notes: string; // Additional notes for translators
+  createdAt: number;
+  updatedAt: number;
+}

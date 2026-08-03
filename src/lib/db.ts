@@ -10,6 +10,7 @@ import type {
   Book,
   Chapter,
   ChapterTranslation,
+  Character,
   GlossaryEntry,
   ProviderStatus,
   ReaderPrefs,
@@ -19,7 +20,7 @@ import type {
 import { DEFAULT_READER_PREFS, migrateReaderPrefs } from "./types";
 
 const DB_NAME = "raynets-studio";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export type StoreName =
   | "books"
@@ -29,6 +30,7 @@ export type StoreName =
   | "logs"
   | "cache"
   | "glossary"
+  | "characters"
   | "providerStatus";
 
 const STORES: StoreName[] = [
@@ -39,6 +41,7 @@ const STORES: StoreName[] = [
   "logs",
   "cache",
   "glossary",
+  "characters",
   "providerStatus",
 ];
 
@@ -240,6 +243,7 @@ export async function deleteBookCascade(id: string): Promise<void> {
     tx(d, "books", "readwrite", (s) => s.delete(id)),
     clearByCursor(d, "chapters", (v) => (v as Chapter).bookId === id),
     clearByCursor(d, "translations", (v) => (v as ChapterTranslation).bookId === id),
+    clearByCursor(d, "characters", (v) => (v as Character).bookId === id),
     tx(d, "epubs", "readwrite", (s) => s.delete(id)),
   ]);
 }
@@ -433,6 +437,26 @@ export async function getEpubBlob(id: string): Promise<Blob | undefined> {
   return result?.blob;
 }
 
+// ── Characters ───────────────────────────────────────────────────────────
+
+export async function putCharacter(character: Character): Promise<void> {
+  const d = await db();
+  await tx(d, "characters", "readwrite", (s) => s.put(character));
+}
+
+export async function listCharacters(bookId: string): Promise<Character[]> {
+  const d = await db();
+  const all = await tx<Character[]>(d, "characters", "readonly", (s) => s.getAll());
+  return all
+    .filter((c) => c.bookId === bookId)
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function deleteCharacter(id: string): Promise<void> {
+  const d = await db();
+  await tx(d, "characters", "readwrite", (s) => s.delete(id));
+}
+
 // ── Glossary ─────────────────────────────────────────────────────────────
 
 export async function putGlossaryEntry(entry: GlossaryEntry): Promise<void> {
@@ -546,17 +570,19 @@ export interface StudioBackup {
   chapters: Chapter[];
   translations: ChapterTranslation[];
   glossary: GlossaryEntry[];
+  characters: Character[];
   settings: StudioSettings;
   providerStatus: ProviderStatus[];
 }
 
 export async function buildBackup(): Promise<StudioBackup> {
   const d = await db();
-  const [books, chapters, translations, glossary] = await Promise.all([
+  const [books, chapters, translations, glossary, characters] = await Promise.all([
     tx<Book[]>(d, "books", "readonly", (s) => s.getAll()),
     tx<Chapter[]>(d, "chapters", "readonly", (s) => s.getAll()),
     tx<ChapterTranslation[]>(d, "translations", "readonly", (s) => s.getAll()),
     tx<GlossaryEntry[]>(d, "glossary", "readonly", (s) => s.getAll()),
+    tx<Character[]>(d, "characters", "readonly", (s) => s.getAll()),
   ]);
   // Only include user-created glossary entries — exclude the built-in
   // reference glossary (bookId === "ref:global") since those are hardcoded.
@@ -576,6 +602,7 @@ export async function buildBackup(): Promise<StudioBackup> {
     chapters,
     translations,
     glossary: userGlossary,
+    characters,
     settings: safe,
     providerStatus: loadProviderStatus(),
   };
@@ -584,21 +611,24 @@ export async function buildBackup(): Promise<StudioBackup> {
 export async function restoreBackup(backup: StudioBackup): Promise<void> {
   const d = await db();
   await new Promise<void>((resolve, reject) => {
-    const t = d.transaction(["books", "chapters", "translations", "glossary"], "readwrite");
+    const t = d.transaction(["books", "chapters", "translations", "glossary", "characters"], "readwrite");
     t.oncomplete = () => resolve();
     t.onerror = () => reject(t.error);
     const bs = t.objectStore("books");
     const cs = t.objectStore("chapters");
     const ts = t.objectStore("translations");
     const gs = t.objectStore("glossary");
+    const chs = t.objectStore("characters");
     bs.clear();
     cs.clear();
     ts.clear();
     gs.clear();
+    chs.clear();
     for (const b of backup.books) bs.put(b);
     for (const c of backup.chapters) cs.put(c);
     for (const tr of backup.translations) ts.put(tr);
     for (const g of backup.glossary ?? []) gs.put(g);
+    for (const ch of backup.characters ?? []) chs.put(ch);
   });
   saveSettings(backup.settings);
   saveProviderStatus(backup.providerStatus);
