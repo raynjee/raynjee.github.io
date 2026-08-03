@@ -695,11 +695,11 @@ export function ReadAloud({
                           onClick={() => { setVoiceDropdownOpen(false); setVoiceSearch(""); }}
                         />
                         <motion.div
-                          initial={{ opacity: 0, y: 4 }}
+                          initial={{ opacity: 0, y: 8 }}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 4 }}
+                          exit={{ opacity: 0, y: 8 }}
                           transition={{ duration: 0.15 }}
-                          className="absolute top-full left-0 mt-1.5 w-[320px] max-h-[300px] flex flex-col rounded-md border border-border bg-background shadow-lg z-40 overflow-hidden"
+                          className="fixed left-1/2 -translate-x-1/2 bottom-[10rem] w-[min(320px,calc(100vw-1.5rem))] max-w-[420px] max-h-[60vh] flex flex-col rounded-md border border-border bg-background shadow-xl z-40 overflow-hidden"
                         >
                           <div className="p-1.5 border-b border-border flex items-center gap-1.5">
                             <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" strokeWidth={1.4} />
