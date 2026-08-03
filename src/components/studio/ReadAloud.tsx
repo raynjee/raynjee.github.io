@@ -283,9 +283,16 @@ export function ReadAloud({
     fresh: SpeechSynthesisVoice[],
     savedName: string | null,
   ): SpeechSynthesisVoice | null {
+    // If a Kokoro voice is selected, use it directly — it won't be in native voices
+    const sel = ctxRef.current.selectedVoice;
+    if (sel && isKokoroVoice(sel.voiceURI)) return sel;
     if (savedName) {
-      const m = fresh.find((v) => v.name === savedName);
-      if (m) return m;
+      // Search merged voices (native + Kokoro) first
+      const m = ctxRef.current.selectedVoice;
+      if (m && m.name === savedName) return m;
+      // Then try native voices
+      const n = fresh.find((v) => v.name === savedName);
+      if (n) return n;
     }
     return (
       fresh.find(

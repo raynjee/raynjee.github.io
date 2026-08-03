@@ -83,6 +83,10 @@ let kokoroPromise: Promise<any> | null = null;
 
 type Listener = (status: KokoroStatus) => void;
 const listeners = new Set<Listener>();
+
+// Persist download state so we can auto-reload from IndexedDB cache on revisit.
+const KOKORO_READY_KEY = "raynets.kokoro.ready";
+
 let _status: KokoroStatus = "idle";
 let _error: string | null = null;
 
@@ -92,7 +96,16 @@ function notify() {
 
 function setStatus(s: KokoroStatus) {
   _status = s;
+  if (s === "ready") {
+    try { localStorage.setItem(KOKORO_READY_KEY, "1"); } catch { /* noop */ }
+  }
   notify();
+}
+
+/** Whether Kokoro was previously downloaded (model cached in IndexedDB). */
+export function wasKokoroReady(): boolean {
+  try { return localStorage.getItem(KOKORO_READY_KEY) === "1"; }
+  catch { return false; }
 }
 
 /** Load the Kokoro model. Idempotent — calling twice returns the same promise. */
@@ -170,6 +183,10 @@ export function useKokoroTTS() {
     listeners.add(listener);
     // Sync immediately in case status changed between render and effect.
     setStatusLocal(_status);
+    // Auto-load if Kokoro was previously downloaded (model cached in IndexedDB).
+    if (_status === "idle" && wasKokoroReady()) {
+      void loadKokoro();
+    }
     return () => {
       mountedRef.current = false;
       listeners.delete(listener);
