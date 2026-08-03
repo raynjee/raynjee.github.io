@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
 import {
   ChevronDown,
   Pause,
@@ -683,110 +684,6 @@ export function ReadAloud({
                       strokeWidth={1.6}
                     />
                   </button>
-                  <AnimatePresence>
-                    {voiceDropdownOpen && (
-                      <>
-                        <motion.div
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.1 }}
-                          className="fixed inset-0 z-30"
-                          onClick={() => { setVoiceDropdownOpen(false); setVoiceSearch(""); }}
-                        />
-                        <motion.div
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 8 }}
-                          transition={{ duration: 0.15 }}
-                          className="fixed left-1/2 -translate-x-1/2 bottom-[10rem] w-[min(320px,calc(100vw-1.5rem))] max-w-[420px] max-h-[60vh] flex flex-col rounded-md border border-border bg-background shadow-xl z-40 overflow-hidden"
-                        >
-                          <div className="p-1.5 border-b border-border flex items-center gap-1.5">
-                            <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" strokeWidth={1.4} />
-                            <input
-                              type="text"
-                              value={voiceSearch}
-                              onChange={(e) => setVoiceSearch(e.target.value)}
-                              placeholder="Search voices…"
-                              className="flex-1 bg-transparent outline-none text-xs text-foreground placeholder:text-muted-foreground"
-                            />
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); refreshVoices(); }}
-                              disabled={voicesRefreshing}
-                              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                              title="Refresh voices"
-                            >
-                              <RefreshCw className={cn("w-3 h-3", voicesRefreshing && "animate-spin")} strokeWidth={1.6} />
-                            </button>
-                          </div>
-                          <div className="flex-1 overflow-y-auto p-1">
-                            {(() => {
-                              const q = voiceSearch.trim().toLowerCase();
-                              const filtered = q
-                                ? voiceOptions.filter(({ v }) => v.name.toLowerCase().includes(q) || v.lang.toLowerCase().includes(q))
-                                : voiceOptions;
-
-                              // Group by kind
-                              const groups: Record<string, typeof filtered> = {};
-                              for (const item of filtered) {
-                                (groups[item.kind] ??= []).push(item);
-                              }
-                              const groupOrder = ["Kokoro", "Natural", "Standard"];
-
-                              return groupOrder.map((kind) => {
-                                const items = groups[kind];
-                                if (!items || items.length === 0) return null;
-                                return (
-                                  <div key={kind} className="mb-1">
-                                    <div className="px-2.5 py-1 text-[9px] uppercase tracking-[0.14em] text-muted-foreground/60 font-medium">
-                                      {kind === "Kokoro" && "✦ "}{kind}
-                                    </div>
-                                    {items.map(({ v, kind: k }) => (
-                                      <button
-                                        key={v.name}
-                                        type="button"
-                                        onClick={() => {
-                                          persist({ voiceName: v.name });
-                                          setVoiceDropdownOpen(false);
-                                          setVoiceSearch("");
-                                          if (playing) {
-                                            try { window.speechSynthesis.cancel(); } catch { /* noop */ }
-                                            speakImplRef.current(currentIdx);
-                                          }
-                                        }}
-                                        className={cn(
-                                          "w-full text-left px-2.5 py-2 text-xs rounded-md transition-colors",
-                                          "hover:bg-muted",
-                                          selectedVoice?.name === v.name && "bg-foreground/10 font-medium",
-                                        )}
-                                      >
-                                        <div className="flex items-center gap-2">
-                                          {k === "Kokoro" && <span className="text-emerald-400 text-[10px]">✦</span>}
-                                          {k === "Natural" && <span className="text-emerald-400/60 text-[10px]">✦</span>}
-                                          <span className="flex-1 truncate">
-                                            {v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").replace(/^Kokoro:\s*/i, "")}
-                                          </span>
-                                          <span className="text-[10px] text-muted-foreground shrink-0">
-                                            {v.lang}
-                                          </span>
-                                        </div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                );
-                              });
-                            })()}
-                            {voiceOptions.length === 0 && (
-                              <div className="px-2.5 py-4 text-xs text-muted-foreground text-center">
-                                No English voices found
-                              </div>
-                            )}
-                          </div>
-                        </motion.div>
-                      </>
-                    )}
-                  </AnimatePresence>
                 </div>
 
                 {/* Rate control */}
@@ -843,6 +740,57 @@ export function ReadAloud({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Voice picker modal — rendered via portal to escape framer-motion transforms */}
+      {voiceDropdownOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => { setVoiceDropdownOpen(false); setVoiceSearch(""); }} />
+          <div className="relative w-full max-w-[420px] max-h-[75vh] flex flex-col rounded-t-xl border border-border bg-background shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-center pt-2 pb-1"><div className="w-10 h-1 rounded-full bg-muted-foreground/30" /></div>
+            <div className="px-3 pb-2 flex items-center justify-between">
+              <h3 className="text-sm font-medium">Select Voice</h3>
+              <button type="button" onClick={() => { setVoiceDropdownOpen(false); setVoiceSearch(""); }} className="h-7 w-7 grid place-items-center rounded-md hover:bg-muted transition-colors"><X className="w-4 h-4" strokeWidth={1.6} /></button>
+            </div>
+            <div className="px-3 pb-2">
+              <div className="flex items-center gap-2 px-3 h-9 rounded-md border border-border bg-muted/50">
+                <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" strokeWidth={1.4} />
+                <input type="text" value={voiceSearch} onChange={(e) => setVoiceSearch(e.target.value)} placeholder="Search voices\u2026" className="flex-1 bg-transparent outline-none text-sm text-foreground placeholder:text-muted-foreground" />
+                <button type="button" onClick={(e) => { e.stopPropagation(); refreshVoices(); }} disabled={voicesRefreshing} className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="Refresh voices"><RefreshCw className={cn("w-3.5 h-3.5", voicesRefreshing && "animate-spin")} strokeWidth={1.6} /></button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 pb-4">
+              {(() => {
+                const q = voiceSearch.trim().toLowerCase();
+                const filtered = q ? voiceOptions.filter(({ v }) => v.name.toLowerCase().includes(q) || v.lang.toLowerCase().includes(q)) : voiceOptions;
+                const groups: Record<string, typeof filtered> = {};
+                for (const item of filtered) { (groups[item.kind] ??= []).push(item); }
+                const groupOrder = ["Kokoro", "Natural", "Standard"];
+                return groupOrder.map((kind) => {
+                  const items = groups[kind];
+                  if (!items || items.length === 0) return null;
+                  return (
+                    <div key={kind} className="mb-2">
+                      <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60 font-medium">{kind === "Kokoro" && "\u2726 "}{kind}</div>
+                      {items.map(({ v, kind: k }) => (
+                        <button key={v.name} type="button" onClick={() => { persist({ voiceName: v.name }); setVoiceDropdownOpen(false); setVoiceSearch(""); if (playing) { try { window.speechSynthesis.cancel(); } catch { /* noop */ } speakImplRef.current(currentIdx); } }} className={cn("w-full text-left px-3 py-2.5 text-sm rounded-lg transition-colors", "hover:bg-muted active:bg-muted/80", selectedVoice?.name === v.name && "bg-foreground/10 font-medium ring-1 ring-foreground/20")}>
+                          <div className="flex items-center gap-2.5">
+                            {k === "Kokoro" && <span className="text-emerald-400 text-xs">\u2726</span>}
+                            {k === "Natural" && <span className="text-emerald-400/60 text-xs">\u2726</span>}
+                            <span className="flex-1 truncate">{v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").replace(/^Kokoro:\s*/i, "")}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">{v.lang}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  );
+                });
+              })()}
+              {voiceOptions.length === 0 && (<div className="px-3 py-8 text-sm text-muted-foreground text-center">No English voices found</div>)}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </>
   );
 }
