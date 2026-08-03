@@ -545,17 +545,22 @@ export interface StudioBackup {
   books: Book[];
   chapters: Chapter[];
   translations: ChapterTranslation[];
+  glossary: GlossaryEntry[];
   settings: StudioSettings;
   providerStatus: ProviderStatus[];
 }
 
 export async function buildBackup(): Promise<StudioBackup> {
   const d = await db();
-  const [books, chapters, translations] = await Promise.all([
+  const [books, chapters, translations, glossary] = await Promise.all([
     tx<Book[]>(d, "books", "readonly", (s) => s.getAll()),
     tx<Chapter[]>(d, "chapters", "readonly", (s) => s.getAll()),
     tx<ChapterTranslation[]>(d, "translations", "readonly", (s) => s.getAll()),
+    tx<GlossaryEntry[]>(d, "glossary", "readonly", (s) => s.getAll()),
   ]);
+  // Only include user-created glossary entries — exclude the built-in
+  // reference glossary (bookId === "ref:global") since those are hardcoded.
+  const userGlossary = glossary.filter((e) => e.bookId !== "ref:global");
   // Redact API keys from the exported settings so backups never leak
   // credentials. On restore the user will re-enter their keys.
   const safe = loadSettings();
@@ -570,6 +575,7 @@ export async function buildBackup(): Promise<StudioBackup> {
     books,
     chapters,
     translations,
+    glossary: userGlossary,
     settings: safe,
     providerStatus: loadProviderStatus(),
   };
@@ -578,18 +584,21 @@ export async function buildBackup(): Promise<StudioBackup> {
 export async function restoreBackup(backup: StudioBackup): Promise<void> {
   const d = await db();
   await new Promise<void>((resolve, reject) => {
-    const t = d.transaction(["books", "chapters", "translations"], "readwrite");
+    const t = d.transaction(["books", "chapters", "translations", "glossary"], "readwrite");
     t.oncomplete = () => resolve();
     t.onerror = () => reject(t.error);
     const bs = t.objectStore("books");
     const cs = t.objectStore("chapters");
     const ts = t.objectStore("translations");
+    const gs = t.objectStore("glossary");
     bs.clear();
     cs.clear();
     ts.clear();
+    gs.clear();
     for (const b of backup.books) bs.put(b);
     for (const c of backup.chapters) cs.put(c);
     for (const tr of backup.translations) ts.put(tr);
+    for (const g of backup.glossary ?? []) gs.put(g);
   });
   saveSettings(backup.settings);
   saveProviderStatus(backup.providerStatus);
