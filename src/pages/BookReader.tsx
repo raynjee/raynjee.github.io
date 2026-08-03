@@ -211,6 +211,18 @@ export default function BookReader() {
   );
   const closeToolsDrawer = useCallback(() => setToolsDrawerOpen(false), []);
 
+  // ── Version History drawer ───────────────────────────────────────
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyVersions, setHistoryVersions] = useState<import("@/lib/types").TranslationVersion[]>([]);
+  const openHistory = useCallback(async () => {
+    if (!bookId || !activeId) return;
+    const { listVersions } = await import("@/lib/db");
+    const vers = await listVersions(bookId, activeId);
+    setHistoryVersions(vers);
+    setHistoryOpen(true);
+  }, [bookId, activeId]);
+  const closeHistory = useCallback(() => setHistoryOpen(false), []);
+
   // ── Per-paragraph actions menu (#4 + #10) ───────────────────────────
   // Single page-level overlay anchored to the click target. Triggers from
   // each paragraph's `··` button. Anchored via fixed-positioned coords so
@@ -261,6 +273,24 @@ export default function BookReader() {
   );
   const activeTranslation = activeId ? translations[activeId] : undefined;
   const activeIdx = chapters.findIndex((c) => c.id === activeId);
+
+  const onRestoreVersion = useCallback(async (version: import("@/lib/types").TranslationVersion) => {
+    if (!book || !activeChapter) return;
+    const restored: ChapterTranslation = {
+      id: `${book.id}:${activeChapter.id}`,
+      bookId: book.id,
+      chapterId: activeChapter.id,
+      paragraphs: version.paragraphs,
+      status: "completed",
+      completedAt: Date.now(),
+      provider: version.provider,
+      progress: 1,
+    };
+    await saveTranslation(restored, "Restored from history");
+    setTranslations((m) => ({ ...m, [activeChapter.id]: restored }));
+    setHistoryOpen(false);
+    toast.success("Version restored.");
+  }, [book, activeChapter]);
 
   // Re-translate a single paragraph with an optional hint. Used by both
   // the inline Undo2 button (no hint) and the paragraph-menu preset chips
@@ -973,6 +1003,15 @@ export default function BookReader() {
               <Globe className="w-4 h-4" strokeWidth={1.25} />
               <span className="text-sm">All Chapters</span>
             </button>
+            <button
+              type="button"
+              onClick={openHistory}
+              title="View version history for this chapter"
+              className="h-11 sm:h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 active:scale-[0.97] transition-all"
+            >
+              <Undo2 className="w-4 h-4" strokeWidth={1.25} />
+              <span className="text-sm">History</span>
+            </button>
           </div>
         </header>
 
@@ -1649,6 +1688,17 @@ export default function BookReader() {
                         type="button"
                         onClick={() => {
                           closeToolsDrawer();
+                          void openHistory();
+                        }}
+                        className="h-10 px-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 transition-colors text-sm"
+                      >
+                        <Undo2 className="w-4 h-4" strokeWidth={1.4} />
+                        <span className="text-sm">History</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeToolsDrawer();
                           void onExport();
                         }}
                         className="h-10 px-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 transition-colors text-sm"
@@ -1664,6 +1714,69 @@ export default function BookReader() {
                       </h3>
                       <ReaderSettingsControls bookId={book.id} />
                     </section>
+                  </div>
+                </motion.aside>
+              </>
+            )}
+          </AnimatePresence>
+
+          {/* ── Version History drawer ──────────────────────── */}
+          <AnimatePresence>
+            {historyOpen && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+                  onClick={closeHistory}
+                />
+                <motion.aside
+                  initial={{ x: "100%" }}
+                  animate={{ x: 0 }}
+                  exit={{ x: "100%" }}
+                  transition={{ type: "spring", damping: 30, stiffness: 300 }}
+                  className="fixed inset-y-0 right-0 z-50 w-96 max-w-[90vw] bg-background border-l border-border shadow-xl flex flex-col"
+                >
+                  <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
+                    <span className="text-sm font-medium">Version History</span>
+                    <button onClick={closeHistory} className="w-8 h-8 grid place-items-center rounded-lg hover:bg-muted transition-colors" aria-label="Close history">
+                      <X className="w-4 h-4" strokeWidth={1.4} />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto thin-scrollbar px-5 py-5 space-y-3">
+                    {historyVersions.length === 0 ? (
+                      <div className="text-center text-muted-foreground text-sm py-12">
+                        No previous versions yet. Versions are saved automatically when a translation is overwritten.
+                      </div>
+                    ) : (
+                      historyVersions.slice().reverse().map((v: any, i: number) => (
+                        <div key={v.id} className="border border-border rounded-lg p-4 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(v.savedAt).toLocaleString()}
+                            </span>
+                            {v.label && (
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-muted border border-border">
+                                {v.label}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {v.paragraphs.filter((p: string | null) => p && p.trim()).length} / {v.paragraphs.length} paragraphs
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => onRestoreVersion(v)}
+                            className="h-8 px-3 inline-flex items-center gap-1.5 border border-border hover:border-foreground/40 text-xs uppercase tracking-[0.12em] transition-colors"
+                          >
+                            <Undo2 className="w-3 h-3" strokeWidth={1.4} />
+                            Restore
+                          </button>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </motion.aside>
               </>

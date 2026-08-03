@@ -272,3 +272,17 @@ export interface Character {
   createdAt: number;
   updatedAt: number;
 }
+
+// ── Translation Version History ─────────────────────────────────────────
+// Snapshots of chapter translations saved before each overwrite so users
+// can browse past versions and revert if needed.
+
+export interface TranslationVersion {
+  id: string; // `${bookId}:${chapterId}:v:${timestamp}`
+  bookId: string;
+  chapterId: string;
+  paragraphs: (string | null)[];
+  provider: ProviderId | null;
+  savedAt: number; // timestamp when this snapshot was created
+  label?: string; // optional user-facing label (e.g. "AI translation", "manual edit")
+}

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   deleteBookCascade,
   getBook,
+  getTranslation,
   listBooks,
   listChapters,
   listTranslationsByBook,
@@ -212,7 +213,29 @@ export async function deleteBook(id: string) {
 
 export async function saveTranslation(
   translation: ChapterTranslation,
+  label?: string,
 ): Promise<void> {
+  // Save a version snapshot before overwriting (only if there's actual content).
+  const hasContent = translation.paragraphs.some((p) => p && p.trim());
+  if (hasContent && translation.status === "completed") {
+    try {
+      const existing = await getTranslation(translation.bookId, translation.chapterId);
+      if (existing && existing.paragraphs.some((p) => p && p.trim())) {
+        const { putVersion } = await import("@/lib/db");
+        await putVersion({
+          id: `${translation.bookId}:${translation.chapterId}:v:${Date.now()}`,
+          bookId: translation.bookId,
+          chapterId: translation.chapterId,
+          paragraphs: existing.paragraphs,
+          provider: existing.provider,
+          savedAt: Date.now(),
+          label: label ?? (existing.provider ? `AI (${existing.provider})` : "Previous version"),
+        });
+      }
+    } catch {
+      // Non-critical — don't block the save if snapshot fails.
+    }
+  }
   await putTranslation(translation);
   notifyLibraryChanged();
 }

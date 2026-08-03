@@ -16,11 +16,12 @@ import type {
   ReaderPrefs,
   StudioSettings,
   TranslationCacheEntry,
+  TranslationVersion,
 } from "./types";
 import { DEFAULT_READER_PREFS, migrateReaderPrefs } from "./types";
 
 const DB_NAME = "raynets-studio";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export type StoreName =
   | "books"
@@ -31,6 +32,7 @@ export type StoreName =
   | "cache"
   | "glossary"
   | "characters"
+  | "versions"
   | "providerStatus";
 
 const STORES: StoreName[] = [
@@ -42,6 +44,7 @@ const STORES: StoreName[] = [
   "cache",
   "glossary",
   "characters",
+  "versions",
   "providerStatus",
 ];
 
@@ -457,6 +460,49 @@ export async function deleteCharacter(id: string): Promise<void> {
   await tx(d, "characters", "readwrite", (s) => s.delete(id));
 }
 
+// ── Translation Versions ─────────────────────────────────────────────────
+
+const VERSIONS_PER_CHAPTER_CAP = 10;
+
+export async function putVersion(version: TranslationVersion): Promise<void> {
+  const d = await db();
+  await tx(d, "versions", "readwrite", (s) => s.put(version));
+  // Auto-prune: keep only the most recent N versions per chapter.
+  const all = await listVersions(version.bookId, version.chapterId);
+  if (all.length > VERSIONS_PER_CHAPTER_CAP) {
+    const toRemove = all.slice(0, all.length - VERSIONS_PER_CHAPTER_CAP);
+    const d2 = await db();
+    await new Promise<void>((resolve, reject) => {
+      const t = d2.transaction("versions", "readwrite");
+      const s = t.objectStore("versions");
+      t.oncomplete = () => resolve();
+      t.onerror = () => reject(t.error);
+      for (const v of toRemove) s.delete(v.id);
+    });
+  }
+}
+
+export async function listVersions(
+  bookId: string,
+  chapterId: string,
+): Promise<TranslationVersion[]> {
+  const d = await db();
+  const all = await tx<TranslationVersion[]>(d, "versions", "readonly", (s) => s.getAll());
+  return all
+    .filter((v) => v.bookId === bookId && v.chapterId === chapterId)
+    .sort((a, b) => a.savedAt - b.savedAt);
+}
+
+export async function deleteVersion(id: string): Promise<void> {
+  const d = await db();
+  await tx(d, "versions", "readwrite", (s) => s.delete(id));
+}
+
+export async function clearVersions(bookId: string, chapterId: string): Promise<void> {
+  const versions = await listVersions(bookId, chapterId);
+  await Promise.all(versions.map((v) => deleteVersion(v.id)));
+}
+
 // ── Glossary ─────────────────────────────────────────────────────────────
 
 export async function putGlossaryEntry(entry: GlossaryEntry): Promise<void> {
@@ -571,18 +617,20 @@ export interface StudioBackup {
   translations: ChapterTranslation[];
   glossary: GlossaryEntry[];
   characters: Character[];
+  versions: TranslationVersion[];
   settings: StudioSettings;
   providerStatus: ProviderStatus[];
 }
 
 export async function buildBackup(): Promise<StudioBackup> {
   const d = await db();
-  const [books, chapters, translations, glossary, characters] = await Promise.all([
+  const [books, chapters, translations, glossary, characters, versions] = await Promise.all([
     tx<Book[]>(d, "books", "readonly", (s) => s.getAll()),
     tx<Chapter[]>(d, "chapters", "readonly", (s) => s.getAll()),
     tx<ChapterTranslation[]>(d, "translations", "readonly", (s) => s.getAll()),
     tx<GlossaryEntry[]>(d, "glossary", "readonly", (s) => s.getAll()),
     tx<Character[]>(d, "characters", "readonly", (s) => s.getAll()),
+    tx<TranslationVersion[]>(d, "versions", "readonly", (s) => s.getAll()),
   ]);
   // Only include user-created glossary entries — exclude the built-in
   // reference glossary (bookId === "ref:global") since those are hardcoded.
@@ -603,6 +651,7 @@ export async function buildBackup(): Promise<StudioBackup> {
     translations,
     glossary: userGlossary,
     characters,
+    versions,
     settings: safe,
     providerStatus: loadProviderStatus(),
   };
@@ -611,7 +660,7 @@ export async function buildBackup(): Promise<StudioBackup> {
 export async function restoreBackup(backup: StudioBackup): Promise<void> {
   const d = await db();
   await new Promise<void>((resolve, reject) => {
-    const t = d.transaction(["books", "chapters", "translations", "glossary", "characters"], "readwrite");
+    const t = d.transaction(["books", "chapters", "translations", "glossary", "characters", "versions"], "readwrite");
     t.oncomplete = () => resolve();
     t.onerror = () => reject(t.error);
     const bs = t.objectStore("books");
@@ -619,16 +668,19 @@ export async function restoreBackup(backup: StudioBackup): Promise<void> {
     const ts = t.objectStore("translations");
     const gs = t.objectStore("glossary");
     const chs = t.objectStore("characters");
+    const vs = t.objectStore("versions");
     bs.clear();
     cs.clear();
     ts.clear();
     gs.clear();
     chs.clear();
+    vs.clear();
     for (const b of backup.books) bs.put(b);
     for (const c of backup.chapters) cs.put(c);
     for (const tr of backup.translations) ts.put(tr);
     for (const g of backup.glossary ?? []) gs.put(g);
     for (const ch of backup.characters ?? []) chs.put(ch);
+    for (const v of backup.versions ?? []) vs.put(v);
   });
   saveSettings(backup.settings);
   saveProviderStatus(backup.providerStatus);
