@@ -22,15 +22,6 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Slider } from "@/components/ui/slider";
-import {
-  useKokoroTTS,
-  isKokoroVoice,
-  kokoroVoiceId,
-  generateSpeech,
-  loadKokoro,
-  type SyntheticVoice,
-} from "@/hooks/use-kokoro";
-
 
 const PREFS_KEY = "raynets.readAloud.prefs";
 
@@ -119,27 +110,6 @@ export function ReadAloud({
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [voicesRefreshing, setVoicesRefreshing] = useState(false);
 
-  // ── Kokoro TTS (high-quality local neural voice) ───────────────────
-  const kokoro = useKokoroTTS();
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const kokoroPlayingRef = useRef(false);
-  const kokoroPausedRef = useRef(false);
-
-  const getAudioCtx = useCallback(() => {
-    if (!audioCtxRef.current) {
-      // Safari needs the webkit prefix in older versions
-      const AC = window.AudioContext || (window as any).webkitAudioContext;
-      audioCtxRef.current = new AC();
-    }
-    // Resume immediately — iOS Safari requires this during user gesture.
-    // If called outside a gesture, resume() is a no-op (won't throw).
-    if (audioCtxRef.current.state === "suspended") {
-      audioCtxRef.current.resume().catch(() => {});
-    }
-    return audioCtxRef.current;
-  }, []);
-
   // Load voices — on iOS Safari voices may load asynchronously after first
   // user interaction. We poll `voiceschanged` and also attempt a warm-up
   // utterance that forces the OS voice registry to populate.
@@ -202,19 +172,14 @@ export function ReadAloud({
     };
   }, [refreshVoices]);
 
-  // Merge native SpeechSynthesis voices with Kokoro synthetic voices.
-  const allVoices = useMemo(() => {
-    const native = voices.filter((v) => v.lang.startsWith("en") || /english/i.test(v.name));
-    if (kokoro.isReady) {
-      const kokoroVoices = kokoro.voices as unknown as SpeechSynthesisVoice[];
-      return [...kokoroVoices, ...native];
-    }
-    return native;
-  }, [voices, kokoro.isReady, kokoro.voices]);
+  // Filter to English voices only
+  const englishVoices = useMemo(
+    () => voices.filter((v) => v.lang.startsWith("en") || /english/i.test(v.name)),
+    [voices],
+  );
 
-  const englishVoices = allVoices;
   const naturalVoices = useMemo(
-    () => englishVoices.filter((v) => isNaturalVoice(v.name) || isKokoroVoice(v.voiceURI)),
+    () => englishVoices.filter((v) => isNaturalVoice(v.name)),
     [englishVoices],
   );
 
@@ -222,12 +187,11 @@ export function ReadAloud({
 
   const selectedVoice = useMemo(() => {
     if (prefs.voiceName) {
-      // Search merged voices (native + Kokoro) so Kokoro selections persist across remounts
-      const m = allVoices.find((v) => v.name === prefs.voiceName);
+      const m = englishVoices.find((v) => v.name === prefs.voiceName);
       if (m) return m;
     }
-    return naturalVoices[0] ?? englishVoices[0] ?? allVoices[0] ?? null;
-  }, [allVoices, naturalVoices, englishVoices, prefs.voiceName]);
+    return naturalVoices[0] ?? englishVoices[0] ?? null;
+  }, [englishVoices, naturalVoices, prefs.voiceName]);
 
   const persist = useCallback((next: Partial<ReadPrefs>) => {
     setPrefs((prev) => {
@@ -283,14 +247,9 @@ export function ReadAloud({
     fresh: SpeechSynthesisVoice[],
     savedName: string | null,
   ): SpeechSynthesisVoice | null {
-    // If a Kokoro voice is selected, use it directly — it won't be in native voices
-    const sel = ctxRef.current.selectedVoice;
-    if (sel && isKokoroVoice(sel.voiceURI)) return sel;
     if (savedName) {
-      // Search merged voices (native + Kokoro) first
       const m = ctxRef.current.selectedVoice;
       if (m && m.name === savedName) return m;
-      // Then try native voices
       const n = fresh.find((v) => v.name === savedName);
       if (n) return n;
     }
@@ -308,55 +267,6 @@ export function ReadAloud({
     const ctx = ctxRef.current;
     const text = ctx.readable[idx];
     if (!text) return;
-
-    // ── Kokoro path: generate audio buffer + Web Audio API playback ──
-    if (voice && isKokoroVoice(voice.voiceURI)) {
-      const voiceId = kokoroVoiceId(voice.voiceURI);
-      // Stop any previously playing Kokoro source to avoid overlap
-      try { activeSourceRef.current?.stop(); } catch { /* noop */ }
-      activeSourceRef.current = null;
-      kokoroPlayingRef.current = true;
-      kokoroPausedRef.current = false;
-
-      setCurrentIdx(idx);
-      onParagraphChangeRef.current?.(idx);
-
-      // MUST resume AudioContext synchronously before the async call.
-      // iOS Safari drops the "user gesture" token after ~1s of async work.
-      const audioCtx = getAudioCtx();
-
-      generateSpeech(text, voiceId, ctx.prefs.rate)
-        .then((result) => {
-          if (!isMountedRef.current || !kokoroPlayingRef.current) return;
-          // Double-check resume in case it was re-suspended
-          if (audioCtx.state === "suspended") {
-            audioCtx.resume().catch(() => {});
-          }
-          const buffer = audioCtx.createBuffer(1, result.data.length, result.sampleRate);
-          buffer.copyToChannel(new Float32Array(result.data), 0);
-          const source = audioCtx.createBufferSource();
-          source.buffer = buffer;
-          source.playbackRate.value = ctx.prefs.rate;
-          source.connect(audioCtx.destination);
-          activeSourceRef.current = source;
-          source.onended = () => {
-            if (!isMountedRef.current) return;
-            activeSourceRef.current = null;
-            kokoroPlayingRef.current = false;
-            speakImplRef.current(idx + 1);
-          };
-          source.start();
-        })
-        .catch((err) => {
-          console.error("Kokoro generation failed:", err);
-          toast.error("Kokoro voice failed — falling back to native TTS.");
-          kokoroPlayingRef.current = false;
-          // Fallback to native SpeechSynthesis
-          const fallbackVoice = naturalVoices.find((v) => !isKokoroVoice(v.voiceURI)) ?? englishVoices[0] ?? null;
-          speakUtterance(idx, fallbackVoice);
-        });
-      return;
-    }
 
     // ── Native SpeechSynthesis path ────────────────────────────────
     const synth = window.speechSynthesis;
@@ -498,13 +408,6 @@ export function ReadAloud({
 
   const onTogglePlay = useCallback(() => {
     if (playing) {
-      // Kokoro audio pause/resume via AudioContext
-      if (kokoroPlayingRef.current) {
-        const audioCtx = audioCtxRef.current;
-        if (paused) { audioCtx?.resume(); kokoroPausedRef.current = false; setPaused(false); }
-        else { audioCtx?.suspend(); kokoroPausedRef.current = true; setPaused(true); }
-        return;
-      }
       // Native SpeechSynthesis pause/resume
       const win = typeof window !== "undefined" ? window.speechSynthesis : null;
       if (!win) return;
@@ -518,12 +421,6 @@ export function ReadAloud({
   }, [playing, paused, beginAt, currentIdx]);
 
   const onStop = useCallback(() => {
-    // Stop Kokoro audio
-    try { activeSourceRef.current?.stop(); } catch { /* noop */ }
-    activeSourceRef.current = null;
-    kokoroPlayingRef.current = false;
-    kokoroPausedRef.current = false;
-    // Stop native SpeechSynthesis
     try { window.speechSynthesis.cancel(); } catch { /* noop */ }
     setPlaying(false);
     setPaused(false);
@@ -531,10 +428,6 @@ export function ReadAloud({
   }, []);
 
   const onClose = useCallback(() => {
-    try { activeSourceRef.current?.stop(); } catch { /* noop */ }
-    activeSourceRef.current = null;
-    kokoroPlayingRef.current = false;
-    kokoroPausedRef.current = false;
     try { window.speechSynthesis.cancel(); } catch { /* noop */ }
     setPlaying(false);
     setPaused(false);
@@ -545,10 +438,6 @@ export function ReadAloud({
   // Format voice name for display — strip vendor prefixes
   const voiceDisplay = useMemo(() => {
     if (!selectedVoice) return "Default voice";
-    if (isKokoroVoice(selectedVoice.voiceURI)) {
-      // Strip "Kokoro: " prefix for cleaner display
-      return selectedVoice.name.replace(/^Kokoro:\s*/i, "").slice(0, 36);
-    }
     return selectedVoice.name
       .replace(/^Microsoft\s+/i, "")
       .replace(/^Google\s+/i, "")
@@ -560,14 +449,7 @@ export function ReadAloud({
   const voiceOptions = useMemo(() => {
     const seen = new Set<string>();
     const result: Array<{ v: SpeechSynthesisVoice; kind: string }> = [];
-    // Kokoro voices first (premium)
-    for (const v of naturalVoices.filter((v) => isKokoroVoice(v.voiceURI))) {
-      if (seen.has(v.name)) continue;
-      seen.add(v.name);
-      result.push({ v, kind: "Kokoro" });
-    }
-    // Then native voices
-    for (const v of [...naturalVoices.filter((v) => !isKokoroVoice(v.voiceURI)), ...englishVoices.filter((v) => !isNaturalVoice(v.name) && !isKokoroVoice(v.voiceURI))]) {
+    for (const v of [...naturalVoices, ...englishVoices.filter((v) => !isNaturalVoice(v.name))]) {
       if (seen.has(v.name)) continue;
       seen.add(v.name);
       result.push({ v, kind: isNaturalVoice(v.name) ? "Natural" : "Standard" });
@@ -659,7 +541,7 @@ export function ReadAloud({
 
               {/* ── Bottom row: voice + speed + auto-advance ────── */}
               <div className="flex items-center gap-2.5 px-3 py-2.5 flex-wrap">
-                {/* Voice picker — styled dropdown */}
+                {/* Voice picker button */}
                 <div className="relative flex-1 min-w-0">
                   <button
                     type="button"
@@ -675,10 +557,7 @@ export function ReadAloud({
                       <span className="text-[9px] uppercase tracking-[0.15em] text-muted-foreground mr-1.5">
                         Voice
                       </span>
-                      {selectedVoice && isKokoroVoice(selectedVoice.voiceURI) && (
-                        <span className="text-[9px] text-emerald-400 mr-0.5">✦</span>
-                      )}
-                      {!isKokoroVoice(selectedVoice?.voiceURI ?? "") && isNaturalVoice(selectedVoice?.name ?? "") && (
+                      {isNaturalVoice(selectedVoice?.name ?? "") && (
                         <span className="text-[9px] text-emerald-400/60 mr-0.5">✦</span>
                       )}
                       {voiceDisplay}
@@ -765,25 +644,24 @@ export function ReadAloud({
                 <button type="button" onClick={(e) => { e.stopPropagation(); refreshVoices(); }} disabled={voicesRefreshing} className="p-1 text-muted-foreground hover:text-foreground transition-colors" title="Refresh voices"><RefreshCw className={cn("w-3.5 h-3.5", voicesRefreshing && "animate-spin")} strokeWidth={1.6} /></button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto px-2 pb-4">
+            <div className="flex-1 overflow-y-auto overscroll-contain px-2 pb-4 min-h-0">
               {(() => {
                 const q = voiceSearch.trim().toLowerCase();
                 const filtered = q ? voiceOptions.filter(({ v }) => v.name.toLowerCase().includes(q) || v.lang.toLowerCase().includes(q)) : voiceOptions;
                 const groups: Record<string, typeof filtered> = {};
                 for (const item of filtered) { (groups[item.kind] ??= []).push(item); }
-                const groupOrder = ["Kokoro", "Natural", "Standard"];
+                const groupOrder = ["Natural", "Standard"];
                 return groupOrder.map((kind) => {
                   const items = groups[kind];
                   if (!items || items.length === 0) return null;
                   return (
                     <div key={kind} className="mb-2">
-                      <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60 font-medium">{kind === "Kokoro" && "\u2726 "}{kind}</div>
+                      <div className="px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60 font-medium">{kind}</div>
                       {items.map(({ v, kind: k }) => (
                         <button key={v.name} type="button" onClick={() => { persist({ voiceName: v.name }); setVoiceDropdownOpen(false); setVoiceSearch(""); if (playing) { try { window.speechSynthesis.cancel(); } catch { /* noop */ } speakImplRef.current(currentIdx); } }} className={cn("w-full text-left px-3 py-2.5 text-sm rounded-lg transition-colors", "hover:bg-muted active:bg-muted/80", selectedVoice?.name === v.name && "bg-foreground/10 font-medium ring-1 ring-foreground/20")}>
                           <div className="flex items-center gap-2.5">
-                            {k === "Kokoro" && <span className="text-emerald-400 text-xs">\u2726</span>}
-                            {k === "Natural" && <span className="text-emerald-400/60 text-xs">\u2726</span>}
-                            <span className="flex-1 truncate">{v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "").replace(/^Kokoro:\s*/i, "")}</span>
+                            {k === "Natural" && <span className="text-emerald-400/60 text-xs">✦</span>}
+                            <span className="flex-1 truncate">{v.name.replace(/^Microsoft\s+/i, "").replace(/^Google\s+/i, "")}</span>
                             <span className="text-xs text-muted-foreground shrink-0">{v.lang}</span>
                           </div>
                         </button>
