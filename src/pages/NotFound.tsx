@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { motion } from "framer-motion";
-import { BookOpen, Download, Heart, Sparkles, Cloud, HelpCircle, ChevronDown } from "lucide-react";
+import { Heart, Sparkles, ChevronDown } from "lucide-react";
 import { StudioShell } from "@/components/StudioShell";
 
 export default function NotFound() {
@@ -85,14 +85,14 @@ export default function NotFound() {
                 </p>
               </Step>
 
-              <Step num={5} title="Sync across devices">
+              <Step num={5} title="Back up your library">
                 <p className="text-sm text-muted-foreground">
-                  Use the{" "}
+                  Open{" "}
                   <Link to="/settings" className="underline hover:text-foreground">
-                    Google Drive sync
+                    Settings
                   </Link>{" "}
-                  in Settings. Push from one device, pull on another — all your
-                  books, translations, and reading progress stay in sync.
+                  to download a JSON backup of your library. Store the file
+                  somewhere safe and restore it on this or another browser when needed.
                 </p>
               </Step>
             </div>
@@ -116,7 +116,7 @@ export default function NotFound() {
               />
               <FaqItem
                 question="Are my books stored on a server?"
-                answer="No. Everything stays in your browser's local storage. No accounts, no cloud storage — unless you opt into Google Drive sync for cross-device backup."
+                answer="No. Everything stays in your browser's local storage. No accounts and no cloud storage. Use Settings to download a local JSON backup whenever you want."
               />
               <FaqItem
                 question="Can I edit a translation?"
@@ -135,8 +135,8 @@ export default function NotFound() {
                 answer="Yes — click the speaker icon in any chapter. The browser's built-in text-to-speech reads the translated text. On Edge or Chrome, high-quality natural voices are available."
               />
               <FaqItem
-                question="How do I get my books on another device?"
-                answer="Set up Google Drive sync in Settings (one-time, ~3 minutes). Then click Connect on your other device and Pull — everything appears."
+                question="How do I back up or move my books?"
+                answer="Open Settings, download a JSON backup, and keep the file somewhere safe. On the other browser, use Restore backup to import it."
               />
             </div>
           </section>

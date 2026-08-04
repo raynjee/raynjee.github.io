@@ -77,9 +77,6 @@ const DEFAULT_SETTINGS: StudioSettings = {
   themePref: "light",
   defaultReaderPrefs: { ...DEFAULT_READER_PREFS },
   bookReaderPrefs: {},
-  driveClientId: "",
-  driveEmail: "",
-  lastSyncAt: 0,
 };
 
 function isBrowser(): boolean {
@@ -152,7 +149,22 @@ export function loadSettings(): StudioSettings {
   try {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
     if (!raw) return DEFAULT_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<StudioSettings>;
+    const parsed = JSON.parse(raw) as Partial<StudioSettings> & {
+      driveClientId?: unknown;
+      driveEmail?: unknown;
+      lastSyncAt?: unknown;
+    };
+    // Discard legacy Google Drive settings so removed integration data is not
+    // carried forward or re-saved by newer versions of the app.
+    const {
+      driveClientId: _legacyDriveClientId,
+      driveEmail: _legacyDriveEmail,
+      lastSyncAt: _legacyLastSyncAt,
+      ...settingsWithoutDrive
+    } = parsed;
+    void _legacyDriveClientId;
+    void _legacyDriveEmail;
+    void _legacyLastSyncAt;
     // Hydrate new reader-prefs keys for users whose saved settings pre-date
     // the feature, so existing localStorage payloads keep working without
     // leaking undefined through the UI. We deep-merge defaultReaderPrefs so
@@ -178,9 +190,9 @@ export function loadSettings(): StudioSettings {
     }
     const result: StudioSettings = {
       ...DEFAULT_SETTINGS,
-      ...parsed,
+      ...settingsWithoutDrive,
       providers: DEFAULT_SETTINGS.providers.map((p) => {
-        const override = parsed.providers?.find((x) => x.id === p.id);
+        const override = settingsWithoutDrive.providers?.find((x) => x.id === p.id);
         return override ? { ...p, ...override } : p;
       }),
       defaultReaderPrefs: hydratedDefaults,
@@ -194,10 +206,6 @@ export function loadSettings(): StudioSettings {
       apiKey: p.apiKey ? decryptApiKey(p.apiKey) : "",
       apiKeys: p.apiKeys ? p.apiKeys.map((k) => (k ? decryptApiKey(k) : "")) : undefined,
     }));
-    // Decrypt Drive client ID same as API keys.
-    if (result.driveClientId) {
-      result.driveClientId = decryptApiKey(result.driveClientId);
-    }
     // Sync the RPM rate limiter with the loaded setting.
     setGeminiRpmLimit(result.geminiRpmLimit ?? 8);
     return result;
@@ -208,16 +216,30 @@ export function loadSettings(): StudioSettings {
 
 export function saveSettings(settings: StudioSettings): void {
   if (typeof window === "undefined") return;
+  // Discard legacy Google Drive fields if an older backup or runtime payload
+  // still carries them, so the removed integration cannot be re-persisted.
+  const {
+    driveClientId: _legacyDriveClientId,
+    driveEmail: _legacyDriveEmail,
+    lastSyncAt: _legacyLastSyncAt,
+    ...settingsWithoutDrive
+  } = settings as StudioSettings & {
+    driveClientId?: unknown;
+    driveEmail?: unknown;
+    lastSyncAt?: unknown;
+  };
+  void _legacyDriveClientId;
+  void _legacyDriveEmail;
+  void _legacyLastSyncAt;
   // Encrypt API keys before persisting so localStorage never holds
   // plaintext credentials — even a casual disk read reveals nothing.
   const safe = {
-    ...settings,
+    ...settingsWithoutDrive,
     providers: settings.providers.map((p) => ({
       ...p,
       apiKey: p.apiKey ? encryptApiKey(p.apiKey) : "",
       apiKeys: p.apiKeys ? p.apiKeys.map((k) => (k ? encryptApiKey(k) : "")) : undefined,
     })),
-    driveClientId: settings.driveClientId ? encryptApiKey(settings.driveClientId) : "",
   };
   window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(safe));
 }

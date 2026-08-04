@@ -2,7 +2,7 @@
 // studio housekeeping (theme, backup, restore). Includes a tutorial for
 // the DeepSeek local proxy.
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Download,
@@ -10,7 +10,6 @@ import {
   Gauge,
   Heart,
   KeyRound,
-  Link,
   Loader2,
   Plus,
   Sparkles,
@@ -20,9 +19,6 @@ import {
   Check,
   Copy,
   X,
-  Cloud,
-  CloudDownload,
-  CloudUpload,
 } from "lucide-react";
 import { StudioShell } from "@/components/StudioShell";
 import { cn } from "@/lib/utils";
@@ -33,8 +29,6 @@ import { toast } from "sonner";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { formatRelativeTime } from "@/lib/util";
 import { setGeminiRpmLimit, geminiRpmUsage } from "@/lib/translators/gemini";
-import { pushToDrive, pullFromDrive, connectDrive, disconnectDrive } from "@/lib/drive-sync";
-import { notifyLibraryChanged } from "@/hooks/use-library";
 import type { ApiCallLog, ProviderId, StudioSettings, Quality, SourceLanguage } from "@/lib/types";
 
 const GEMINI_MODELS = [
@@ -848,201 +842,20 @@ function LogsView({ logs }: { logs: ApiCallLog[] }) {
   );
 }
 
-// ── Google Drive Setup Instructions ────────────────────────────────────
-
-function DriveSetupInstructions() {
-  const [expanded, setExpanded] = useState(false);
-
-  return (
-    <div className="border border-border/50 bg-muted/20">
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-muted/30 transition-colors"
-      >
-        <div className="flex items-center gap-2">
-          <HelpCircle className="w-4 h-4 text-muted-foreground" strokeWidth={1.4} />
-          <span className="text-sm text-muted-foreground">
-            How to set up Google Drive sync
-          </span>
-        </div>
-        <span className={`text-muted-foreground text-xs transition-transform ${expanded ? "rotate-180" : ""}`}>
-          ▼
-        </span>
-      </button>
-
-      {expanded && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          transition={{ duration: 0.2 }}
-          className="px-4 pb-5 space-y-5"
-        >
-          <div className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-foreground text-background flex items-center justify-center text-[10px] font-bold">
-              1
-            </span>
-            <div>
-              <h4 className="text-sm font-semibold text-foreground">Create a Google Cloud project (once, ~3 min)</h4>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Go to{" "}
-                <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-                  Google Cloud Console → Credentials
-                </a>{" "}
-                → Create a project → Enable the <strong>Google Drive API</strong> →
-                Create an <strong>OAuth 2.0 Client ID</strong> (Web application).
-                Add <code className="font-mono text-[10px]">https://raynjee.github.io</code> as an
-                authorized JavaScript origin. Copy the Client ID.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-foreground text-background flex items-center justify-center text-[10px] font-bold">
-              2
-            </span>
-            <div>
-              <h4 className="text-sm font-semibold text-foreground">Paste the Client ID below</h4>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Paste your Client ID (looks like <code className="font-mono text-[10px]">123456789-abc.apps.googleusercontent.com</code>)
-                into the field below and click <strong>Connect</strong>.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-foreground text-background flex items-center justify-center text-[10px] font-bold">
-              3
-            </span>
-            <div>
-              <h4 className="text-sm font-semibold text-foreground">Allow access</h4>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                A Google popup opens — pick your account, click Allow. The app
-                can ONLY access files it creates itself (appDataFolder). It
-                cannot see or touch any of your other Drive files.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-foreground text-background flex items-center justify-center text-[10px] font-bold">
-              4
-            </span>
-            <div>
-              <h4 className="text-sm font-semibold text-foreground">Sync on another device</h4>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                Same Client ID + same Google account → same backup. Enter the
-                Client ID, click Connect, then Pull. That's it.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <span className="shrink-0 w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[10px] text-muted-foreground font-bold">
-              💡
-            </span>
-            <div>
-              <h4 className="text-sm font-semibold text-foreground">Tips</h4>
-              <ul className="mt-2 space-y-1 text-xs text-muted-foreground list-disc list-inside leading-relaxed">
-                <li>The app <strong>auto-pulls</strong> on launch — you don't need to remember to sync.</li>
-                <li>Push before switching devices so the other device sees your latest changes.</li>
-                <li>The Client ID is <strong>public</strong> — it just identifies the app. No secrets involved.</li>
-                <li>API keys are <strong>never</strong> synced — enter those per device.</li>
-                <li>Revoke access anytime at <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">myaccount.google.com/permissions</a>.</li>
-              </ul>
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </div>
-  );
-}
-
-// ── Backup / Restore + Google Drive Sync ──────────────────────────────
+// ── Backup / Restore ────────────────────────────────────────────────────
 
 function BackupPanel({ canEdit }: { canEdit: boolean }) {
   const askConfirm = useConfirm();
-  const { settings, update } = useSettings();
-  const [syncState, setSyncState] = useState<"idle" | "pushing" | "pulling" | "connecting">("idle");
-  const [connected, setConnected] = useState(!!settings.driveEmail);
-
-  const handlePush = async () => {
-    if (!settings.driveClientId) {
-      toast.error("Enter your Google Client ID first.");
-      return;
-    }
-    setSyncState("pushing");
-    const result = await pushToDrive(settings.driveClientId);
-    setSyncState("idle");
-    if (result.ok) {
-      update({ lastSyncAt: result.syncedAt });
-      toast.success(result.message);
-    } else {
-      toast.error(result.message);
-    }
-  };
-
-  const handlePull = async () => {
-    if (!settings.driveClientId) {
-      toast.error("Enter your Google Client ID first.");
-      return;
-    }
-    const pullOk = await askConfirm({ title: "Pull from Drive?", description: "This will replace ALL local books and translations with the Drive backup.", actionLabel: "Pull", destructive: true });
-      if (!pullOk) return;
-    setSyncState("pulling");
-    const result = await pullFromDrive(settings.driveClientId);
-    setSyncState("idle");
-    if (result.ok) {
-      update({ lastSyncAt: result.syncedAt });
-      notifyLibraryChanged();
-      toast.success(result.message + " Reloading…");
-      setTimeout(() => window.location.reload(), 600);
-    } else {
-      toast.error(result.message);
-    }
-  };
-
-  const handleConnect = async () => {
-    if (!settings.driveClientId) {
-      toast.error("Enter your Google Client ID first.");
-      return;
-    }
-    setSyncState("connecting");
-    const result = await connectDrive(settings.driveClientId);
-    setSyncState("idle");
-    if (result.ok) {
-      setConnected(true);
-      if (result.email) {
-        update({ driveEmail: result.email, lastSyncAt: result.syncedAt });
-      } else {
-        update({ lastSyncAt: result.syncedAt });
-      }
-      toast.success(result.message);
-    } else {
-      toast.error(result.message);
-    }
-  };
-
-  const handleDisconnect = async () => {
-    const dcOk = await askConfirm({ title: "Disconnect Drive?", description: "You can reconnect anytime.", actionLabel: "Disconnect" });
-      if (!dcOk) return;
-    const result = await disconnectDrive();
-    setConnected(false);
-    update({ driveEmail: "" });
-    toast.success(result.message);
-  };
-
-  const syncing = syncState !== "idle";
 
   return (
     <section>
-      <SectionHeader eyebrow="Storage" title="Backup & sync" />
+      <SectionHeader eyebrow="Storage" title="Backup & restore" />
       <p className="text-muted-foreground max-w-[58ch] text-sm leading-relaxed">
-        Export your library as a JSON file, or sync it to your Google Drive
-        so you can restore it on any device with one click.
+        Download a JSON backup of your library or restore one from a previous
+        export. Your backup stays on your device unless you choose where to
+        store the file.
       </p>
 
-      {/* ── Manual backup buttons ── */}
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <button
           onClick={async () => {
@@ -1078,7 +891,12 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
                 const raw = await file.text();
                 const data = JSON.parse(raw);
                 if (!data.version) throw new Error("Missing version field");
-                const restoreOk = await askConfirm({ title: "Restore backup?", description: "This will replace all current books and translations.", actionLabel: "Restore", destructive: true });
+                const restoreOk = await askConfirm({
+                  title: "Restore backup?",
+                  description: "This will replace all current books and translations.",
+                  actionLabel: "Restore",
+                  destructive: true,
+                });
                 if (!restoreOk) return;
                 await restoreBackup(data);
                 toast.success("Backup restored. Reloading…");
@@ -1089,108 +907,6 @@ function BackupPanel({ canEdit }: { canEdit: boolean }) {
             }}
           />
         </label>
-      </div>
-
-      {/* ── Drive sync divider ── */}
-      <div className="mt-8 pt-8 border-t border-border">
-        <div className="flex items-center gap-2 mb-4">
-          <Cloud className="w-4 h-4 text-muted-foreground" strokeWidth={1.4} />
-          <h3 className="text-base font-semibold">Google Drive Sync</h3>
-          {connected && (
-            <span className="text-xs text-muted-foreground ml-1">
-              — {settings.driveEmail || "Connected"}
-            </span>
-          )}
-        </div>
-        <p className="text-muted-foreground max-w-[58ch] text-sm leading-relaxed mb-6">
-          Sync your library across devices using your Google account. Push
-          from one device, pull on another — books, translations, glossary,
-          and reading progress stay in sync. No tokens or passphrases needed.
-        </p>
-
-        {/* ── Step-by-step instructions ── */}
-        <DriveSetupInstructions />
-
-        <div className="mt-8">
-          <Field label="Google Client ID">
-            <div className="flex items-center gap-2">
-              <input
-                disabled={!canEdit}
-                placeholder="123456789-abc.apps.googleusercontent.com"
-                value={settings.driveClientId}
-                onChange={(e) => update({ driveClientId: e.target.value })}
-                className="w-full bg-transparent border-b border-border/50 focus:border-foreground outline-none py-3 font-mono text-sm"
-              />
-              {!connected ? (
-                <button
-                  type="button"
-                  disabled={!canEdit || syncing || !settings.driveClientId}
-                  onClick={handleConnect}
-                  className="shrink-0 h-10 px-4 inline-flex items-center gap-2 border border-border/50 hover:border-foreground/40 disabled:opacity-40 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {syncState === "connecting" ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" strokeWidth={1.4} />
-                  ) : (
-                    <Link className="w-3.5 h-3.5" strokeWidth={1.4} />
-                  )}
-                  <span className="text-sm">
-                    {syncState === "connecting" ? "Connecting…" : "Connect"}
-                  </span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={!canEdit}
-                  onClick={handleDisconnect}
-                  className="shrink-0 h-10 px-3 inline-flex items-center gap-1.5 border border-border/50 hover:border-destructive/40 text-xs text-muted-foreground hover:text-destructive transition-colors"
-                  title="Disconnect from Google Drive"
-                >
-                  <X className="w-3.5 h-3.5" strokeWidth={1.4} />
-                  <span className="text-sm">Disconnect</span>
-                </button>
-              )}
-            </div>
-          </Field>
-        </div>
-
-        {/* ── Last sync indicator ── */}
-        {settings.lastSyncAt > 0 && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Last synced: {formatRelativeTime(settings.lastSyncAt)}
-          </p>
-        )}
-
-        {/* ── Sync buttons ── */}
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            disabled={syncing || !settings.driveClientId}
-            onClick={handlePush}
-            className="h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 disabled:opacity-40 active:scale-[0.97] transition-transform"
-          >
-            {syncState === "pushing" ? (
-              <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
-            ) : (
-              <CloudUpload className="w-4 h-4" strokeWidth={1.4} />
-            )}
-            <span className="text-sm">
-              {syncState === "pushing" ? "Pushing…" : "Push to Drive"}
-            </span>
-          </button>
-          <button
-            disabled={syncing || !settings.driveClientId}
-            onClick={handlePull}
-            className="h-10 px-4 inline-flex items-center gap-2 rounded-lg border border-border/50 hover:border-foreground/20 disabled:opacity-40 active:scale-[0.97] transition-transform"
-          >
-            {syncState === "pulling" ? (
-              <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} />
-            ) : (
-              <CloudDownload className="w-4 h-4" strokeWidth={1.4} />
-            )}
-            <span className="text-sm">
-              {syncState === "pulling" ? "Pulling…" : "Pull from Drive"}
-            </span>
-          </button>
-        </div>
       </div>
     </section>
   );
