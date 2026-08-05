@@ -5,6 +5,7 @@ import { Link, NavLink, useLocation } from "react-router";
 import { motion } from "framer-motion";
 import {
   Bookmark,
+  BookOpenCheck,
   Heart,
   Library,
   Menu,
@@ -87,6 +88,7 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
             <nav className="hidden md:flex items-center gap-6">
               <StudioTab to="/library" label="Library" active={location.pathname.startsWith("/library")} />
               <StudioTab to="/import" label="Import" active={location.pathname.startsWith("/import")} />
+              <StudioTab to="/full-book" label="Full-book" active={location.pathname.startsWith("/full-book")} />
               <StudioTab to="/settings" label="Settings" active={location.pathname.startsWith("/settings")} />
             </nav>
 
@@ -158,6 +160,18 @@ export function StudioShell({ children, hideChrome }: StudioShellProps) {
             >
               <Bookmark className="w-4 h-4" strokeWidth={1.4} />
               Import Chapters
+            </Link>
+            <Link
+              to="/full-book"
+              className={cn(
+                "h-11 px-4 inline-flex items-center gap-3 border transition-colors text-sm",
+                location.pathname.startsWith("/full-book")
+                  ? "bg-foreground text-background border-foreground"
+                  : "border-border hover:border-foreground/40"
+              )}
+            >
+              <BookOpenCheck className="w-4 h-4" strokeWidth={1.4} />
+              Full-book translation
             </Link>
             <Link
               to="/settings"
