@@ -348,7 +348,10 @@ export class TranslationManager {
         for (const cfg of order) {
           if (!cfg.enabled) continue;
           const v = await this.mem.get(await keyFor(cfg.id));
-          if (v) {
+          // Do not resurrect malformed output from an older run. In
+          // particular, an SSE terminal body can be non-empty while carrying
+          // no translation at all.
+          if (v && isUsableTranslation(p, v)) {
             hit = v;
             break;
           }
@@ -373,102 +376,113 @@ export class TranslationManager {
     let lastError: string | undefined;
     for (const cfg of order) {
       if (!cfg.enabled) continue;
-      if (cfg.id === "gemini" && !cfg.apiKey) continue;
+      if (
+        cfg.id === "gemini" &&
+        !cfg.apiKey?.trim() &&
+        !(cfg.apiKeys ?? []).some((key) => key.trim())
+      ) continue;
       if (this.rl.isSuspended(cfg.id)) continue;
       const client = PROVIDERS[cfg.id];
-      try {
-        if (cfg.id === "deepseek") {
-          await waitForDeepSeekRequestSlot();
-        }
-        const req: TranslateRequest = {
-          paragraphs: missingIndices.map((i) => chunk[i]),
-          source: resolveSourceLanguage(
-            this.opts.source,
-            missingIndices.map((i) => chunk[i]),
-          ),
-          target: this.opts.target,
-          quality: this.opts.quality,
-          contextHint,
-          glossary,
-        };
-        const res = await client.translate(cfg, req);
-        // The provider must return exactly one row per requested paragraph.
-        // A short array silently mis-aligns cached rows against the wrong
-        // source paragraphs; a long array silently truncates. Bail loudly
-        // so the user sees a clear provider-format error instead of a
-        // later mysterious "wrong paragraph translated" symptom.
-        if (res.paragraphs.length !== missingIndices.length) {
-          throw new Error(
-            `${client.name} returned ${res.paragraphs.length} paragraph(s) for ${missingIndices.length} source(s).`,
-          );
-        }
-        // Quality gate: reject rows where the provider slipped CJK back into
-        // an English target, or returned the source untouched, etc. We
-        // distinguish "all bad" (fail-over worth) from "partial bad" (keep
-        // good rows, fall back to source for the bad ones so the chapter
-        // can still complete and the user can fix just those paragraphs
-        // via the inline Re-translate-with-hint menu).
-        const badRows: number[] = [];
-        for (let k = 0; k < missingIndices.length; k++) {
-          const source = chunk[missingIndices[k]];
-          if (!isUsableTranslation(source, res.paragraphs[k])) badRows.push(k);
-        }
-        if (badRows.length === missingIndices.length) {
-          throw new Error(
-            `${client.name} returned rejected translations for every paragraph in this chunk.`,
-          );
-        }
-        for (const k of badRows) {
-          // Fall back to the source paragraph so we don't pollute the
-          // per-paragraph cache with bad output. The user can retry just
-          // those paragraphs from the paragraph menu with a hint.
-          res.paragraphs[k] = chunk[missingIndices[k]];
-        }
-        for (let k = 0; k < missingIndices.length; k++) {
-          const translated = res.paragraphs[k].trim();
-          const source = chunk[missingIndices[k]];
-          cached[missingIndices[k]] = translated;
-          const key = await TranslationMemory.cacheKey(
-            source,
-            this.opts.target,
-            this.opts.quality,
-            cfg.id,
+      // Empty or malformed DeepSeek streams are transient proxy failures.
+      // Retry the same affected chunk before moving to another provider or
+      // falling back to source text. Other provider errors keep the existing
+      // one-attempt-per-provider failover behavior.
+      const maxAttempts = cfg.id === "deepseek" ? 3 : 1;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          if (cfg.id === "deepseek") {
+            await waitForDeepSeekRequestSlot();
+          }
+          const req: TranslateRequest = {
+            paragraphs: missingIndices.map((i) => chunk[i]),
+            source: resolveSourceLanguage(
+              this.opts.source,
+              missingIndices.map((i) => chunk[i]),
+            ),
+            target: this.opts.target,
+            quality: this.opts.quality,
+            contextHint,
             glossary,
-          );
-          await this.mem.put(key, translated, cfg.id);
+          };
+          const res = await client.translate(cfg, req);
+          // The provider must return exactly one row per requested paragraph.
+          // A short array silently mis-aligns cached rows against the wrong
+          // source paragraphs; a long array silently truncates.
+          if (res.paragraphs.length !== missingIndices.length) {
+            throw new Error(
+              `${client.name} returned ${res.paragraphs.length} paragraph(s) for ${missingIndices.length} source(s).`,
+            );
+          }
+          // Reject malformed rows. DeepSeek retries the whole affected chunk
+          // because an empty/raw stream is a transient proxy failure. Keep
+          // the established partial-row fallback for other providers.
+          const badRows: number[] = [];
+          for (let k = 0; k < missingIndices.length; k++) {
+            const source = chunk[missingIndices[k]];
+            if (!isUsableTranslation(source, res.paragraphs[k])) badRows.push(k);
+          }
+          if (cfg.id === "deepseek" && badRows.length > 0) {
+            throw new Error(
+              `${client.name} returned ${badRows.length} rejected translation(s) in this chunk.`,
+            );
+          }
+          for (const k of badRows) {
+            res.paragraphs[k] = chunk[missingIndices[k]];
+          }
+          for (let k = 0; k < missingIndices.length; k++) {
+            const translated = res.paragraphs[k].trim();
+            const source = chunk[missingIndices[k]];
+            cached[missingIndices[k]] = translated;
+            const key = await TranslationMemory.cacheKey(
+              source,
+              this.opts.target,
+              this.opts.quality,
+              cfg.id,
+              glossary,
+            );
+            await this.mem.put(key, translated, cfg.id);
+          }
+          const status = this.status.get(cfg.id);
+          if (status) {
+            status.ok = true;
+            status.message = "OK";
+            status.callCount++;
+            status.lastUsed = Date.now();
+          }
+          this.persist();
+          return {
+            rows: cached.map((c, i) => c ?? chunk[i]),
+            provider: cfg.id,
+            failed: false,
+          };
+        } catch (err) {
+          lastError = `${client.name}: ${describeError(err)}`;
+          const status = this.status.get(cfg.id);
+          if (status) {
+            status.ok = false;
+            status.message = describeError(err);
+            status.errorCount++;
+          }
+          const suspension = suspensionLength(err);
+          if (suspension > 0) this.rl.suspend(cfg.id, suspension);
+          await logCall({
+            provider: cfg.id,
+            ok: false,
+            status: statusCode(err),
+            message: describeError(err),
+          });
+          this.persist();
+
+          if (attempt < maxAttempts && shouldRetryTranslationResponse(err)) {
+            // Give a flaky local proxy a brief recovery window, then request
+            // the same source chunk again. Nothing from the failed response
+            // is cached or returned to the caller.
+            await new Promise((resolve) => setTimeout(resolve, 800 * attempt));
+            continue;
+          }
+          break;
         }
-        const status = this.status.get(cfg.id);
-        if (status) {
-          status.ok = true;
-          status.message = "OK";
-          status.callCount++;
-          status.lastUsed = Date.now();
-        }
-        this.persist();
-        return {
-          rows: cached.map((c, i) => c ?? chunk[i]),
-          provider: cfg.id,
-          failed: false,
-        };
-      } catch (err) {
-        lastError = `${client.name}: ${describeError(err)}`;
-        const status = this.status.get(cfg.id);
-        if (status) {
-          status.ok = false;
-          status.message = describeError(err);
-          status.errorCount++;
-        }
-        const suspension = suspensionLength(err);
-        if (suspension > 0) {
-          this.rl.suspend(cfg.id, suspension);
-        }
-        await logCall({
-          provider: cfg.id,
-          ok: false,
-          status: statusCode(err),
-          message: describeError(err),
-        });
-        this.persist();
       }
     }
     return {
@@ -500,7 +514,7 @@ function resolveSourceLanguage(
 }
 
 function isUsableTranslation(source: string, translated: string | undefined): translated is string {
-  if (!translated?.trim()) return false;
+  if (!translated?.trim() || looksLikeSsePayload(translated)) return false;
   const sourceTrimmed = normalizeForComparison(source);
   const translatedTrimmed = normalizeForComparison(translated);
   if (!sourceTrimmed || !translatedTrimmed) return false;
@@ -518,6 +532,23 @@ function isUsableTranslation(source: string, translated: string | undefined): tr
 
 function normalizeForComparison(text: string): string {
   return text.replace(/\s+/g, " ").trim();
+}
+
+function looksLikeSsePayload(text: string): boolean {
+  return /(?:^|\n)\s*data:\s*(?:\{|\[DONE\])/m.test(text) ||
+    /^\[DONE\]$/i.test(text.trim());
+}
+
+function shouldRetryTranslationResponse(err: unknown): boolean {
+  const message = describeError(err).toLowerCase();
+  return (
+    message.includes("empty") ||
+    message.includes("rejected translation") ||
+    message.includes("paragraph(s)") ||
+    message.includes("paragraphs") ||
+    message.includes("stream") ||
+    message.includes("sse")
+  );
 }
 
 function containsCjk(text: string): boolean {

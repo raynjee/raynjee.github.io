@@ -11,6 +11,7 @@ import {
   FileText,
   FolderOpen,
   Info,
+  Languages,
   Loader2,
   Pause,
   Play,
@@ -32,7 +33,7 @@ import {
 import { TranslationManager } from "@/lib/translators/types";
 import { buildTranslatedEpub } from "@/lib/epub";
 import { extractFullBookGlossary } from "@/lib/full-book-glossary";
-import type { Book, Chapter, ChapterTranslation, ContentRating, GlossaryEntry } from "@/lib/types";
+import type { Book, Chapter, ChapterTranslation, ContentRating, GlossaryEntry, ProviderId } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -43,6 +44,8 @@ interface TranslationProgress {
   paragraphTotal: number;
   provider: string | null;
 }
+
+type FullBookProvider = Extract<ProviderId, "deepseek" | "gemini">;
 
 const RATING_OPTIONS: Array<{ value: ContentRating; label: string; description: string }> = [
   { value: "general", label: "General", description: "Clean language for all ages." },
@@ -56,6 +59,9 @@ export default function FullBookTranslator() {
   const { books } = useLibrary();
   const { settings } = useSettings();
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
+  const [fullBookProvider, setFullBookProvider] = useState<FullBookProvider>(() =>
+    settings.activeProvider === "gemini" ? "gemini" : "deepseek",
+  );
   const [importedBook, setImportedBook] = useState<Book | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [translations, setTranslations] = useState<Record<string, ChapterTranslation>>({});
@@ -86,6 +92,15 @@ export default function FullBookTranslator() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const book = importedBook ?? books.find((candidate) => candidate.id === selectedBookId) ?? null;
+  const providerReady = (id: FullBookProvider): boolean => {
+    const config = settings.providers.find((provider) => provider.id === id);
+    if (!config?.enabled) return false;
+    if (id === "gemini") {
+      return Boolean(config.apiKey?.trim() || config.apiKeys?.some((key) => key.trim()));
+    }
+    return true;
+  };
+  const selectedProviderReady = providerReady(fullBookProvider);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -138,6 +153,13 @@ export default function FullBookTranslator() {
   const translatedChapters = useMemo(
     () => chapters.filter((chapter) => isCompleteTranslation(translations[chapter.id], chapter)).length,
     [chapters, translations],
+  );
+  // listGlossaryEntries intentionally includes the site's built-in reference
+  // terms so every translation can use them. They are not book-specific work,
+  // though, so keep them out of the Full-book progress/count UI.
+  const bookGlossaryEntries = useMemo(
+    () => glossaryEntries.filter((entry) => entry.bookId === book?.id),
+    [glossaryEntries, book?.id],
   );
   const translatedParagraphs = useMemo(
     () => chapters.reduce((total, chapter) => {
@@ -198,7 +220,7 @@ export default function FullBookTranslator() {
 
   const makeManager = () => new TranslationManager({
     providers: settings.providers,
-    preferred: settings.activeProvider,
+    preferred: fullBookProvider,
     parallelRequests: settings.parallelRequests,
     pauseOnError: settings.pauseOnError,
     quality: settings.quality,
@@ -392,6 +414,13 @@ export default function FullBookTranslator() {
   return (
     <StudioShell>
       <div className="mx-auto max-w-[1400px] px-6 lg:px-10 pt-8 pb-20">
+        <div role="alert" className="mb-8 flex items-start gap-3 border border-amber-500/40 bg-amber-500/[0.08] px-4 py-3.5 text-amber-100">
+          <Info className="w-4 h-4 mt-0.5 shrink-0 text-amber-300" strokeWidth={1.5} />
+          <div className="text-sm leading-relaxed">
+            <strong className="font-medium text-amber-200">In development — use at your own risk.</strong>{" "}
+            Full-book translation has not been tested on enough books yet. Review the output carefully, keep a backup of your source EPUB, and expect occasional incomplete or inconsistent translations.
+          </div>
+        </div>
         <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
           <div>
             <button
@@ -464,7 +493,7 @@ export default function FullBookTranslator() {
                 </div>
                 <div className="mt-7 grid grid-cols-2 sm:grid-cols-4 gap-px bg-border/60 border border-border/60">
                   <Metric label="Chapters" value={`${chapters.length}`} />
-                  <Metric label="Glossary terms" value={`${Math.max(0, glossaryEntries.length)}`} />
+                  <Metric label="Book glossary terms" value={`${bookGlossaryEntries.length}`} />
                   <Metric label="Translated" value={`${completionPercent}%`} />
                   <Metric label="Status" value={busy ? (paused ? "Paused" : "Working") : translatedChapters === chapters.length ? "Complete" : "Ready"} />
                 </div>
@@ -523,13 +552,32 @@ export default function FullBookTranslator() {
                 <p className="text-sm text-muted-foreground leading-relaxed">Gemini scans the entire book in safe chunks and saves character names, locations, slang, and difficult terms before translation begins.</p>
                 <button type="button" disabled={glossaryBusy || busy} onClick={() => void runGlossaryExtraction()} className="mt-5 w-full h-11 inline-flex items-center justify-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 text-sm">{glossaryBusy ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} /> : <Sparkles className="w-4 h-4" strokeWidth={1.4} />}{glossaryBusy ? "Extracting…" : glossaryEntries.length ? "Refresh glossary" : "Extract glossary"}</button>
                 {glossaryBusy && <ProgressLine done={glossaryProgress.done} total={glossaryProgress.total} label={`${glossaryProgress.saved} terms saved`} />}
-                <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground"><span>{glossaryEntries.length} terms available</span><button type="button" onClick={() => navigate(`/library/${book.id}/glossary`)} className="underline hover:text-foreground">Open glossary</button></div>
+                <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground"><span>{bookGlossaryEntries.length} book-specific terms · built-in reference terms are also used</span><button type="button" onClick={() => navigate(`/library/${book.id}/glossary`)} className="underline hover:text-foreground">Open glossary</button></div>
               </section>
 
               <section className="border border-border/60 p-5">
-                <SectionTitle eyebrow="Step 02" title="Translate the whole book" icon={<WandSparkles className="w-4 h-4" strokeWidth={1.4} />} />
-                <p className="text-sm text-muted-foreground leading-relaxed">Chapters run in order and save continuously. If a provider fails, completed chapters remain safe and the run can be resumed.</p>
-                <button type="button" disabled={busy || glossaryBusy || chapters.length === 0} onClick={() => void runFullTranslation()} className="mt-5 w-full h-12 inline-flex items-center justify-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 text-sm">{busy ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} /> : <WandSparkles className="w-4 h-4" strokeWidth={1.4} />}{busy ? paused ? "Translation paused" : "Translating book…" : translatedChapters === chapters.length ? "Translate again" : "Start full-book translation"}</button>
+                <SectionTitle eyebrow="Translation engine" title="Choose Gemini or DeepSeek" icon={<Languages className="w-4 h-4" strokeWidth={1.4} />} />
+                <p className="text-sm text-muted-foreground leading-relaxed">Pick the primary provider for this run. The other enabled provider can take over when the primary provider fails. This choice only affects Full-book mode.</p>
+                <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label="Full-book translation provider">
+                  <ProviderChoice
+                    id="deepseek"
+                    label="DeepSeek"
+                    description="Local proxy · no API key"
+                    ready={providerReady("deepseek")}
+                    selected={fullBookProvider === "deepseek"}
+                    onSelect={() => setFullBookProvider("deepseek")}
+                  />
+                  <ProviderChoice
+                    id="gemini"
+                    label="Gemini"
+                    description="Google API key required"
+                    ready={providerReady("gemini")}
+                    selected={fullBookProvider === "gemini"}
+                    onSelect={() => setFullBookProvider("gemini")}
+                  />
+                </div>
+                {!selectedProviderReady && <p className="mt-3 text-xs text-amber-200/80">Configure the selected provider in Settings before starting. Full-book translation will not silently run without a usable primary engine.</p>}
+                <button type="button" disabled={busy || glossaryBusy || chapters.length === 0 || !selectedProviderReady} onClick={() => void runFullTranslation()} className="mt-5 w-full h-12 inline-flex items-center justify-center gap-2 bg-foreground text-background hover:bg-foreground/90 disabled:opacity-40 text-sm">{busy ? <Loader2 className="w-4 h-4 animate-spin" strokeWidth={1.4} /> : <WandSparkles className="w-4 h-4" strokeWidth={1.4} />}{busy ? paused ? "Translation paused" : "Translating book…" : translatedChapters === chapters.length ? "Translate again" : "Start full-book translation"}</button>
                 {message && <div className="mt-4 border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-200/80 leading-relaxed">{message}</div>}
               </section>
 
@@ -600,6 +648,43 @@ function TextField({ label, value, onChange, placeholder }: { label: string; val
 
 function HintChip({ label, onClick }: { label: string; onClick: () => void }) {
   return <button type="button" onClick={onClick} className="px-2.5 py-1.5 border border-border/60 hover:border-foreground/40 transition-colors">+ {label}</button>;
+}
+
+function ProviderChoice({
+  id,
+  label,
+  description,
+  ready,
+  selected,
+  onSelect,
+}: {
+  id: FullBookProvider;
+  label: string;
+  description: string;
+  ready: boolean;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className={cn(
+        "w-full text-left border p-3 transition-colors",
+        selected ? "border-foreground bg-foreground text-background" : "border-border hover:border-foreground/40",
+        !ready && !selected ? "opacity-60" : "",
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium">{label}</span>
+        <span className={cn("text-[10px] uppercase tracking-[0.12em]", selected ? "text-background/70" : ready ? "text-emerald-400" : "text-amber-300")}>
+          {ready ? (id === "deepseek" ? "Configured" : "Ready") : "Needs setup"}
+        </span>
+      </div>
+      <div className={cn("mt-1 text-xs", selected ? "text-background/70" : "text-muted-foreground")}>{description}</div>
+    </button>
+  );
 }
 
 function ProgressLine({ done, total, label }: { done: number; total: number; label: string }) {

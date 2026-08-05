@@ -129,11 +129,23 @@ function parseSseCompletion(raw: string): string | null {
 function parseCompletion(raw: string): string | null {
   const streamed = parseSseCompletion(raw);
   if (streamed) return streamed;
+
+  const trimmed = raw.trim();
+  if (!trimmed || looksLikeSsePayload(trimmed)) return null;
+
   try {
-    return pickMessage(JSON.parse(raw) as DeepSeekCompletion);
+    return pickMessage(JSON.parse(trimmed) as DeepSeekCompletion);
   } catch {
-    return raw.trim() ? raw.trim() : null;
+    // Only accept a plain-text fallback. Never pass an unparsed SSE body to
+    // the numbered-response parser, where terminal frames could look like
+    // translated lines and accidentally get persisted.
+    return trimmed;
   }
+}
+
+function looksLikeSsePayload(text: string): boolean {
+  return /(?:^|\n)\s*data:\s*(?:\{|\[DONE\])/m.test(text) ||
+    /^\[DONE\]$/i.test(text.trim());
 }
 
 function buildSystemPrompt(req: TranslateRequest): string {
