@@ -683,7 +683,17 @@ async function testDeepSeek(cfg: ProviderConfig) {
       const text = await r.text().catch(() => r.statusText);
       return { ok: false, message: `${r.status}: ${text.slice(0, 100)}` };
     }
-    return { ok: true, message: `Proxy at ${base} responded OK` };
+    const data = await r.json().catch(() => null) as {
+      choices?: Array<{ message?: { content?: string }; text?: string }>;
+    } | null;
+    const hasCompletion = Boolean(
+      data?.choices?.[0]?.message?.content?.trim() ||
+      data?.choices?.[0]?.text?.trim()
+    );
+    if (!hasCompletion) {
+      return { ok: false, message: "Proxy responded, but returned no usable completion." };
+    }
+    return { ok: true, message: `Proxy at ${base} responded with a usable completion` };
   } catch (e) {
     return {
       ok: false,

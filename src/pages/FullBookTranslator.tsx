@@ -30,7 +30,7 @@ import {
   listGlossaryEntries,
   listTranslationsByBook,
 } from "@/lib/db";
-import { TranslationManager } from "@/lib/translators/types";
+import { PROVIDERS, TranslationManager } from "@/lib/translators/types";
 import { buildTranslatedEpub } from "@/lib/epub";
 import { extractFullBookGlossary } from "@/lib/full-book-glossary";
 import type { Book, Chapter, ChapterTranslation, ContentRating, GlossaryEntry, ProviderId } from "@/lib/types";
@@ -62,6 +62,7 @@ export default function FullBookTranslator() {
   const [fullBookProvider, setFullBookProvider] = useState<FullBookProvider>(() =>
     settings.activeProvider === "gemini" ? "gemini" : "deepseek",
   );
+  const [deepSeekConnection, setDeepSeekConnection] = useState<"checking" | "connected" | "not-connected">("checking");
   const [importedBook, setImportedBook] = useState<Book | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [translations, setTranslations] = useState<Record<string, ChapterTranslation>>({});
@@ -92,13 +93,32 @@ export default function FullBookTranslator() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const book = importedBook ?? books.find((candidate) => candidate.id === selectedBookId) ?? null;
+
+  useEffect(() => {
+    const config = settings.providers.find((provider) => provider.id === "deepseek");
+    if (!config?.enabled) {
+      setDeepSeekConnection("not-connected");
+      return;
+    }
+    let cancelled = false;
+    setDeepSeekConnection("checking");
+    void PROVIDERS.deepseek.testConnection(config).then((result) => {
+      if (!cancelled) setDeepSeekConnection(result.ok ? "connected" : "not-connected");
+    }).catch(() => {
+      if (!cancelled) setDeepSeekConnection("not-connected");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [settings.providers]);
+
   const providerReady = (id: FullBookProvider): boolean => {
     const config = settings.providers.find((provider) => provider.id === id);
     if (!config?.enabled) return false;
     if (id === "gemini") {
       return Boolean(config.apiKey?.trim() || config.apiKeys?.some((key) => key.trim()));
     }
-    return true;
+    return deepSeekConnection === "connected";
   };
   const selectedProviderReady = providerReady(fullBookProvider);
 
@@ -433,7 +453,7 @@ export default function FullBookTranslator() {
             <div className="flex items-center gap-2 mt-5 text-xs text-accent uppercase tracking-[0.18em]">
               <WandSparkles className="w-3.5 h-3.5" strokeWidth={1.5} /> Production desk
             </div>
-            <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl mt-2 tracking-tight">Full-book translation</h1>
+            <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl mt-2 tracking-tight">Book Translation Lab</h1>
             <p className="text-muted-foreground mt-3 max-w-[62ch] leading-relaxed">
               Prepare the whole novel first, then translate it as a single editorial project. No chapter-by-chapter reading required.
             </p>
@@ -564,6 +584,7 @@ export default function FullBookTranslator() {
                     label="DeepSeek"
                     description="Local proxy · no API key"
                     ready={providerReady("deepseek")}
+                    deepSeekConnection={deepSeekConnection}
                     selected={fullBookProvider === "deepseek"}
                     onSelect={() => setFullBookProvider("deepseek")}
                   />
@@ -655,6 +676,7 @@ function ProviderChoice({
   label,
   description,
   ready,
+  deepSeekConnection,
   selected,
   onSelect,
 }: {
@@ -662,6 +684,7 @@ function ProviderChoice({
   label: string;
   description: string;
   ready: boolean;
+  deepSeekConnection?: "checking" | "connected" | "not-connected";
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -671,18 +694,24 @@ function ProviderChoice({
       onClick={onSelect}
       aria-pressed={selected}
       className={cn(
-        "w-full text-left border p-3 transition-colors",
+        "min-w-0 w-full text-left border p-3 transition-colors",
         selected ? "border-foreground bg-foreground text-background" : "border-border hover:border-foreground/40",
         !ready && !selected ? "opacity-60" : "",
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium">{label}</span>
-        <span className={cn("text-[10px] uppercase tracking-[0.12em]", selected ? "text-background/70" : ready ? "text-emerald-400" : "text-amber-300")}>
-          {ready ? (id === "deepseek" ? "Configured" : "Ready") : "Needs setup"}
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 min-w-0">
+        <span className="min-w-0 break-words text-sm font-medium">{label}</span>
+        <span className={cn("shrink-0 text-[10px] uppercase tracking-[0.12em]", selected ? "text-background/70" : ready ? "text-emerald-400" : "text-amber-300")}>
+          {id === "deepseek"
+            ? deepSeekConnection === "checking"
+              ? "Checking…"
+              : deepSeekConnection === "connected"
+                ? "Connected"
+                : "Not connected"
+            : ready ? "Key ready" : "Needs setup"}
         </span>
       </div>
-      <div className={cn("mt-1 text-xs", selected ? "text-background/70" : "text-muted-foreground")}>{description}</div>
+      <div className={cn("mt-1 min-w-0 break-words whitespace-normal text-xs", selected ? "text-background/70" : "text-muted-foreground")}>{description}</div>
     </button>
   );
 }
